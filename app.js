@@ -125,7 +125,7 @@
       '<main class="login">' +
       '<section class="brand">' + PATTERN +
       '<div class="school">مدرسة الشيماء الثانوية للبنات</div>' +
-      '<div><h1>نوماس</h1><div class="tag">' + T1 + '</div>' +
+      '<div><h1><img src="icons/logo.png" alt="نوماس"></h1><div class="tag" style="margin-top:14px">' + T1 + '</div>' +
       '<div class="verse" style="margin-top:22px">' + VERSE + '</div><div class="vref">سورة القلم، الآية 4</div></div>' +
       '<div class="foot">منصة متابعة السلوك والانضباط وفق السياسة • العام الدراسي 2026 – 2027</div>' +
       '</section>' +
@@ -185,7 +185,7 @@
   function shell() {
     var me = S.me;
     app.innerHTML =
-      '<header class="top"><div style="display:flex;align-items:center;gap:16px"><span class="logo">نوماس</span><span class="tv verse">' + VERSE + '</span></div>' +
+      '<header class="top"><div style="display:flex;align-items:center;gap:16px"><span class="logo"><img src="icons/logo-bar.png" alt="نوماس"></span><span class="tv verse">' + VERSE + '</span></div>' +
       '<div class="right"><div class="who"><b>أ. ' + esc(me.name) + '</b><span>' + esc(me.roleLabel) + '</span></div>' +
       '<button class="iconbtn" id="bell" aria-label="الرسائل">' + ICON.bell + '<span class="badge hidden" id="bellBadge">0</span></button>' +
       '<button class="iconbtn" id="lo" aria-label="تسجيل الخروج">' + ICON.out + '</button></div></header>' +
