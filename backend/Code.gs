@@ -1,0 +1,981 @@
+/**
+ * منصة نوماس — متابعة السلوك والانضباط
+ * مدرسة الشيماء الثانوية للبنات — العام الدراسي 2026 – 2027
+ *
+ * الخادم (Google Apps Script) — يُلصق هذا الملف كاملًا في محرر Apps Script المرتبط بملف «قاعدة بيانات نوماس».
+ * كل البيانات (الطالبات، أولياء الأمور، الأرقام السرية، السجلات) محفوظة في ملف Google Sheets فقط،
+ * ولا يوجد أي منها في كود الموقع العلني.
+ */
+
+var TZ = 'Asia/Qatar';
+var VERSION = '1.0.0';
+
+/* ============================================================
+ *  أسماء الأوراق والأعمدة
+ * ============================================================ */
+var SH = {
+  settings: 'الإعدادات', users: 'المستخدمون', students: 'الطالبات', schedule: 'الجدول', sections: 'الشعب',
+  classViol: 'المخالفات الصفية', lists: 'القوائم', offViol: 'مخالفات السياسة', maxRep: 'الحد الأقصى',
+  texts: 'نصوص السياسة', roles: 'جهات السياسة', days: 'أيام الدراسة',
+  teacher: 'سجل المعلمات', cases: 'الحالات', tardy: 'سجل التأخير', messages: 'الرسائل', mailLog: 'سجل الإرسال'
+};
+
+var COLS = {
+  teacher: ['المعرف', 'وقت الإدخال', 'المعلمة', 'المادة', 'الشعبة', 'التاريخ', 'الطالبة', 'المخالفة',
+    'تم التنفيذ', 'التواصل مع ولي الأمر', 'تاريخ التواصل', 'ملاحظات', 'رقم التحويل', 'محذوف'],
+  cases: ['رقم الحالة', 'وقت الإنشاء', 'المصدر', 'رقم التحويل', 'المعلمة', 'التاريخ', 'الشعبة', 'الطالبة', 'المخالفة',
+    'سجّلتها', 'المشرفة: تاريخ التنفيذ', 'المشرفة: التواصل مع ولي الأمر', 'المشرفة: ملاحظات', 'المشرفة: من وثّقت',
+    'المنسقة: تاريخ التنفيذ', 'المنسقة: الإجراء المتخذ', 'المنسقة: ملاحظات',
+    'الاجتماعية: تاريخ التنفيذ', 'الاجتماعية: الإجراء المتخذ', 'الاجتماعية: ملاحظات',
+    'النفسية: تاريخ التنفيذ', 'النفسية: الإجراء المتخذ', 'النفسية: ملاحظات',
+    'الإدارة: تاريخ التنفيذ', 'الإدارة: الإجراء المتخذ', 'الإدارة: ملاحظات', 'محذوف'],
+  tardy: ['المعرف', 'وقت الإدخال', 'التاريخ', 'الشعبة', 'الطالبة', 'سجّلتها', 'ملاحظات', 'محذوف'],
+  messages: ['المعرف', 'الوقت', 'من', 'إلى', 'الموضوع', 'النص', 'الحالة', 'مقروءة', 'النوع', 'الرابط'],
+  mailLog: ['الوقت', 'إلى', 'الموضوع', 'النتيجة']
+};
+
+/* الأدوار في المنصة */
+var ROLE_OF = {
+  'معلمة': 'teacher', 'مشرفة إدارية': 'supervisor', 'منسقة شؤون الطالبات': 'coordinator',
+  'أخصائية اجتماعية': 'social', 'أخصائية نفسية': 'psych', 'الإدارة': 'admin', 'النائب الإداري': 'admin'
+};
+var ROLE_LABEL = { teacher: 'معلمة', supervisor: 'مشرفة إدارية', coordinator: 'منسقة شؤون الطالبات',
+  social: 'أخصائية اجتماعية', psych: 'أخصائية نفسية', admin: 'الإدارة' };
+/* ترتيب الإجراء في السياسة */
+var CHAIN = ['supervisor', 'coordinator', 'social', 'psych', 'admin'];
+var STAGE_PREFIX = { supervisor: 'المشرفة', coordinator: 'المنسقة', social: 'الاجتماعية', psych: 'النفسية', admin: 'الإدارة' };
+
+/* ============================================================
+ *  نقطة الدخول
+ * ============================================================ */
+function doGet(e) {
+  return out_({ ok: true, name: 'نوماس', version: VERSION });
+}
+
+function doPost(e) {
+  var req;
+  try {
+    req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+  } catch (err) {
+    return out_({ ok: false, error: 'طلب غير صالح' });
+  }
+  try {
+    var res = route_(req);
+    res.ok = true;
+    return out_(res);
+  } catch (err) {
+    return out_({ ok: false, error: String(err && err.message || err) });
+  }
+}
+
+function out_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
+var PUBLIC = { login: 1, ping: 1 };
+var WRITES = { recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+  recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1 };
+
+function route_(req) {
+  var a = req.action;
+  if (a === 'ping') return { name: 'نوماس', version: VERSION };
+  if (a === 'login') return login_(req);
+  var me = verify_(req.token);
+  var fn = API[a];
+  if (!fn) throw new Error('إجراء غير معروف');
+  if (WRITES[a]) {
+    var lock = LockService.getScriptLock();
+    lock.waitLock(20000);
+    try { var r = fn(me, req); flush_(); return r; } finally { lock.releaseLock(); }
+  }
+  return fn(me, req);
+}
+
+/* ============================================================
+ *  الدخول والجلسة
+ * ============================================================ */
+function secret_() {
+  var p = PropertiesService.getScriptProperties();
+  var s = p.getProperty('SECRET');
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); p.setProperty('SECRET', s); }
+  return s;
+}
+
+function sign_(payload) {
+  var body = Utilities.base64EncodeWebSafe(Utilities.newBlob(JSON.stringify(payload)).getBytes());
+  var sig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(body, secret_()));
+  return body + '.' + sig;
+}
+
+function verify_(token) {
+  if (!token || String(token).indexOf('.') < 0) throw new Error('AUTH');
+  var parts = String(token).split('.');
+  var sig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(parts[0], secret_()));
+  if (sig !== parts[1]) throw new Error('AUTH');
+  var p = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
+  if (!p.exp || p.exp < Date.now()) throw new Error('AUTH');
+  var u = findUser_(p.n, p.r);
+  if (!u) throw new Error('AUTH');
+  return u;
+}
+
+function login_(req) {
+  var role = String(req.role || ''), pin = String(req.pin || '').trim();
+  var cache = CacheService.getScriptCache();
+  var key = 'fail_' + role;
+  var fails = Number(cache.get(key) || 0);
+  if (fails >= 15) throw new Error('محاولات كثيرة، انتظري عشر دقائق ثم أعيدي المحاولة');
+  var match = users_().filter(function (u) { return u.role === role && u.pin === pin; });
+  if (match.length !== 1) {
+    cache.put(key, String(fails + 1), 600);
+    throw new Error('الرقم السري غير صحيح لهذه الصفة');
+  }
+  var u = match[0];
+  var days = Number(setting_('مدة الجلسة بالأيام', 30)) || 30;
+  return { token: sign_({ n: u.name, r: u.role, exp: Date.now() + days * 86400000 }), me: publicUser_(u) };
+}
+
+function publicUser_(u) {
+  return { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], sections: u.sections };
+}
+
+/* ============================================================
+ *  قراءة الأوراق
+ * ============================================================ */
+var _cache = {};
+function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+function sheet_(name) {
+  var s = ss_().getSheetByName(name);
+  if (!s) throw new Error('الورقة غير موجودة: ' + name);
+  return s;
+}
+function rows_(name) {
+  if (_cache[name]) return _cache[name];
+  var v = sheet_(name).getDataRange().getValues();
+  var head = v.shift().map(function (h) { return String(h).trim(); });
+  var list = v.filter(function (r) { return r.some(function (c) { return c !== '' && c !== null; }); })
+    .map(function (r, i) { var o = { _row: i + 2 }; head.forEach(function (h, j) { o[h] = r[j]; }); return o; });
+  _cache[name] = list;
+  return list;
+}
+function flush_() { _cache = {}; }
+function str_(v) { return v === null || v === undefined ? '' : String(v).trim(); }
+function iso_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, 'yyyy-MM-dd');
+  var s = str_(v);
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[0] : s;
+}
+function now_() { return Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss"); }
+function today_() { return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'); }
+
+function append_(name, cols, obj) {
+  var sh = sheet_(name);
+  sh.appendRow(cols.map(function (c) { return obj[c] === undefined ? '' : obj[c]; }));
+  delete _cache[name];
+}
+function update_(name, rowObj, changes) {
+  var sh = sheet_(name);
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim(); });
+  Object.keys(changes).forEach(function (k) {
+    var j = head.indexOf(k);
+    if (j < 0) throw new Error('عمود غير موجود: ' + k);
+    sh.getRange(rowObj._row, j + 1).setValue(changes[k]);
+  });
+  delete _cache[name];
+}
+
+function setting_(k, def) {
+  var r = rows_(SH.settings).filter(function (x) { return str_(x['المفتاح']) === k; })[0];
+  return r && str_(r['القيمة']) !== '' ? r['القيمة'] : def;
+}
+
+function users_() {
+  return rows_(SH.users).map(function (r) {
+    return { name: str_(r['الاسم']), roleAr: str_(r['الصفة']), role: ROLE_OF[str_(r['الصفة'])] || '',
+      email: str_(r['البريد الإلكتروني']), pin: str_(r['الرقم السري']),
+      sections: str_(r['الشعب']).split(/[،,]\s*/).map(str_).filter(String) };
+  }).filter(function (u) { return u.name && u.role; });
+}
+function findUser_(name, role) {
+  return users_().filter(function (u) { return u.name === name && u.role === role; })[0];
+}
+function usersByRole_(role) { return users_().filter(function (u) { return u.role === role; }); }
+
+/* ============================================================
+ *  محرك السياسة — مطابق لمنطق نظام Excel المعتمد
+ * ============================================================ */
+function policy_() {
+  if (_cache._policy) return _cache._policy;
+  var P = { classV: {}, classList: [], off: {}, offList: [], max: {}, texts: {}, roles: {} };
+  rows_(SH.classViol).forEach(function (r) {
+    var v = { label: str_(r['المخالفة']), code: str_(r['الرمز']), degree: str_(r['الدرجة']), max: Number(r['الحد الأقصى']) || 0,
+      steps: ['ت1', 'ت2', 'ت3', 'ت4', 'ت5', 'ت6'].map(function (k) { return str_(r[k]); }),
+      cat: Number(r['الفئة']) || 1, official: str_(r['البند في السياسة']) };
+    if (v.label) { P.classV[v.label] = v; P.classList.push(v); }
+  });
+  rows_(SH.offViol).forEach(function (r) {
+    var v = { name: str_(r['المخالفة']), code: str_(r['رمز الجدول']), short: str_(r['الاسم المختصر']),
+      degree: str_(r['الدرجة']).replace('الدرجة_', 'الدرجة ') };
+    if (v.name) { P.off[v.name] = v; P.offList.push(v); }
+  });
+  rows_(SH.maxRep).forEach(function (r) { if (str_(r['رمز الجدول'])) P.max[str_(r['رمز الجدول'])] = Number(r['أقصى تكرار']) || 0; });
+  rows_(SH.texts).forEach(function (r) {
+    var k = str_(r['مفتاح']);
+    if (k) P.texts[k] = {
+      teacher: str_(r['نص المعلمة']), supervisor: str_(r['نص المشرفة']), coordinator: str_(r['نص المنسقة/الفريق']),
+      social: str_(r['نص الاجتماعية']), psych: str_(r['نص النفسية']), admin: str_(r['نص الإدارة']) };
+  });
+  rows_(SH.roles).forEach(function (r) {
+    var k = str_(r['مفتاح']), who = str_(r['الجهة']);
+    if (!k) return;
+    (P.roles[k] = P.roles[k] || []).push(who);
+  });
+  _cache._policy = P;
+  return P;
+}
+
+/** مفتاح السياسة: رمز الجدول + رقم التكرار، أو «+» عند تجاوز أقصى تكرار */
+function policyKey_(code, rep) {
+  var P = policy_();
+  var mx = P.max[code] || 0;
+  return code + '|' + (mx && rep > mx ? '+' : rep);
+}
+
+/** الجهات المطلوبة للمفتاح — نفس شروط نظام Excel */
+function required_(key) {
+  var who = policy_().roles[key] || [];
+  var has = function (test) { return who.some(test); };
+  var t = policy_().texts[key] || {};
+  return {
+    supervisor: has(function (w) { return /^المشرف الإداري/.test(w) || w === 'ملاحظ الحافلة' || w === 'الحارس أو المناوب'; }),
+    coordinator: has(function (w) { return w === 'منسق شؤون الطلبة' || w === 'فريق إدارة سلوك الطلبة'; }),
+    social: has(function (w) { return /^الأخصائي الاجتماعي/.test(w); }),
+    psych: has(function (w) { return /^الأخصائي النفسي/.test(w); }),
+    admin: has(function (w) { return w === 'إدارة المدرسة'; }),
+    team: has(function (w) { return w === 'فريق إدارة سلوك الطلبة'; }),
+    guardian: /ولي الأمر/.test(t.supervisor || ''),
+    pledge: /تعهد/.test(t.supervisor || '')
+  };
+}
+
+/* ---------- أيام الدراسة والمهلة ---------- */
+function days_() {
+  if (_cache._days) return _cache._days;
+  var d = rows_(SH.days).map(function (r) { return iso_(r['التاريخ']); }).filter(String).sort();
+  _cache._days = d;
+  return d;
+}
+function isSchoolDay_(d) { return days_().indexOf(d) >= 0; }
+/** عدد الأيام الدراسية بعد التاريخ حتى اليوم */
+function schoolDaysSince_(d) {
+  var t = today_();
+  return days_().filter(function (x) { return x > d && x <= t; }).length;
+}
+/** آخر موعد = التاريخ + المهلة أيامًا دراسية */
+function deadline_(d) {
+  var g = Number(setting_('المهلة', 2)) || 2;
+  var list = days_().filter(function (x) { return x > d; });
+  return list.length >= g ? list[g - 1] : d;
+}
+function allowedDates_() {
+  var w = Number(setting_('نافذة التوثيق', 0)) || 0;
+  var all = days_();
+  if (!w) return all.filter(function (x) { return x <= today_(); });
+  var t = today_();
+  var past = all.filter(function (x) { return x <= t; }).slice(-(w + 1));
+  var future = all.filter(function (x) { return x > t; }).slice(0, w);
+  return past.concat(future);
+}
+function checkDate_(d) {
+  if (!d) throw new Error('اختاري التاريخ');
+  if (!isSchoolDay_(d)) throw new Error('التاريخ ليس يومًا دراسيًا');
+  if (allowedDates_().indexOf(d) < 0) throw new Error('التاريخ خارج نافذة التوثيق المسموح بها');
+}
+
+/* ---------- الطالبات والجدول ---------- */
+function students_() {
+  return rows_(SH.students).map(function (r) {
+    return { name: str_(r['الاسم']), section: str_(r['الشعبة']), guardian: str_(r['ولي الأمر']), phone: str_(r['هاتف ولي الأمر']) };
+  }).filter(function (s) { return s.name && s.section; });
+}
+function student_(name, section) {
+  return students_().filter(function (s) { return s.name === name && s.section === section; })[0];
+}
+function sectionInfo_(section) {
+  var r = rows_(SH.sections).filter(function (x) { return str_(x['الشعبة']) === section; })[0] || {};
+  var sups = str_(r['المشرفة/المشرفات']).split(/[،,]\s*/).map(str_).filter(String);
+  return { supervisors: sups, social: str_(r['الأخصائية الاجتماعية']) };
+}
+function allSections_() { return rows_(SH.sections).map(function (r) { return str_(r['الشعبة']); }).filter(String); }
+
+/* ============================================================
+ *  سجلات المعلمات (المخالفات الصفية)
+ * ============================================================ */
+function teacherRecords_() {
+  return rows_(SH.teacher).filter(function (r) { return str_(r['محذوف']) !== 'نعم'; });
+}
+function orderKey_(r, dateCol, timeCol) { return iso_(r[dateCol]) + '|' + str_(r[timeCol]) + '|' + str_(r['المعرف'] || r['رقم الحالة']); }
+
+/** يحسب كل ما يُشتق من سجل المعلمة: رقم التنبيه، الإجراء، ولي الأمر، التحويل، مفتاح السياسة */
+function enrichTeacher_(all) {
+  var P = policy_();
+  var sorted = all.slice().sort(function (a, b) { return orderKey_(a, 'التاريخ', 'وقت الإدخال') < orderKey_(b, 'التاريخ', 'وقت الإدخال') ? -1 : 1; });
+  var alertCount = {}, officialCount = {};
+  return sorted.map(function (r) {
+    var v = P.classV[str_(r['المخالفة'])] || {};
+    var date = iso_(r['التاريخ']);
+    var o = { id: str_(r['المعرف']), created: str_(r['وقت الإدخال']), teacher: str_(r['المعلمة']), subject: str_(r['المادة']),
+      section: str_(r['الشعبة']), date: date, student: str_(r['الطالبة']), violation: str_(r['المخالفة']),
+      degree: v.degree || '', cat: v.cat || 1, official: v.official || '',
+      done: str_(r['تم التنفيذ']), contact: str_(r['التواصل مع ولي الأمر']), contactDate: iso_(r['تاريخ التواصل']),
+      notes: str_(r['ملاحظات']), transferNo: str_(r['رقم التحويل']), _row: r._row };
+    var off = P.off[o.official] || {};
+    o.officialShort = off.short || o.official;
+    if (o.cat === 1) {
+      var k = [o.student, o.section, o.violation, o.subject].join('|');
+      alertCount[k] = (alertCount[k] || 0) + 1;
+      o.alert = alertCount[k];
+      if (o.alert > v.max) {
+        o.action = '⛔ تجاوز الحد الأقصى — يُرفع للمشرفة وفق اللائحة';
+      } else {
+        o.action = v.steps[o.alert - 1] || '';
+      }
+    } else {
+      o.alert = '';
+      o.action = 'بلاغ فوري للمشرفة — ' + String(v.steps[0] || '').replace('تنبيه انفرادي 1 + ', '');
+    }
+    o.guardianRequired = o.cat === 2 ? false : /ولي الأمر/.test(o.action);
+    o.guardianNote = o.cat === 2 ? 'تتولاه المشرفة' : (o.guardianRequired ? 'مطلوب' : 'لا يوجد إجراء مطلوب');
+    o.transferRequired = o.cat === 2 || /المشرف/.test(o.action) || (o.cat === 1 && o.alert > v.max);
+    o.kind = o.cat === 2 ? 'بلاغ' : 'تحويل';
+    // تكرار المخالفة في السياسة (لنص إجراء المشرفة المتوقع)
+    var ok = [o.student, o.section, o.official].join('|');
+    officialCount[ok] = (officialCount[ok] || 0) + 1;
+    var rep = o.cat === 1 ? o.alert : officialCount[ok];
+    o.policyKey = off.code ? policyKey_(off.code, rep) : '';
+    o.teacherPolicyText = (P.texts[o.policyKey] || {}).teacher || '';
+    o.supervisorPolicyText = (P.texts[o.policyKey] || {}).supervisor || '';
+    // المتابعة
+    var due = deadline_(date);
+    o.due = due;
+    var late = today_() > due;
+    if (o.done !== 'نعم') o.status = late ? { code: 'late', text: '⛔ متأخر: لم يُوثَّق تنفيذ إجراء المعلمة' } : { code: 'todo', text: '⏳ وثّقي تنفيذ الإجراء' };
+    else if (o.guardianRequired && (!o.contact || !o.contactDate)) o.status = late ? { code: 'late', text: '⛔ متأخر: لم يُوثَّق التواصل مع ولي الأمر' } : { code: 'todo', text: '⏳ وثّقي التواصل مع ولي الأمر وتاريخه' };
+    else o.status = { code: 'done', text: '✔ موثّق' };
+    // الالتزام: 1 في الوقت، 2 متأخر، 3 لم يُنفّذ بعد انتهاء المهلة، 4 ضمن المهلة
+    var docDate = o.guardianRequired ? o.contactDate : (o.done === 'نعم' ? date : '');
+    o.compliance = o.status.code === 'done' ? (o.guardianRequired && o.contactDate > due ? 2 : 1) : (late ? 3 : 4);
+    return o;
+  });
+}
+
+/* ============================================================
+ *  الحالات الرسمية (صفحات المشرفة ومن بعدها)
+ * ============================================================ */
+function caseRows_() { return rows_(SH.cases).filter(function (r) { return str_(r['محذوف']) !== 'نعم'; }); }
+
+function enrichCases_(all, teacherIndex) {
+  var P = policy_();
+  var tIdx = teacherIndex || {};
+  var sorted = all.slice().sort(function (a, b) { return orderKey_(a, 'التاريخ', 'وقت الإنشاء') < orderKey_(b, 'التاريخ', 'وقت الإنشاء') ? -1 : 1; });
+  var count = {};
+  return sorted.map(function (r) {
+    var off = P.off[str_(r['المخالفة'])] || {};
+    var c = { id: str_(r['رقم الحالة']), created: str_(r['وقت الإنشاء']), source: str_(r['المصدر']), transferNo: str_(r['رقم التحويل']),
+      teacher: str_(r['المعلمة']), date: iso_(r['التاريخ']), section: str_(r['الشعبة']), student: str_(r['الطالبة']),
+      violation: str_(r['المخالفة']), short: off.short || str_(r['المخالفة']), degree: off.degree || '', code: off.code || '',
+      by: str_(r['سجّلتها']), _row: r._row, doc: {} };
+    CHAIN.forEach(function (st) {
+      var p = STAGE_PREFIX[st];
+      c.doc[st] = { date: iso_(r[p + ': تاريخ التنفيذ']),
+        action: str_(r[p + ': الإجراء المتخذ'] || ''), contact: str_(r[p + ': التواصل مع ولي الأمر'] || ''),
+        notes: str_(r[p + ': ملاحظات']), who: str_(r[p + ': من وثّقت'] || '') };
+    });
+    // التكرار: من تنبيه المعلمة في التحويل الصفي، وإلا بعدد مرات المخالفة نفسها للطالبة
+    var k = [c.student, c.section, c.violation].join('|');
+    count[k] = (count[k] || 0) + 1;
+    var t = c.transferNo ? tIdx[c.transferNo] : null;
+    c.rep = (t && t.cat === 1 && Number(t.alert)) ? Number(t.alert) : count[k];
+    c.key = c.code ? policyKey_(c.code, c.rep) : '';
+    c.req = c.key ? required_(c.key) : {};
+    var tx = P.texts[c.key] || {};
+    c.text = { teacher: tx.teacher, supervisor: tx.supervisor, coordinator: tx.coordinator, social: tx.social, psych: tx.psych, admin: tx.admin };
+    c.teacherDid = t ? (t.done === 'نعم' ? 'نُفّذ' : 'لم يُوثَّق') + (t.contact ? ' • ' + t.contact : '') + (t.notes ? ' • ' + t.notes : '') : '';
+    c.teacherAlert = t ? (t.cat === 1 ? 'التنبيه ' + t.alert : 'بلاغ') : '';
+    var info = sectionInfo_(c.section);
+    c.supervisors = info.supervisors; c.social = info.social;
+    var stu = student_(c.student, c.section) || {};
+    c.guardian = stu.guardian ? stu.guardian + (stu.phone ? ' ☎ ' + stu.phone : '') : '';
+    computeStages_(c);
+    return c;
+  });
+}
+
+/** يحدد لكل جهة: مطلوبة؟ دورها بدأ؟ موثّقة؟ آخر موعد؟ — بالترتيب: المشرفة ← المنسقة ← الاجتماعية ← النفسية ← الإدارة */
+function computeStages_(c) {
+  var prevDone = c.date; // يبدأ دور أول جهة من تاريخ المخالفة
+  var blocked = false;
+  c.stages = {};
+  CHAIN.forEach(function (st) {
+    var need = !!c.req[st];
+    var d = c.doc[st];
+    var documented = need && !!d.date && (st !== 'supervisor' || !c.req.guardian || !!d.contact);
+    var s = { need: need, documented: documented, open: false, start: '', due: '', late: false, compliance: 0 };
+    if (need) {
+      s.open = !blocked;            // دورها بدأ عندما اكتملت كل الجهات قبلها
+      s.start = prevDone;
+      s.due = deadline_(prevDone);
+      if (documented) {
+        s.compliance = d.date <= s.due ? 1 : 2;
+        prevDone = d.date > prevDone ? d.date : prevDone;
+      } else {
+        s.late = s.open && today_() > s.due;
+        s.compliance = s.open ? (s.late ? 3 : 4) : 5; // 5 = لم يحن دورها بعد
+        blocked = true;
+      }
+    }
+    c.stages[st] = s;
+  });
+  var pending = CHAIN.filter(function (st) { return c.stages[st].need && !c.stages[st].documented; });
+  var lateNow = pending.filter(function (st) { return c.stages[st].late; });
+  c.pending = pending;
+  c.next = pending[0] || '';
+  if (!pending.length) c.status = { code: 'done', text: '✔ اكتملت الإجراءات' };
+  else if (lateNow.length) c.status = { code: 'late', text: '⛔ متأخر: ' + lateNow.map(function (s) { return STAGE_PREFIX[s]; }).join(' • ') };
+  else c.status = { code: 'wait', text: '⏳ بانتظار: ' + STAGE_PREFIX[pending[0]] };
+}
+
+function allData_() {
+  if (_cache._all) return _cache._all;
+  var t = enrichTeacher_(teacherRecords_());
+  var idx = {};
+  t.forEach(function (r) { if (r.transferNo) idx[r.transferNo] = r; });
+  var c = enrichCases_(caseRows_(), idx);
+  var byTransfer = {};
+  c.forEach(function (x) { if (x.transferNo) byTransfer[x.transferNo] = x; });
+  t.forEach(function (r) {
+    var cs = r.transferNo ? byTransfer[r.transferNo] : null;
+    r.caseId = cs ? cs.id : '';
+    r.caseStatus = cs ? cs.status.text : '';
+    r.after = cs ? caseSummary_(cs) : '';
+  });
+  _cache._all = { teacher: t, cases: c };
+  return _cache._all;
+}
+
+function caseSummary_(c) {
+  var parts = [];
+  CHAIN.forEach(function (st) {
+    var s = c.stages[st];
+    if (!s.need) return;
+    parts.push(STAGE_PREFIX[st] + ': ' + (s.documented ? 'نُفّذ ' + arDate_(c.doc[st].date) : (s.open ? 'بانتظار' : 'لم يحن دورها')));
+  });
+  return parts.join(' • ');
+}
+
+var MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+function arDate_(d) {
+  if (!d) return '';
+  var p = d.split('-');
+  return Number(p[2]) + ' ' + MONTHS[Number(p[1]) - 1];
+}
+
+/* ============================================================
+ *  الرسائل والتنبيهات (داخل المنصة + نسخة على البريد)
+ * ============================================================ */
+function notify_(toNames, subject, body, caseId, kind, link) {
+  var from = 'منصة نوماس';
+  (toNames || []).filter(String).forEach(function (to) {
+    append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': now_(), 'من': from, 'إلى': to,
+      'الموضوع': subject, 'النص': body, 'الحالة': caseId || '', 'مقروءة': '', 'النوع': kind || 'تنبيه', 'الرابط': link || '' });
+    email_(to, subject, body);
+  });
+}
+
+function email_(toName, subject, body) {
+  var mode = str_(setting_('إرسال البريد', 'تلقائي'));
+  if (mode !== 'تلقائي') return;
+  var u = users_().filter(function (x) { return x.name === toName && x.email; })[0];
+  if (!u) return;
+  var res = 'تم';
+  try {
+    var site = str_(setting_('رابط المنصة', ''));
+    var html = '<div dir="rtl" style="font-family:Tahoma,Arial;font-size:15px;line-height:1.9;text-align:right">' +
+      esc_(body).replace(/\n/g, '<br>') +
+      (site ? '<br><br><a href="' + site + '">فتح منصة نوماس</a>' : '') +
+      '<br><br><span style="color:#777;font-size:12px">حيث يُصان السَّنع، ويُبنى النوماس — مدرسة الشيماء الثانوية للبنات</span></div>';
+    MailApp.sendEmail({ to: u.email, subject: subject, body: body + (site ? '\n\n' + site : ''), htmlBody: html, name: 'منصة نوماس' });
+  } catch (err) { res = 'تعذّر: ' + err; }
+  append_(SH.mailLog, COLS.mailLog, { 'الوقت': now_(), 'إلى': u.email, 'الموضوع': subject, 'النتيجة': res });
+}
+function esc_(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+/** يرسل لكل جهة جاء دورها بعد التحديث، مرة واحدة فقط */
+function notifyStageOpen_(c) {
+  var st = c.next;
+  if (!st) return;
+  var to = stageOwners_(c, st);
+  var subj = 'حالة ' + c.id + ' بانتظار إجرائكِ — ' + c.student + ' (' + c.section + ')';
+  var body = 'السلام عليكم ورحمة الله وبركاته،\n' +
+    'نشكر لكِ جهودكِ المخلصة وحرصكِ الدائم على متابعة طالباتنا، ونحيطكِ علمًا بوصول الحالة الآتية إليكِ وفق السياسة:\n' +
+    '• الطالبة: ' + c.student + ' — الشعبة ' + c.section + '\n' +
+    '• المخالفة: ' + c.violation + ' — التكرار ' + c.rep + '\n' +
+    '• تاريخ المخالفة: ' + arDate_(c.date) + '\n' +
+    '• المطلوب منكِ حسب السياسة: ' + (c.text[st] || '') + '\n' +
+    (st === 'coordinator' && c.req.pledge ? '📎 مرفق: التعهد الخطي للطالبة (تسلّمه المشرفة)\n' : '') +
+    'يرجى تنفيذ الإجراء وتوثيقه في المنصة خلال المهلة المعتمدة.\n' +
+    'وتفضلوا بقبول فائق الاحترام والتقدير،';
+  notify_(to, subj, body, c.id, 'حالة', st);
+}
+
+function stageOwners_(c, st) {
+  if (st === 'supervisor') return c.supervisors;
+  if (st === 'coordinator') return usersByRole_('coordinator').map(function (u) { return u.name; });
+  if (st === 'social') return c.social ? [c.social] : usersByRole_('social').map(function (u) { return u.name; });
+  if (st === 'psych') return usersByRole_('psych').map(function (u) { return u.name; });
+  if (st === 'admin') return usersByRole_('admin').map(function (u) { return u.name; });
+  return [];
+}
+
+/* ============================================================
+ *  الواجهات (API)
+ * ============================================================ */
+var API = {};
+
+API.me = function (me) {
+  return { me: publicUser_(me) };
+};
+
+/** بيانات البدء لكل دور + المهام المعلّقة للنافذة الأولى */
+API.bootstrap = function (me) {
+  var P = policy_();
+  var data = allData_();
+  var res = { me: publicUser_(me), today: today_(), dates: allowedDates_(), deadlineDays: Number(setting_('المهلة', 2)) || 2,
+    lists: lists_(), staff: users_().map(function (u) { return { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role] }; }) };
+  if (me.role === 'teacher') {
+    var asg = rows_(SH.schedule).filter(function (r) { return str_(r['المعلمة']) === me.name; })
+      .map(function (r) { return { section: str_(r['الشعبة']), subject: str_(r['المادة']) }; });
+    var secs = {};
+    asg.forEach(function (a) { secs[a.section] = 1; });
+    res.assignments = asg;
+    res.students = studentsFor_(Object.keys(secs));
+    res.violations = P.classList.map(function (v) {
+      return { label: v.label, degree: v.degree, cat: v.cat, max: v.max, official: v.official, steps: v.steps };
+    });
+    res.records = data.teacher.filter(function (r) { return r.teacher === me.name; }).map(teacherPublic_).reverse();
+  } else {
+    res.sections = sectionsFor_(me);
+    res.students = studentsFor_(res.sections);
+    res.violations = P.offList.map(function (v) { return { label: v.name, short: v.short, degree: v.degree, code: v.code }; });
+    res.cases = casesFor_(me, data.cases).map(casePublic_);
+    if (me.role === 'supervisor' || me.role === 'admin') res.tardy = tardyFor_(me).slice(-300).reverse();
+  }
+  res.tasks = tasks_(me, data);
+  res.unread = unread_(me);
+  return res;
+};
+
+function lists_() {
+  var out = {};
+  var r = rows_(SH.lists);
+  ['التواصل مع ولي الأمر', 'ملاحظات المعلمة', 'إجراءات المنسقة', 'إجراءات الاجتماعية', 'إجراءات النفسية'].forEach(function (k) {
+    out[k] = r.map(function (x) { return str_(x[k]); }).filter(String);
+  });
+  out['تواصل المشرفة'] = ['هاتفيًا', 'رسالة نصية', 'حضور ولي الأمر', 'لم يرد ولي الأمر'];
+  out['إجراءات الإدارة'] = ['اجتماع فريق إدارة سلوك الطلبة', 'استدعاء ولي الأمر', 'إيقاف تعليمي وفق السياسة', 'إحالة لقسم حماية ورعاية الطلبة', 'أخرى (اكتبيها)'];
+  return out;
+}
+
+function sectionsFor_(me) {
+  if (me.role === 'supervisor') {
+    return allSections_().filter(function (s) { return sectionInfo_(s).supervisors.indexOf(me.name) >= 0; });
+  }
+  if (me.role === 'social') {
+    return allSections_().filter(function (s) { return sectionInfo_(s).social === me.name; });
+  }
+  return allSections_();
+}
+function studentsFor_(secs) {
+  var out = {};
+  secs.forEach(function (s) { out[s] = []; });
+  students_().forEach(function (st) { if (out[st.section]) out[st.section].push(st.name); });
+  return out;
+}
+
+function teacherPublic_(r) {
+  return { id: r.id, subject: r.subject, section: r.section, date: r.date, student: r.student, violation: r.violation,
+    degree: r.degree, cat: r.cat, alert: r.alert, action: r.action, guardianRequired: r.guardianRequired, guardianNote: r.guardianNote,
+    done: r.done, contact: r.contact, contactDate: r.contactDate, notes: r.notes, transferNo: r.transferNo, kind: r.kind,
+    transferRequired: r.transferRequired, status: r.status, due: r.due, caseId: r.caseId, caseStatus: r.caseStatus, after: r.after,
+    teacherPolicyText: r.teacherPolicyText };
+}
+
+function casePublic_(c) {
+  return { id: c.id, source: c.source, transferNo: c.transferNo, teacher: c.teacher, date: c.date, section: c.section,
+    student: c.student, violation: c.violation, short: c.short, degree: c.degree, rep: c.rep, key: c.key, req: c.req, text: c.text,
+    doc: c.doc, stages: c.stages, status: c.status, next: c.next, teacherDid: c.teacherDid, teacherAlert: c.teacherAlert,
+    guardian: c.guardian, supervisors: c.supervisors, social: c.social, by: c.by };
+}
+
+/** الحالات التي تخص المستخدمة */
+function casesFor_(me, cases) {
+  if (me.role === 'admin') return cases;
+  if (me.role === 'supervisor') return cases.filter(function (c) { return c.supervisors.indexOf(me.name) >= 0; });
+  if (me.role === 'coordinator') return cases.filter(function (c) { return c.req.coordinator; });
+  if (me.role === 'social') return cases.filter(function (c) { return c.req.social && (c.social === me.name || !c.social); });
+  if (me.role === 'psych') return cases.filter(function (c) { return c.req.psych; });
+  return [];
+}
+
+/** المهام المعلّقة — تظهر في النافذة الأولى بعد الدخول */
+function tasks_(me, data) {
+  var list = [];
+  if (me.role === 'teacher') {
+    data.teacher.filter(function (r) { return r.teacher === me.name && r.status.code !== 'done'; }).forEach(function (r) {
+      list.push({ type: 'teacher', id: r.id, title: r.student + ' — ' + r.section, sub: r.status.text, late: r.status.code === 'late' });
+    });
+  } else {
+    var st = me.role;
+    casesFor_(me, data.cases).forEach(function (c) {
+      var s = c.stages[st];
+      if (s && s.need && s.open && !s.documented) {
+        list.push({ type: 'case', id: c.id, title: c.student + ' — ' + c.section, sub: c.short + ' • التكرار ' + c.rep + (s.late ? ' • ⛔ متأخر' : ' • آخر موعد ' + arDate_(s.due)), late: s.late });
+      }
+    });
+  }
+  list.sort(function (a, b) { return (b.late ? 1 : 0) - (a.late ? 1 : 0); });
+  return list;
+}
+
+function unread_(me) {
+  return rows_(SH.messages).filter(function (m) { return str_(m['إلى']) === me.name && str_(m['مقروءة']) !== 'نعم'; }).length;
+}
+
+/** نبض كل دقيقة: عدد الرسائل غير المقروءة والمهام — لتشغيل التنبيه الصوتي */
+API.poll = function (me) {
+  var data = allData_();
+  var msgs = rows_(SH.messages).filter(function (m) { return str_(m['إلى']) === me.name && str_(m['مقروءة']) !== 'نعم'; });
+  var last = msgs.length ? msgs[msgs.length - 1] : null;
+  return { unread: msgs.length, tasks: tasks_(me, data).length, last: last ? { subject: str_(last['الموضوع']), time: str_(last['الوقت']) } : null };
+};
+
+/* ---------- المعلمة ---------- */
+API.recordTeacher = function (me, req) {
+  if (me.role !== 'teacher') throw new Error('هذه الصفحة للمعلمات');
+  var P = policy_();
+  var subject = str_(req.subject), section = str_(req.section), date = str_(req.date), student = str_(req.student), viol = str_(req.violation);
+  var ok = rows_(SH.schedule).some(function (r) { return str_(r['المعلمة']) === me.name && str_(r['الشعبة']) === section && str_(r['المادة']) === subject; });
+  if (!ok) throw new Error('المادة غير مقررة لكِ في هذه الشعبة');
+  checkDate_(date);
+  if (!student_(student, section)) throw new Error('الطالبة لا تتبع الشعبة المختارة');
+  if (!P.classV[viol]) throw new Error('المخالفة غير موجودة في القائمة');
+  var id = 'م-' + pad_(rows_(SH.teacher).length + 1, 4);
+  append_(SH.teacher, COLS.teacher, { 'المعرف': id, 'وقت الإدخال': now_(), 'المعلمة': me.name, 'المادة': subject, 'الشعبة': section,
+    'التاريخ': date, 'الطالبة': student, 'المخالفة': viol });
+  flush_();
+  var rec = allData_().teacher.filter(function (r) { return r.id === id; })[0];
+  var stu = student_(student, section);
+  return { record: teacherPublic_(rec), guardian: rec.guardianRequired ? { name: stu.guardian, phone: stu.phone } : null };
+};
+
+/** توثيق المعلمة: التنفيذ والتواصل والملاحظات، ثم التحويل التلقائي للمشرفة إن طلبته السياسة */
+API.updateTeacher = function (me, req) {
+  var r = teacherRecords_().filter(function (x) { return str_(x['المعرف']) === str_(req.id) && str_(x['المعلمة']) === me.name; })[0];
+  if (!r) throw new Error('السجل غير موجود');
+  var ch = {};
+  if (req.done !== undefined) ch['تم التنفيذ'] = str_(req.done);
+  if (req.contact !== undefined) ch['التواصل مع ولي الأمر'] = str_(req.contact);
+  if (req.contactDate !== undefined) { if (req.contactDate) checkDate_(str_(req.contactDate)); ch['تاريخ التواصل'] = str_(req.contactDate); }
+  if (req.notes !== undefined) ch['ملاحظات'] = str_(req.notes);
+  update_(SH.teacher, r, ch);
+  flush_();
+  var rec = allData_().teacher.filter(function (x) { return x.id === str_(req.id); })[0];
+  var transferred = null;
+  if (rec.transferRequired && !rec.transferNo && rec.done === 'نعم') transferred = transfer_(me, rec);
+  flush_();
+  rec = allData_().teacher.filter(function (x) { return x.id === str_(req.id); })[0];
+  return { record: teacherPublic_(rec), transferred: transferred };
+};
+
+function transfer_(me, rec) {
+  var P = policy_();
+  var tno = 'ت-' + pad_(rows_(SH.teacher).filter(function (x) { return str_(x['رقم التحويل']); }).length + 1, 4);
+  var row = teacherRecords_().filter(function (x) { return str_(x['المعرف']) === rec.id; })[0];
+  update_(SH.teacher, row, { 'رقم التحويل': tno });
+  if (!P.off[rec.official]) throw new Error('بند السياسة غير معرّف لهذه المخالفة');
+  var cid = newCaseId_();
+  append_(SH.cases, COLS.cases, { 'رقم الحالة': cid, 'وقت الإنشاء': now_(), 'المصدر': 'داخل الصف', 'رقم التحويل': tno, 'المعلمة': me.name,
+    'التاريخ': rec.date, 'الشعبة': rec.section, 'الطالبة': rec.student, 'المخالفة': rec.official, 'سجّلتها': me.name });
+  flush_();
+  var c = allData_().cases.filter(function (x) { return x.id === cid; })[0];
+  // رسالة المعلمة للمشرفة — نفس صياغة النظام المعتمد
+  var t = allData_().teacher.filter(function (x) { return x.id === rec.id; })[0];
+  var subj = (t.cat === 2 ? 'بلاغ ' : 'تحويل ') + tno + ' — ' + rec.student + ' (' + rec.section + ')';
+  var body = 'الأستاذة الفاضلة المحترمة،\nالسلام عليكم ورحمة الله وبركاته،\n' +
+    'نشكر لكِ جهودكِ المخلصة وحرصكِ الدائم على متابعة انضباط طالباتنا، ونحيطكِ علمًا ب' + (t.cat === 2 ? 'بلاغ مخالفة سلوكية' : 'تحويل مخالفة صفية') + ' رقم ' + tno + ' وفق التفاصيل الآتية:\n' +
+    '• الطالبة: ' + rec.student + ' — الشعبة ' + rec.section + '\n' +
+    '• المخالفة: ' + rec.official + (t.cat === 1 ? ' — التنبيه ' + t.alert : '') + '\n' +
+    '• التاريخ والمادة: ' + arDate_(rec.date) + ' — ' + rec.subject.replace(/\s*\(.*\)$/, '') + '\n' +
+    '• ما قامت به المعلمة: ' + (t.done === 'نعم' ? 'نُفّذ الإجراء' : 'لم يُوثَّق التنفيذ') + (t.contact ? ' • ' + t.contact : '') + (t.notes ? ' • ' + t.notes : '') + '\n' +
+    '• المطلوب منكِ حسب السياسة: ' + (c.text.supervisor || 'يُحدَّد عند القيد') + '\n' +
+    'الحالة ظاهرة في صفحتكِ بالمنصة برقم ' + c.id + '، يرجى اتخاذ الإجراء وتوثيقه خلال المهلة المعتمدة.\n' +
+    'وتفضلوا بقبول فائق الاحترام والتقدير،\nالمعلمة/ ' + me.name;
+  notify_(c.supervisors, subj, body, c.id, 'تحويل', 'supervisor');
+  return { transferNo: tno, caseId: cid, supervisors: c.supervisors };
+}
+
+/** بيانات ولي الأمر لسجل المعلمة — تظهر فقط إذا كان التواصل من إجرائها حسب السياسة */
+API.guardianFor = function (me, req) {
+  var rec = allData_().teacher.filter(function (x) { return x.id === str_(req.id) && x.teacher === me.name; })[0];
+  if (!rec) throw new Error('السجل غير موجود');
+  if (!rec.guardianRequired) return { guardian: null };
+  var stu = student_(rec.student, rec.section) || {};
+  return { guardian: { name: stu.guardian, phone: stu.phone } };
+};
+
+API.deleteTeacher = function (me, req) {
+  var r = teacherRecords_().filter(function (x) { return str_(x['المعرف']) === str_(req.id) && str_(x['المعلمة']) === me.name; })[0];
+  if (!r) throw new Error('السجل غير موجود');
+  if (str_(r['رقم التحويل'])) throw new Error('لا يمكن حذف سجل بعد تحويله — للتصحيح تواصلي مع المشرفة');
+  update_(SH.teacher, r, { 'محذوف': 'نعم' });
+  return { deleted: true };
+};
+
+/* ---------- المشرفة: حالة خارج الصف ---------- */
+API.createCase = function (me, req) {
+  if (me.role !== 'supervisor' && me.role !== 'admin') throw new Error('تسجيل المخالفات خارج الصف للمشرفات');
+  var P = policy_();
+  var section = str_(req.section), date = str_(req.date), student = str_(req.student), viol = str_(req.violation);
+  if (me.role === 'supervisor' && sectionsFor_(me).indexOf(section) < 0) throw new Error('الشعبة ليست ضمن شعبكِ');
+  checkDate_(date);
+  if (!student_(student, section)) throw new Error('الطالبة لا تتبع الشعبة المختارة');
+  if (!P.off[viol]) throw new Error('المخالفة غير موجودة في السياسة');
+  var cid = newCaseId_();
+  append_(SH.cases, COLS.cases, { 'رقم الحالة': cid, 'وقت الإنشاء': now_(), 'المصدر': 'خارج الصف', 'التاريخ': date, 'الشعبة': section,
+    'الطالبة': student, 'المخالفة': viol, 'سجّلتها': me.name });
+  flush_();
+  var c = allData_().cases.filter(function (x) { return x.id === cid; })[0];
+  if (c.next && c.next !== 'supervisor') notifyStageOpen_(c);
+  return { case: casePublic_(c) };
+};
+
+function newCaseId_() {
+  return 'ح-' + pad_(rows_(SH.cases).length + 1, 4);
+}
+function pad_(n, w) { var s = String(n); while (s.length < w) s = '0' + s; return s; }
+
+/** توثيق أي جهة لدورها في الحالة */
+API.documentCase = function (me, req) {
+  var st = me.role === 'admin' ? 'admin' : me.role;
+  if (CHAIN.indexOf(st) < 0) throw new Error('لا يوجد دور توثيق لهذه الصفة');
+  var c = allData_().cases.filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!c) throw new Error('الحالة غير موجودة');
+  if (casesFor_(me, [c]).length === 0) throw new Error('الحالة لا تخصكِ');
+  var s = c.stages[st];
+  if (!s || !s.need) throw new Error('لا يوجد إجراء مطلوب منكِ في هذه الحالة حسب السياسة');
+  if (!s.open) throw new Error('لم يحن دوركِ بعد — بانتظار ' + STAGE_PREFIX[c.next]);
+  var d = str_(req.date);
+  if (d) { checkDate_(d); if (d < c.date) throw new Error('تاريخ التنفيذ قبل تاريخ المخالفة'); }
+  var p = STAGE_PREFIX[st], ch = {};
+  ch[p + ': تاريخ التنفيذ'] = d;
+  ch[p + ': ملاحظات'] = str_(req.notes);
+  if (st === 'supervisor') { ch['المشرفة: التواصل مع ولي الأمر'] = str_(req.contact); ch['المشرفة: من وثّقت'] = me.name; }
+  else ch[p + ': الإجراء المتخذ'] = str_(req.taken);
+  if (st === 'supervisor' && c.req.guardian && d && !str_(req.contact)) throw new Error('السياسة تطلب التواصل مع ولي الأمر — اختاري طريقة التواصل');
+  var row = caseRows_().filter(function (x) { return str_(x['رقم الحالة']) === c.id; })[0];
+  var before = c.next;
+  update_(SH.cases, row, ch);
+  flush_();
+  var c2 = allData_().cases.filter(function (x) { return x.id === c.id; })[0];
+  if (c2.next && c2.next !== before) notifyStageOpen_(c2);
+  if (!c2.next && before && c2.teacher) {
+    notify_([c2.teacher], 'اكتملت إجراءات الحالة ' + c2.id, 'نحيطكِ علمًا باكتمال جميع الإجراءات المطلوبة وفق السياسة للحالة ' + c2.id +
+      ' (الطالبة ' + c2.student + ' — الشعبة ' + c2.section + ').\nلأنّ الطِّيب نوماس.', c2.id, 'إشعار', 'teacher');
+  }
+  return { case: casePublic_(c2) };
+};
+
+API.deleteCase = function (me, req) {
+  var c = allData_().cases.filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!c) throw new Error('الحالة غير موجودة');
+  if (me.role !== 'admin' && !(me.role === 'supervisor' && c.by === me.name && !c.transferNo && !CHAIN.some(function (s) { return c.doc[s].date; })))
+    throw new Error('لا يمكن حذف الحالة بعد توثيقها — تواصلي مع الإدارة');
+  var row = caseRows_().filter(function (x) { return str_(x['رقم الحالة']) === c.id; })[0];
+  update_(SH.cases, row, { 'محذوف': 'نعم' });
+  return { deleted: true };
+};
+
+/* ---------- سجل التأخير الصباحي ---------- */
+function tardyRows_() { return rows_(SH.tardy).filter(function (r) { return str_(r['محذوف']) !== 'نعم'; }); }
+function tardyFor_(me) {
+  var secs = sectionsFor_(me);
+  var cnt = {};
+  return tardyRows_().slice().sort(function (a, b) { return orderKey_(a, 'التاريخ', 'وقت الإدخال') < orderKey_(b, 'التاريخ', 'وقت الإدخال') ? -1 : 1; })
+    .map(function (r) {
+      var k = str_(r['الطالبة']) + '|' + str_(r['الشعبة']);
+      cnt[k] = (cnt[k] || 0) + 1;
+      return { id: str_(r['المعرف']), date: iso_(r['التاريخ']), section: str_(r['الشعبة']), student: str_(r['الطالبة']), by: str_(r['سجّلتها']),
+        notes: str_(r['ملاحظات']), n: cnt[k] };
+    }).filter(function (r) { return secs.indexOf(r.section) >= 0; });
+}
+API.recordTardy = function (me, req) {
+  if (me.role !== 'supervisor' && me.role !== 'admin') throw new Error('سجل التأخير للمشرفات');
+  var section = str_(req.section), date = str_(req.date), list = req.students || [req.student];
+  if (me.role === 'supervisor' && sectionsFor_(me).indexOf(section) < 0) throw new Error('الشعبة ليست ضمن شعبكِ');
+  checkDate_(date);
+  var added = 0;
+  list.map(str_).filter(String).forEach(function (s) {
+    if (!student_(s, section)) throw new Error('الطالبة لا تتبع الشعبة المختارة: ' + s);
+    append_(SH.tardy, COLS.tardy, { 'المعرف': 'ت-ص-' + Utilities.getUuid().slice(0, 6), 'وقت الإدخال': now_(), 'التاريخ': date, 'الشعبة': section,
+      'الطالبة': s, 'سجّلتها': me.name, 'ملاحظات': str_(req.notes) });
+    added++;
+  });
+  flush_();
+  return { added: added, tardy: tardyFor_(me).slice(-300).reverse() };
+};
+API.deleteTardy = function (me, req) {
+  var r = tardyRows_().filter(function (x) { return str_(x['المعرف']) === str_(req.id); })[0];
+  if (!r) throw new Error('السجل غير موجود');
+  if (me.role !== 'admin' && str_(r['سجّلتها']) !== me.name) throw new Error('يمكن حذف سجلاتكِ فقط');
+  update_(SH.tardy, r, { 'محذوف': 'نعم' });
+  return { deleted: true };
+};
+
+/* ---------- الرسائل ---------- */
+API.messages = function (me) {
+  var all = rows_(SH.messages);
+  var inbox = all.filter(function (m) { return str_(m['إلى']) === me.name; });
+  var sent = all.filter(function (m) { return str_(m['من']) === me.name; });
+  var map = function (m) {
+    return { id: str_(m['المعرف']), time: str_(m['الوقت']), from: str_(m['من']), to: str_(m['إلى']), subject: str_(m['الموضوع']),
+      body: str_(m['النص']), caseId: str_(m['الحالة']), read: str_(m['مقروءة']) === 'نعم', kind: str_(m['النوع']) };
+  };
+  return { inbox: inbox.map(map).reverse().slice(0, 200), sent: sent.map(map).reverse().slice(0, 100) };
+};
+API.sendMessage = function (me, req) {
+  var to = (req.to || []).map(str_).filter(String);
+  if (!to.length) throw new Error('اختاري المرسَل إليها');
+  var valid = users_().map(function (u) { return u.name; });
+  to.forEach(function (n) { if (valid.indexOf(n) < 0) throw new Error('اسم غير موجود: ' + n); });
+  var subject = str_(req.subject) || 'رسالة من ' + me.name, body = str_(req.body);
+  if (!body) throw new Error('اكتبي نص الرسالة');
+  to.forEach(function (n) {
+    append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': now_(), 'من': me.name, 'إلى': n,
+      'الموضوع': subject, 'النص': body, 'الحالة': str_(req.caseId), 'مقروءة': '', 'النوع': 'رسالة' });
+    email_(n, subject + ' — من ' + me.name, body + '\n\n' + me.name + ' — ' + ROLE_LABEL[me.role]);
+  });
+  return { sent: to.length };
+};
+API.markRead = function (me, req) {
+  var ids = req.ids || [];
+  rows_(SH.messages).filter(function (m) { return str_(m['إلى']) === me.name && (ids === 'all' || ids.indexOf(str_(m['المعرف'])) >= 0) && str_(m['مقروءة']) !== 'نعم'; })
+    .forEach(function (m) { update_(SH.messages, m, { 'مقروءة': 'نعم' }); });
+  return { unread: unread_(me) };
+};
+
+/* ============================================================
+ *  لوحة التحكم والتقرير الشهري (الإدارة)
+ * ============================================================ */
+API.dashboard = function (me, req) {
+  if (me.role !== 'admin' && me.role !== 'supervisor') throw new Error('لوحة التحكم للإدارة');
+  var data = allData_();
+  var secs = sectionsFor_(me);
+  var inSec = function (s) { return secs.indexOf(s) >= 0; };
+  var cases = data.cases.filter(function (c) { return inSec(c.section); });
+  var teach = data.teacher.filter(function (r) { return inSec(r.section); });
+  var tardy = tardyFor_(me);
+  var studs = students_().filter(function (s) { return inSec(s.section); });
+  var from = str_(req.from) || '0000', to = str_(req.to) || '9999';
+  var inP = function (d) { return d >= from && d <= to; };
+  var pc = cases.filter(function (c) { return inP(c.date); }), pt = teach.filter(function (r) { return inP(r.date); }), pd = tardy.filter(function (r) { return inP(r.date); });
+  var uniq = function (arr, f) { var m = {}; arr.forEach(function (x) { m[f(x)] = 1; }); return Object.keys(m).length; };
+  var countBy = function (arr, f) { var m = {}; arr.forEach(function (x) { var k = f(x); m[k] = (m[k] || 0) + 1; }); return m; };
+  var top = function (m, n) { return Object.keys(m).map(function (k) { return { k: k, n: m[k] }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, n || 5); };
+  var grade = function (s) { return s.split('-')[0]; };
+  var degOrder = ['الدرجة الأولى', 'الدرجة الثانية', 'الدرجة الثالثة', 'الدرجة الرابعة'];
+  var byDeg = countBy(pc, function (c) { return c.degree; });
+  var repeatOff = countBy(pc, function (c) { return c.student + '|' + c.section; });
+  var tardyStud = countBy(pd, function (r) { return r.student + '|' + r.section; });
+  var months = [];
+  ['2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-06'].forEach(function (m) {
+    months.push({ m: m, cases: cases.filter(function (c) { return c.date.slice(0, 7) === m; }).length,
+      classroom: teach.filter(function (r) { return r.date.slice(0, 7) === m; }).length,
+      tardy: tardy.filter(function (r) { return r.date.slice(0, 7) === m; }).length });
+  });
+  // الالتزام بالأسماء
+  var comp = {};
+  var addC = function (who, role, code) {
+    var k = who + '|' + role; comp[k] = comp[k] || { name: who, role: role, req: 0, onTime: 0, late: 0, notDone: 0, within: 0 };
+    var o = comp[k]; if (code === 5 || !code) return; o.req++;
+    if (code === 1) o.onTime++; else if (code === 2) o.late++; else if (code === 3) o.notDone++; else if (code === 4) o.within++;
+  };
+  pc.forEach(function (c) {
+    CHAIN.forEach(function (st) {
+      var s = c.stages[st]; if (!s.need) return;
+      var owners = st === 'supervisor' ? [c.supervisors.join('، ')] : stageOwners_(c, st);
+      if (st === 'admin') owners = ['الإدارة'];
+      owners.forEach(function (o) { addC(o, ROLE_LABEL[st], s.compliance); });
+    });
+  });
+  pt.forEach(function (r) { addC(r.teacher, 'معلمة', r.compliance); });
+  return {
+    period: { from: from, to: to },
+    tiles: { students: studs.length, tardy: pd.length, tardyStudents: uniq(pd, function (r) { return r.student + '|' + r.section; }),
+      tardyRepeat: Object.keys(tardyStud).filter(function (k) { return tardyStud[k] > 1; }).length,
+      cases: pc.length, serious: (byDeg['الدرجة الثالثة'] || 0) + (byDeg['الدرجة الرابعة'] || 0),
+      repeatOffenders: Object.keys(repeatOff).filter(function (k) { return repeatOff[k] > 1; }).length,
+      pending: pc.filter(function (c) { return c.status.code !== 'done'; }).length,
+      lateCases: pc.filter(function (c) { return c.status.code === 'late'; }).length,
+      classroom: pt.length, transfers: pt.filter(function (r) { return r.transferNo; }).length },
+    byDegree: degOrder.map(function (d) { return { k: d, n: byDeg[d] || 0 }; }),
+    byGrade: ['10', '11', '12'].map(function (g) {
+      return { k: g, cases: pc.filter(function (c) { return grade(c.section) === g; }).length,
+        classroom: pt.filter(function (r) { return grade(r.section) === g; }).length,
+        tardy: pd.filter(function (r) { return grade(r.section) === g; }).length,
+        students: studs.filter(function (s) { return grade(s.section) === g; }).length };
+    }),
+    topSections: top(countBy(pc.concat(pt.map(function (r) { return { section: r.section }; })), function (x) { return x.section; }), 6),
+    topViolations: top(countBy(pc, function (c) { return c.short; }), 6),
+    topStudents: top(countBy(pc, function (c) { return c.student + ' — ' + c.section; }), 6),
+    topTardy: top(countBy(pd, function (r) { return r.student + ' — ' + r.section; }), 6),
+    months: months,
+    compliance: Object.keys(comp).map(function (k) { return comp[k]; }).filter(function (o) { return o.req > 0; })
+      .sort(function (a, b) { return a.role < b.role ? -1 : a.role > b.role ? 1 : a.name < b.name ? -1 : 1; }),
+    critical: pc.filter(function (c) { return c.degree === 'الدرجة الرابعة' || c.req.admin; }).map(function (c) {
+      return { id: c.id, student: c.student, section: c.section, short: c.short, degree: c.degree, rep: c.rep, status: c.status.text };
+    }),
+    late: pc.filter(function (c) { return c.status.code === 'late'; }).map(function (c) {
+      return { id: c.id, student: c.student, section: c.section, short: c.short, status: c.status.text };
+    })
+  };
+};
+
+/* ============================================================
+ *  التهيئة (تُشغَّل مرة واحدة من محرر Apps Script)
+ * ============================================================ */
+function setup() {
+  var ss = ss_();
+  var need = { teacher: SH.teacher, cases: SH.cases, tardy: SH.tardy, messages: SH.messages, mailLog: SH.mailLog };
+  Object.keys(need).forEach(function (k) {
+    var name = need[k], sh = ss.getSheetByName(name);
+    if (!sh) sh = ss.insertSheet(name);
+    var cols = COLS[k];
+    var head = sh.getLastColumn() ? sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0] : [];
+    if (String(head[0] || '') !== cols[0]) { sh.clear(); sh.getRange(1, 1, 1, cols.length).setValues([cols]); }
+    sh.getRange(1, 1, sh.getMaxRows(), cols.length).setNumberFormat('@');
+    sh.setFrozenRows(1);
+    sh.setRightToLeft(true);
+  });
+  secret_();
+  var st = ss.getSheetByName(SH.settings);
+  var keys = st.getRange(2, 1, Math.max(1, st.getLastRow() - 1), 1).getValues().map(function (r) { return String(r[0]); });
+  if (keys.indexOf('رابط المنصة') < 0) st.appendRow(['رابط المنصة', 'https://althasair.github.io/namoos/', 'يظهر في الإيميلات']);
+  if (keys.indexOf('مدة الجلسة بالأيام') < 0) st.appendRow(['مدة الجلسة بالأيام', 30, 'تبقى الموظفة مسجّلة الدخول على جهازها هذه المدة']);
+  return 'تمت التهيئة';
+}
+
+/** اختبار سريع للإيميل: يرسل رسالة تجريبية لصاحبة الحساب */
+function testEmail() {
+  MailApp.sendEmail(Session.getActiveUser().getEmail(), 'تجربة منصة نوماس', 'وصلت رسالة التجربة بنجاح.');
+}
