@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.1.0';
+var VERSION = '2.1.1';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -886,7 +886,7 @@ function tardyFor_(me) {
       var k = str_(r['الطالبة']) + '|' + str_(r['الشعبة']);
       cnt[k] = (cnt[k] || 0) + 1;
       return { id: str_(r['المعرف']), date: iso_(r['التاريخ']), section: str_(r['الشعبة']), student: str_(r['الطالبة']), by: str_(r['سجّلتها']),
-        notes: str_(r['ملاحظات']), n: cnt[k] };
+        notes: str_(r['ملاحظات']), n: cnt[k], created: str_(r['وقت الإدخال']) };
     }).filter(function (r) { return secs.indexOf(r.section) >= 0; });
 }
 API.recordTardy = function (me, req) {
@@ -894,15 +894,21 @@ API.recordTardy = function (me, req) {
   var section = str_(req.section), date = str_(req.date), list = req.students || [req.student];
   if (me.role === 'supervisor' && sectionsFor_(me).indexOf(section) < 0) throw new Error('الشعبة ليست ضمن شعبكِ');
   checkDate_(date);
-  var added = 0;
+  var exists = {};
+  tardyRows_().forEach(function (r) { exists[str_(r['الطالبة']) + '|' + str_(r['الشعبة']) + '|' + iso_(r['التاريخ'])] = 1; });
+  var added = 0, skipped = [], ids = [];
   list.map(str_).filter(String).forEach(function (s) {
     if (!student_(s, section)) throw new Error('الطالبة لا تتبع الشعبة المختارة: ' + s);
-    append_(SH.tardy, COLS.tardy, { 'المعرف': 'ت-ص-' + Utilities.getUuid().slice(0, 6), 'وقت الإدخال': now_(), 'التاريخ': date, 'الشعبة': section,
+    var k = s + '|' + section + '|' + date;
+    if (exists[k]) { skipped.push(s); return; }   // مسجّلة متأخرة في اليوم نفسه — لا تتكرر
+    exists[k] = 1;
+    var id = 'ت-ص-' + Utilities.getUuid().slice(0, 6);
+    append_(SH.tardy, COLS.tardy, { 'المعرف': id, 'وقت الإدخال': now_(), 'التاريخ': date, 'الشعبة': section,
       'الطالبة': s, 'سجّلتها': me.name, 'ملاحظات': str_(req.notes) });
-    added++;
+    ids.push(id); added++;
   });
   flush_();
-  return { added: added, tardy: tardyFor_(me).slice(-300).reverse() };
+  return { added: added, skipped: skipped, ids: ids, tardy: tardyFor_(me).slice(-300).reverse() };
 };
 API.deleteTardy = function (me, req) {
   var r = tardyRows_().filter(function (x) { return str_(x['المعرف']) === str_(req.id); })[0];

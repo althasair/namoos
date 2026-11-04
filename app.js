@@ -563,14 +563,15 @@
     var b = S.boot, T = S.tardy;
     if (!T.date) T.date = b.dates.indexOf(b.today) >= 0 ? b.today : b.dates[b.dates.length - 1];
     T.sel = T.sel || {};
-    var recent = (b.tardy || []).slice(0, 40);
+    var recent = (b.tardy || []).slice().sort(function (x, y) { return (y.created || '') < (x.created || '') ? -1 : (y.created || '') > (x.created || '') ? 1 : 0; }).slice(0, 40);
+    var fresh = T.fresh || {};
     el.innerHTML = '<div><h2 class="pt">التأخير الصباحي</h2><p class="sub">اختاري الشعبة، ثم أشّري على كل المتأخرات دفعة واحدة.</p></div>' +
       '<div class="card grid g2"><div class="field"><label class="lbl" for="tdd">التاريخ</label><select class="inp" id="tdd">' + datesOptions(T.date) + '</select></div>' +
       '<div class="field"><label class="lbl" for="tds">الشعبة</label><select class="inp" id="tds"><option value="">— اختاري —</option>' + b.sections.map(function (s) { return '<option' + (T.section === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div></div>' +
       (T.section ? searchList('tq', 'ابحثي باسم الطالبة') + '<div class="list" id="tl"></div>' +
         '<button class="btn wide" id="tsave">تسجيل التأخير (' + Object.keys(T.sel).length + ')</button>' : '') +
-      '<div class="card"><h3 style="margin:0 0 10px">آخر السجلات</h3><div class="tw"><table class="t"><thead><tr><th>التاريخ</th><th>الطالبة</th><th>الشعبة</th><th>رقم التأخير</th><th></th></tr></thead><tbody>' +
-      (recent.map(function (r) { return '<tr><td>' + (r.date ? arFull(r.date) : 'سجل سابق بلا تاريخ') + '</td><td>' + esc(r.student) + '</td><td>' + esc(r.section) + '</td><td><span class="chip ' + (r.n > 1 ? 'ap' : '') + '">' + r.n + '</span></td><td>' + (r.by === S.me.name || S.me.role === 'admin' ? '<button class="btn sm sec" data-del="' + esc(r.id) + '">حذف</button>' : '') + '</td></tr>'; }).join('') || '<tr><td colspan="5">لا توجد سجلات</td></tr>') +
+      '<div class="card"><h3 style="margin:0 0 10px">آخر ما سُجّل</h3><div class="tw"><table class="t"><thead><tr><th>التاريخ</th><th>الطالبة</th><th>الشعبة</th><th>رقم التأخير</th><th></th></tr></thead><tbody>' +
+      (recent.map(function (r) { return '<tr' + (fresh[r.id] ? ' style="background:var(--ok-l)"' : '') + '><td>' + (r.date ? arFull(r.date) : 'سجل سابق بلا تاريخ') + '</td><td>' + esc(r.student) + '</td><td>' + esc(r.section) + '</td><td><span class="chip ' + (r.n > 1 ? 'ap' : '') + '">' + r.n + '</span></td><td>' + (r.by === S.me.name || S.me.role === 'admin' ? '<button class="btn sm sec" data-del="' + esc(r.id) + '">حذف</button>' : '') + '</td></tr>'; }).join('') || '<tr><td colspan="5">لا توجد سجلات</td></tr>') +
       '</tbody></table></div></div>';
     $('#tdd').onchange = function () { T.date = this.value; };
     $('#tds').onchange = function () { T.section = this.value; T.sel = {}; vTardy(el); };
@@ -586,9 +587,14 @@
       $('#tsave').onclick = function () {
         var list = Object.keys(T.sel);
         if (!list.length) { toast('أشّري على الطالبات المتأخرات', 'bad'); return; }
-        api('recordTardy', { section: T.section, date: T.date, students: list }).then(function (r) {
-          b.tardy = r.tardy; T.sel = {}; toast('✔ تم تسجيل ' + r.added + ' ' + (r.added === 1 ? 'حالة تأخير' : 'حالات تأخير'), 'ok'); vTardy(el);
-        }).catch(fail);
+        var btn = this; if (btn.disabled) return;
+        btn.disabled = true; btn.textContent = 'جارٍ الحفظ… انتظري لحظة';
+        api('recordTardy', { section: T.section, date: T.date || $('#tdd').value, students: list }).then(function (r) {
+          b.tardy = r.tardy; T.sel = {}; if (r.added) { T.fresh = {}; (r.ids || []).forEach(function (id) { T.fresh[id] = 1; }); }
+          var msg = r.added ? '✔ حُفظ ' + r.added + ' ' + (r.added === 1 ? 'تأخير' : 'حالات تأخير') + ' — يظهر باللون الأخضر في «آخر ما سُجّل»' : '';
+          if (r.skipped && r.skipped.length) msg += (msg ? '\n' : '') + '↺ مسجّلة مسبقًا لهذا اليوم: ' + r.skipped.join('، ');
+          toast(msg, r.added ? 'ok' : 'bad', 7000); vTardy(el);
+        }).catch(function (e) { btn.disabled = false; btn.textContent = 'تسجيل التأخير (' + list.length + ')'; fail(e); });
       };
     }
     $$('[data-del]', el).forEach(function (x) {
