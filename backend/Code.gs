@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.0.0';
+var VERSION = '2.1.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -45,10 +45,11 @@ var COLS = {
 /* الأدوار في المنصة */
 var ROLE_OF = {
   'معلمة': 'teacher', 'مشرفة إدارية': 'supervisor', 'منسقة شؤون الطالبات': 'coordinator',
-  'أخصائية اجتماعية': 'social', 'أخصائية نفسية': 'psych', 'الإدارة': 'admin', 'النائب الإداري': 'admin'
+  'أخصائية اجتماعية': 'social', 'أخصائية نفسية': 'psych', 'الإدارة': 'admin', 'النائب الإداري': 'admin',
+  'حصر الحضور': 'daily'
 };
 var ROLE_LABEL = { teacher: 'معلمة', supervisor: 'مشرفة إدارية', coordinator: 'منسقة شؤون الطالبات',
-  social: 'أخصائية اجتماعية', psych: 'أخصائية نفسية', admin: 'الإدارة' };
+  social: 'أخصائية اجتماعية', psych: 'أخصائية نفسية', admin: 'الإدارة', daily: 'حصر الحضور' };
 /* ترتيب الإجراء في السياسة */
 var CHAIN = ['supervisor', 'coordinator', 'social', 'psych', 'admin'];
 var STAGE_PREFIX = { supervisor: 'المشرفة', coordinator: 'المنسقة', social: 'الاجتماعية', psych: 'النفسية', admin: 'الإدارة' };
@@ -309,7 +310,7 @@ function teaches_(r, name) {
 }
 function students_() {
   return rows_(SH.students).map(function (r) {
-    return { name: str_(r['الاسم']), section: str_(r['الشعبة']), guardian: str_(r['ولي الأمر']), phone: str_(r['هاتف ولي الأمر']) };
+    return { name: str_(r['الاسم']), section: str_(r['الشعبة']), guardian: str_(r['ولي الأمر']), phone: str_(r['هاتف ولي الأمر']), qid: str_(r['الرقم الشخصي']) };
   }).filter(function (s) { return s.name && s.section; });
 }
 function student_(name, section) {
@@ -566,6 +567,10 @@ API.bootstrap = function (me) {
   var data = allData_();
   var res = { me: publicUser_(me), today: today_(), dates: allowedDates_(), deadlineDays: Number(setting_('المهلة', 2)) || 2,
     lists: lists_(), staff: users_().map(function (u) { return { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role] }; }) };
+  if (me.role === 'daily') {
+    res.tasks = []; res.taskCounts = { beh: 0, abs: 0 }; res.abs = null; res.unread = unread_(me);
+    return res;
+  }
   if (me.role === 'teacher') {
     var asg = rows_(SH.schedule).filter(function (r) { return teaches_(r, me.name); })
       .map(function (r) { return { section: str_(r['الشعبة']), subject: str_(r['المادة']) }; });
@@ -675,10 +680,49 @@ API.poll = function (me) {
   var data = allData_();
   var msgs = rows_(SH.messages).filter(function (m) { return str_(m['إلى']) === me.name && str_(m['مقروءة']) !== 'نعم'; });
   var last = msgs.length ? msgs[msgs.length - 1] : null;
-  var nb = tasks_(me, data).length, na = 0;
-  try { na = absTasks_(me, absData_()).length; } catch (err) { }
+  var nb = me.role === 'daily' ? 0 : tasks_(me, data).length, na = 0;
+  if (me.role !== 'daily') try { na = absTasks_(me, absData_()).length; } catch (err) { }
   return { unread: msgs.length, tasks: nb + na, taskCounts: { beh: nb, abs: na }, last: last ? { subject: str_(last['الموضوع']), time: str_(last['الوقت']) } : null };
 };
+
+
+/* ============================================================
+ *  حصيلة اليوم — التأخير الصباحي والغياب (لصفة «حصر الحضور» والإدارة)
+ * ============================================================ */
+API.dailyReport = function (me, req) {
+  if (me.role !== 'daily' && me.role !== 'admin') throw new Error('هذه الصفحة لحصر الحضور');
+  var d = str_(req.date) || today_();
+  var stIdx = {};
+  students_().forEach(function (s) { stIdx[s.name + '|' + s.section] = s; });
+  var row = function (name, section, n) {
+    var s = stIdx[name + '|' + section] || {};
+    return { qid: s.qid || '', student: name, section: section, grade: section.split('-')[0], n: n, phone: s.phone || '', guardian: s.guardian || '' };
+  };
+  var sortFn = function (a, b) { return a.section === b.section ? (a.student < b.student ? -1 : 1) : (secKey_(a.section) < secKey_(b.section) ? -1 : 1); };
+  // التأخير: عدد مرات التأخير حتى التاريخ المختار
+  var cnt = {}, tardy = [];
+  tardyRows_().slice().sort(function (a, b) { return orderKey_(a, 'التاريخ', 'وقت الإدخال') < orderKey_(b, 'التاريخ', 'وقت الإدخال') ? -1 : 1; })
+    .forEach(function (r) {
+      var dt = iso_(r['التاريخ']); if (dt > d) return;
+      var k = str_(r['الطالبة']) + '|' + str_(r['الشعبة']);
+      cnt[k] = (cnt[k] || 0) + 1;
+      if (dt === d) tardy.push({ k: k, student: str_(r['الطالبة']), section: str_(r['الشعبة']) });
+    });
+  var seenT = {};
+  tardy = tardy.filter(function (t) { if (seenT[t.k]) return false; seenT[t.k] = 1; return true; })
+    .map(function (t) { return row(t.student, t.section, cnt[t.k]); }).sort(sortFn);
+  // الغياب: أيام الغياب المحتسبة حتى التاريخ المختار (دون «حضرت متأخرة» والمكرر)
+  var aCnt = {}, abs = [], seenA = {};
+  absData_().forEach(function (a) {
+    if (a.kind === 'late' || a.kind === 'dup' || a.date > d) return;
+    var k = a.student + '|' + a.section;
+    aCnt[k] = (aCnt[k] || 0) + 1;
+    if (a.date === d && !seenA[k]) { seenA[k] = 1; abs.push(a); }
+  });
+  abs = abs.map(function (a) { var o = row(a.student, a.section, aCnt[a.student + '|' + a.section]); o.decision = a.decision || 'بانتظار قرار المشرفة'; return o; }).sort(sortFn);
+  return { date: d, tardy: tardy, absence: abs };
+};
+function secKey_(s) { var p = String(s).split('-'); return ('00' + p[0]).slice(-2) + '-' + ('00' + (p[1] || '')).slice(-2); }
 
 /* ---------- المعلمة ---------- */
 API.recordTeacher = function (me, req) {

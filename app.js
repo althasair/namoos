@@ -122,7 +122,7 @@
   }
 
   /* ---------------- الدخول ---------------- */
-  var ROLES = [['teacher', 'معلمة'], ['supervisor', 'مشرفة إدارية'], ['coordinator', 'منسقة'], ['social', 'أخصائية اجتماعية'], ['psych', 'أخصائية نفسية'], ['admin', 'الإدارة']];
+  var ROLES = [['teacher', 'معلمة'], ['supervisor', 'مشرفة إدارية'], ['coordinator', 'منسقة'], ['social', 'أخصائية اجتماعية'], ['psych', 'أخصائية نفسية'], ['admin', 'الإدارة'], ['daily', 'حصر الحضور']];
   function renderLogin(msg) {
     var role = store('namoos_role') || 'teacher';
     app.innerHTML =
@@ -170,7 +170,8 @@
     coordinator: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['messages', 'الرسائل', 'messages']],
     social: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['messages', 'الرسائل', 'messages']],
     psych: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['messages', 'الرسائل', 'messages']],
-    admin: [['dash', 'لوحة التحكم'], ['report', 'التقرير الشهري'], ['tasks', 'مهام الإدارة', 'tasks'], ['cases', 'كل الحالات'], ['outside', 'تسجيل مخالفة'], ['tardy', 'التأخير الصباحي'], ['messages', 'الرسائل', 'messages']]
+    admin: [['dash', 'لوحة التحكم'], ['report', 'التقرير الشهري'], ['tasks', 'مهام الإدارة', 'tasks'], ['cases', 'كل الحالات'], ['outside', 'تسجيل مخالفة'], ['tardy', 'التأخير الصباحي'], ['messages', 'الرسائل', 'messages']],
+    daily: [['dTardy', 'حصيلة التأخير'], ['dAbs', 'حصيلة الغياب'], ['messages', 'الرسائل', 'messages']]
   };
   var NAV_ABS = {
     teacher: [['absRec', 'تسجيل الغياب'], ['absMine', 'غياب سجّلته'], ['messages', 'الرسائل', 'messages']],
@@ -178,6 +179,7 @@
     coordinator: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['messages', 'الرسائل', 'messages']],
     social: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['messages', 'الرسائل', 'messages']],
     psych: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['messages', 'الرسائل', 'messages']],
+    daily: [['dTardy', 'حصيلة التأخير'], ['dAbs', 'حصيلة الغياب'], ['messages', 'الرسائل', 'messages']],
     admin: [['absDash', 'لوحة الغياب'], ['report', 'التقرير الشهري'], ['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'سجل الغياب'], ['absStud', 'متابعة الطالبات'], ['absDep', 'المحرومات'], ['messages', 'الرسائل', 'messages']]
   };
   function hasAbs() { return !!(S.boot && S.boot.abs); }
@@ -225,7 +227,7 @@
     $$('.nav button').forEach(function (b) { if (b.dataset.v === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     var m = $('#main'); if (!m) return;
     var fn = { record: vRecord, mine: vMine, tasks: vTasks, cases: vCases, outside: vOutside, tardy: vTardy, messages: vMessages, dash: vDash, report: vReport,
-      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash }[v];
+      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily }[v];
     m.innerHTML = secSwitch() + welcome() + '<div id="vw"></div>';
     $$('[data-sec]', m).forEach(function (b) { b.onclick = function () { if (b.dataset.sec !== S.sec) setSec(b.dataset.sec); }; });
     fn($('#vw'));
@@ -246,7 +248,7 @@
   function showTasksModal() {
     var b = S.boot, t = b.tasks;
     var m = document.createElement('div'); m.className = 'modal'; m.id = 'tm';
-    var goView = S.me.role === 'teacher' ? 'mine' : 'tasks';
+    var goView = S.me.role === 'teacher' ? 'mine' : S.me.role === 'daily' ? 'dTardy' : 'tasks';
     m.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="tmh">' +
       '<h3 id="tmh">مرحبًا أ. ' + esc(S.me.name) + '</h3>' +
       (t.length ? '<p class="sub">لديكِ <b>' + t.length + '</b> ' + (t.length === 1 ? 'مهمة' : 'مهام') + ' بانتظار إجرائكِ' + (t.some(function (x) { return x.late; }) ? '، منها متأخرة ⛔' : '') + ':</p>' +
@@ -968,6 +970,45 @@
     });
     bindAbsForms(el, function () { S.focus = (absOpen()[0] || {}).id || ''; vAbsTasks(el); if (S.focus) { var n = document.getElementById('it-' + S.focus); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); } });
     if (S.focus) { var fe = document.getElementById('it-' + S.focus); if (fe) setTimeout(function () { fe.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); }
+  }
+
+
+  /* ---------- حصيلة اليوم (حصر الحضور) ---------- */
+  function vDaily(el) {
+    var kind = S.view === 'dAbs' ? 'absence' : 'tardy';
+    var isA = kind === 'absence';
+    var date = S.filter.dday || S.boot.today, g = S.filter.dg || 'all';
+    el.innerHTML = '<div><h2 class="pt">' + (isA ? 'حصيلة اليوم من الغياب' : 'حصيلة اليوم من التأخير الصباحي') + '</h2><p class="sub">' +
+      (isA ? 'الطالبات المسجّلات غائبات في اليوم المختار، مع عدد أيام غيابهن حتى هذا اليوم.' : 'الطالبات المسجّلات متأخرات صباحًا في اليوم المختار، مع عدد مرات تأخرهن حتى هذا اليوم.') + '</p></div>' +
+      '<div class="card grid g3 noprint"><div class="field"><label class="lbl" for="dd">اليوم</label><select class="inp" id="dd">' + datesOptions(date) + '</select></div>' +
+      '<div class="field"><span class="lbl">الصف</span><div class="opts">' + [['all', 'الكل'], ['10', 'العاشر'], ['11', 'الحادي عشر'], ['12', 'الثاني عشر']].map(function (x) { return '<button class="opt" data-g="' + x[0] + '" aria-pressed="' + (g === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
+      '<div class="field"><span class="lbl">تصدير</span><div class="opts"><button class="btn sm sec" id="dcopy">نسخ للإكسل</button><button class="btn sm sec" id="dcsv">تنزيل ملف</button><button class="btn sm sec" id="dprint">طباعة</button></div></div></div>' +
+      '<div id="dres"><div class="empty">جارٍ التحميل…</div></div>';
+    $('#dd').onchange = function () { S.filter.dday = this.value; vDaily(el); };
+    $$('[data-g]', el).forEach(function (b) { b.onclick = function () { S.filter.dg = b.dataset.g; vDaily(el); }; });
+    var cols = ['م', 'الرقم الشخصي', 'اسم الطالبة', 'الشعبة', 'الصف', isA ? 'تكرار الغياب' : 'تكرار التأخير', 'هاتف ولي الأمر'];
+    api('dailyReport', { date: date }, true).then(function (r) {
+      var list = r[kind].filter(function (x) { return g === 'all' || x.grade === g; });
+      var rows = list.map(function (x, i) { return [i + 1, x.qid, x.student, x.section, x.grade, x.n, x.phone]; });
+      var gc = {}; list.forEach(function (x) { gc[x.grade] = (gc[x.grade] || 0) + 1; });
+      $('#dres').innerHTML = '<div class="printhead"><b>' + (isA ? 'حصيلة الغياب' : 'حصيلة التأخير الصباحي') + ' — ' + arFull(r.date) + '</b></div>' +
+        '<div class="grid g4" style="margin:12px 0"><div class="tile"><b>' + list.length + '</b><span>' + (isA ? 'غائبة' : 'متأخرة') + '</span></div>' +
+        ['10', '11', '12'].map(function (k) { return '<div class="tile"><b>' + (gc[k] || 0) + '</b><span>الصف ' + (k === '10' ? 'العاشر' : k === '11' ? 'الحادي عشر' : 'الثاني عشر') + '</span></div>'; }).join('') + '</div>' +
+        (rows.length ? '<div class="items dcards">' + list.map(function (x, i) { return '<div class="item"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>' + (i + 1) + '. ' + esc(x.student) + '</b><span class="chip ' + (x.n >= 3 ? 'red' : 'ap') + '">' + (isA ? 'الغياب: ' : 'التأخير: ') + x.n + '</span></div><div class="sub">الشعبة ' + esc(x.section) + ' • الرقم الشخصي <bdi dir="ltr">' + esc(x.qid || '—') + '</bdi>' + (isA && x.decision ? ' • ' + esc(x.decision) : '') + '</div><div class="row">' + ICON.phone + ' ولي الأمر: ' + tel(x.phone) + '</div></div>'; }).join('') + '</div>' + '<table class="t dtable"><thead><tr>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' +
+          list.map(function (x, i) {
+            return '<tr><td>' + (i + 1) + '</td><td dir="ltr" style="text-align:right">' + esc(x.qid || '—') + '</td><td><b>' + esc(x.student) + '</b>' + (isA && x.decision ? '<div class="sub">' + esc(x.decision) + '</div>' : '') + '</td><td>' + esc(x.section) + '</td><td>' + esc(x.grade) + '</td><td><span class="chip ' + (x.n >= (isA ? 3 : 3) ? 'red' : 'ap') + '">' + x.n + '</span></td><td>' + tel(x.phone) + '</td></tr>';
+          }).join('') + '</tbody></table>' : '<div class="empty card"><span class="tg">' + T3 + '</span>' + (isA ? 'لا يوجد غياب مسجّل في هذا اليوم' : 'لا يوجد تأخير مسجّل في هذا اليوم') + '</div>');
+      var tsv = [cols].concat(rows).map(function (r) { return r.join('\t'); }).join('\n');
+      $('#dcopy').onclick = function () {
+        (navigator.clipboard ? navigator.clipboard.writeText(tsv) : Promise.reject()).then(function () { toast('✔ نُسخ الجدول — الصقيه في إكسل', 'ok'); }).catch(function () { toast('تعذّر النسخ، استخدمي «تنزيل ملف»', 'bad'); });
+      };
+      $('#dcsv').onclick = function () {
+        var csv = '﻿' + [cols].concat(rows).map(function (r) { return r.map(function (c) { c = String(c == null ? '' : c); return /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(','); }).join('\r\n');
+        var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        a.download = (isA ? 'حصيلة الغياب ' : 'حصيلة التأخير ') + r.date + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+      };
+      $('#dprint').onclick = function () { window.print(); };
+    }).catch(fail);
   }
 
   /* ---------- سجل الغياب ---------- */
