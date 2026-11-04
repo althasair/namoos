@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '1.0.0';
+var VERSION = '2.0.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -17,7 +17,8 @@ var SH = {
   settings: 'الإعدادات', users: 'المستخدمون', students: 'الطالبات', schedule: 'الجدول', sections: 'الشعب',
   classViol: 'المخالفات الصفية', lists: 'القوائم', offViol: 'مخالفات السياسة', maxRep: 'الحد الأقصى',
   texts: 'نصوص السياسة', roles: 'جهات السياسة', days: 'أيام الدراسة',
-  teacher: 'سجل المعلمات', cases: 'الحالات', tardy: 'سجل التأخير', messages: 'الرسائل', mailLog: 'سجل الإرسال'
+  teacher: 'سجل المعلمات', cases: 'الحالات', tardy: 'سجل التأخير', messages: 'الرسائل', mailLog: 'سجل الإرسال',
+  abs: 'سجل الغياب', absPolicy: 'سياسة الغياب', absExams: 'اختبارات الأهلية', absExcuses: 'أعذار الغياب'
 };
 
 var COLS = {
@@ -31,7 +32,14 @@ var COLS = {
     'الإدارة: تاريخ التنفيذ', 'الإدارة: الإجراء المتخذ', 'الإدارة: ملاحظات', 'محذوف'],
   tardy: ['المعرف', 'وقت الإدخال', 'التاريخ', 'الشعبة', 'الطالبة', 'سجّلتها', 'ملاحظات', 'محذوف'],
   messages: ['المعرف', 'الوقت', 'من', 'إلى', 'الموضوع', 'النص', 'الحالة', 'مقروءة', 'النوع', 'الرابط'],
-  mailLog: ['الوقت', 'إلى', 'الموضوع', 'النتيجة']
+  mailLog: ['الوقت', 'إلى', 'الموضوع', 'النتيجة'],
+  abs: ['المعرف', 'وقت الإدخال', 'التاريخ', 'الشعبة', 'الطالبة', 'الحصة', 'سجّلتها', 'حضرت متأخرة', 'أكّدتها',
+    'القرار', 'نوع العذر', 'ملاحظات القرار', 'قررتها', 'وقت القرار',
+    'المشرفة: تاريخ التنفيذ', 'المشرفة: التواصل مع ولي الأمر', 'المشرفة: ملاحظات', 'المشرفة: من وثّقت',
+    'المنسقة: تاريخ التنفيذ', 'المنسقة: الإجراء المتخذ', 'المنسقة: ملاحظات',
+    'الاجتماعية: تاريخ التنفيذ', 'الاجتماعية: الإجراء المتخذ', 'الاجتماعية: ملاحظات',
+    'النفسية: تاريخ التنفيذ', 'النفسية: الإجراء المتخذ', 'النفسية: ملاحظات',
+    'الإدارة: تاريخ التنفيذ', 'الإدارة: الإجراء المتخذ', 'الإدارة: ملاحظات', 'محذوف']
 };
 
 /* الأدوار في المنصة */
@@ -74,7 +82,8 @@ function out_(o) {
 
 var PUBLIC = { login: 1, ping: 1 };
 var WRITES = { recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
-  recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1 };
+  recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
+  recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
 function route_(req) {
   var a = req.action;
@@ -576,6 +585,11 @@ API.bootstrap = function (me) {
     if (me.role === 'supervisor' || me.role === 'admin') res.tardy = tardyFor_(me).slice(-300).reverse();
   }
   res.tasks = tasks_(me, data);
+  try { res.abs = absBoot_(me); } catch (err) { res.abs = null; res.absError = String(err && err.message || err); }
+  var at = res.abs ? res.abs.tasks : [];
+  res.tasks = res.tasks.concat(at);
+  res.taskCounts = { beh: res.tasks.length - at.length, abs: at.length };
+  if (res.abs) delete res.abs.tasks;
   res.unread = unread_(me);
   return res;
 };
@@ -661,7 +675,9 @@ API.poll = function (me) {
   var data = allData_();
   var msgs = rows_(SH.messages).filter(function (m) { return str_(m['إلى']) === me.name && str_(m['مقروءة']) !== 'نعم'; });
   var last = msgs.length ? msgs[msgs.length - 1] : null;
-  return { unread: msgs.length, tasks: tasks_(me, data).length, last: last ? { subject: str_(last['الموضوع']), time: str_(last['الوقت']) } : null };
+  var nb = tasks_(me, data).length, na = 0;
+  try { na = absTasks_(me, absData_()).length; } catch (err) { }
+  return { unread: msgs.length, tasks: nb + na, taskCounts: { beh: nb, abs: na }, last: last ? { subject: str_(last['الموضوع']), time: str_(last['الوقت']) } : null };
 };
 
 /* ---------- المعلمة ---------- */
@@ -704,7 +720,7 @@ API.updateTeacher = function (me, req) {
 
 function transfer_(me, rec) {
   var P = policy_();
-  var tno = 'ت-' + pad_(rows_(SH.teacher).filter(function (x) { return str_(x['رقم التحويل']); }).length + 1, 4);
+  var tno = 'ت-' + pad_(nextNo_(rows_(SH.teacher).map(function (x) { return str_(x['رقم التحويل']); })), 4);
   var row = teacherRecords_().filter(function (x) { return str_(x['المعرف']) === rec.id; })[0];
   update_(SH.teacher, row, { 'رقم التحويل': tno });
   if (!P.off[rec.official]) throw new Error('بند السياسة غير معرّف لهذه المخالفة');
@@ -765,7 +781,13 @@ API.createCase = function (me, req) {
 };
 
 function newCaseId_() {
-  return 'ح-' + pad_(rows_(SH.cases).length + 1, 4);
+  return 'ح-' + pad_(nextNo_(rows_(SH.cases).map(function (x) { return str_(x['رقم الحالة']); })), 4);
+}
+/** الرقم التالي = أكبر رقم مستخدم + 1، فلا يتكرر رقم بعد نقل بيانات أو حذف */
+function nextNo_(ids) {
+  var m = 0;
+  ids.forEach(function (id) { var n = Number(String(id).replace(/[^0-9]/g, '')); if (n > m) m = n; });
+  return m + 1;
 }
 function pad_(n, w) { var s = String(n); while (s.length < w) s = '0' + s; return s; }
 
@@ -956,11 +978,395 @@ API.dashboard = function (me, req) {
 };
 
 /* ============================================================
+ *  الغياب — مطابق لنظام الغياب المعتمد (Excel) وسياسة الغياب
+ *  المعلمة تسجّل ← المشرفة تقرر (بعذر / بدون عذر / قيد الاستلام) وتُخطر ولي الأمر
+ *  ← رقم اليوم بدون عذر يحدد الإجراء ← المنسقة ← الاجتماعية ← النفسية ← فريق إدارة السلوك
+ * ============================================================ */
+var ABS_DECISIONS = ['بدون عذر', 'بعذر', 'عذر قيد الاستلام'];
+var ABS_CONTACT = ['هاتفيًا', 'رسالة نصية', 'هاتفيًا ورسالة نصية', 'حضر ولي الأمر', 'لم يرد ولي الأمر'];
+
+function absPolicy_() {
+  if (_cache._absPol) return _cache._absPol;
+  var P = { texts: {}, excuses: [], exams: [] };
+  rows_(SH.absPolicy).forEach(function (r) {
+    var k = str_(r['مفتاح']);
+    if (k) P.texts[k] = { teacher: str_(r['نص المعلمة']), supervisor: str_(r['نص المشرفة']), coordinator: str_(r['نص المنسقة']),
+      social: str_(r['نص الاجتماعية']), psych: str_(r['نص النفسية']), admin: str_(r['نص الفريق']), elig: str_(r['الأهلية']) };
+  });
+  rows_(SH.absExcuses).forEach(function (r) { if (str_(r['العذر'])) P.excuses.push({ name: str_(r['العذر']), only12: str_(r['خاص بالثاني عشر']) === 'نعم' }); });
+  rows_(SH.absExams).forEach(function (r) {
+    if (!str_(r['الاختبار'])) return;
+    P.exams.push({ name: str_(r['الاختبار']), date: iso_(r['تاريخ البدء']), limit: Number(r['الحد (أيام بدون عذر)']) || 0,
+      grades: str_(r['الصفوف']).split(/[،,\s]+/).map(str_).filter(String) });
+  });
+  P.exams.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  _cache._absPol = P;
+  return P;
+}
+function nthSchoolDayAfter_(d, n) {
+  var list = days_().filter(function (x) { return x > d; });
+  return list.length >= n ? list[n - 1] : (list[list.length - 1] || d);
+}
+function absRows_() { return rows_(SH.abs).filter(function (r) { return str_(r['محذوف']) !== 'نعم'; }); }
+
+/** يحسب لكل سجل: هل يُحتسب، القرار الفعلي، رقم اليوم بدون عذر، مفتاح السياسة، الجهات المطلوبة ومراحلها */
+function absData_() {
+  if (_cache._abs) return _cache._abs;
+  var P = absPolicy_();
+  var excuseDays = Number(setting_('مهلة العذر', 2)) || 2;
+  var t = today_();
+  var sorted = absRows_().slice().sort(function (a, b) { return orderKey_(a, 'التاريخ', 'وقت الإدخال') < orderKey_(b, 'التاريخ', 'وقت الإدخال') ? -1 : 1; });
+  var seen = {}, uCount = {};
+  var list = [];
+  sorted.forEach(function (r) {
+    var a = { id: str_(r['المعرف']), created: str_(r['وقت الإدخال']), date: iso_(r['التاريخ']), section: str_(r['الشعبة']), student: str_(r['الطالبة']),
+      period: str_(r['الحصة']), by: str_(r['سجّلتها']), lateArrival: str_(r['حضرت متأخرة']) === 'نعم', confirmedBy: str_(r['أكّدتها']),
+      decision: str_(r['القرار']), excuse: str_(r['نوع العذر']), decNotes: str_(r['ملاحظات القرار']), decBy: str_(r['قررتها']), decTime: str_(r['وقت القرار']),
+      doc: {}, _row: r._row };
+    CHAIN.forEach(function (st) {
+      var p = STAGE_PREFIX[st];
+      a.doc[st] = { date: iso_(r[p + ': تاريخ التنفيذ']), action: str_(r[p + ': الإجراء المتخذ'] || ''), contact: str_(r[p + ': التواصل مع ولي الأمر'] || ''),
+        notes: str_(r[p + ': ملاحظات']), who: str_(r[p + ': من وثّقت'] || '') };
+    });
+    a.grade = a.section.split('-')[0];
+    var sk = a.student + '|' + a.section;
+    var info = sectionInfo_(a.section);
+    a.supervisors = info.supervisors; a.social = info.social;
+    a.req = {}; a.stages = {}; a.text = {}; a.n = 0; a.key = ''; a.flag = '';
+    if (a.lateArrival) { a.kind = 'late'; a.status = { code: 'none', text: '⏰ حضرت متأخرة — لا يُحتسب غيابًا' }; list.push(a); return; }
+    var dk = sk + '|' + a.date;
+    if (seen[dk]) { a.kind = 'dup'; a.status = { code: 'none', text: '↺ مسجّلة مسبقًا لهذا اليوم — لا تُكرر' }; list.push(a); return; }
+    seen[dk] = 1;
+    // القرار الفعلي حسب السياسة
+    var exc = P.excuses.filter(function (e) { return e.name === a.excuse; })[0];
+    if (!a.decision) a.kind = 'undecided';
+    else if (a.decision === 'بدون عذر') a.kind = 'U';
+    else if (a.decision === 'بعذر') {
+      if (exc && exc.only12 && a.grade !== '12') { a.kind = 'U'; a.flag = '⚠ العذر خاص بطالبات الثاني عشر — احتُسب بدون عذر'; }
+      else a.kind = 'E';
+    } else if (a.decision === 'عذر قيد الاستلام') {
+      a.excuseDue = nthSchoolDayAfter_(a.date, excuseDays);
+      if (t > a.excuseDue) { a.kind = 'U'; a.flag = '⚠ انتهت مهلة العذر (' + arDate_(a.excuseDue) + ') — احتُسب بدون عذر'; }
+      else a.kind = 'P';
+    } else a.kind = 'undecided';
+    if (a.kind === 'undecided') {
+      a.decDue = deadline_(a.date);
+      a.decLate = t > a.decDue;
+      a.status = a.decLate ? { code: 'late', text: '⛔ متأخر: لم تحدد المشرفة القرار' } : { code: 'wait', text: '⏳ بانتظار قرار المشرفة' };
+    } else if (a.kind === 'E') a.status = { code: 'none', text: '✔ غياب بعذر' + (a.excuse ? ' — ' + a.excuse : '') };
+    else if (a.kind === 'P') a.status = { code: 'none', text: '⏳ عذر قيد الاستلام حتى ' + arDate_(a.excuseDue) };
+    else {
+      uCount[sk] = (uCount[sk] || 0) + 1;
+      a.n = uCount[sk];
+      a.key = (a.grade === '12' ? 'G12' : 'G1011') + '|' + (a.n > 16 ? '+' : a.n);
+      var tx = P.texts[a.key] || {};
+      a.text = tx;
+      a.req = { supervisor: !!tx.supervisor, coordinator: !!tx.coordinator, social: !!tx.social, psych: !!tx.psych, admin: !!tx.admin,
+        guardian: /ولي الأمر/.test(tx.supervisor || ''), pledge: /تعهد/.test(tx.supervisor || '') };
+      a.elig = tx.elig || '';
+      computeStages_(a);
+    }
+    list.push(a);
+  });
+  _cache._abs = list;
+  return list;
+}
+
+function absPublic_(a) {
+  var stu = student_(a.student, a.section) || {};
+  return { id: a.id, date: a.date, section: a.section, student: a.student, period: a.period, by: a.by, kind: a.kind, flag: a.flag,
+    decision: a.decision, excuse: a.excuse, decNotes: a.decNotes, decBy: a.decBy, excuseDue: a.excuseDue || '', decDue: a.decDue || '', decLate: !!a.decLate,
+    n: a.n, key: a.key, req: a.req, text: a.text, elig: a.elig || '', doc: a.doc, stages: a.stages, status: a.status, next: a.next || '',
+    guardian: stu.guardian || '', phone: stu.phone || '', lateArrival: a.lateArrival, confirmedBy: a.confirmedBy, supervisors: a.supervisors, social: a.social };
+}
+
+/** من يرى السجل */
+function absFor_(me, list) {
+  if (me.role === 'admin') return list;
+  if (me.role === 'supervisor') return list.filter(function (a) { return a.supervisors.indexOf(me.name) >= 0; });
+  if (me.role === 'coordinator') return list.filter(function (a) { return a.req.coordinator; });
+  if (me.role === 'social') return list.filter(function (a) { return a.req.social && (a.social === me.name || !a.social); });
+  if (me.role === 'psych') return list.filter(function (a) { return a.req.psych; });
+  if (me.role === 'teacher') return list.filter(function (a) { return a.by === me.name; });
+  return [];
+}
+function teacherSections_(me) {
+  var m = {};
+  rows_(SH.schedule).forEach(function (r) { if (teaches_(r, me.name)) m[str_(r['الشعبة'])] = 1; });
+  return allSections_().filter(function (s) { return m[s]; });
+}
+function absSections_(me) { return me.role === 'teacher' ? teacherSections_(me) : sectionsFor_(me); }
+
+/** مهام الغياب: قرارات المشرفة (مجمّعة بالشعبة واليوم) + توثيق كل جهة جاء دورها */
+function absTasks_(me, list) {
+  var out = [];
+  if (me.role === 'teacher') return out;
+  var mine = absFor_(me, list);
+  if (me.role === 'supervisor' || me.role === 'admin') {
+    var groups = {};
+    mine.filter(function (a) { return a.kind === 'undecided' && (me.role === 'supervisor' || a.decLate); }).forEach(function (a) {
+      var g = a.section + '|' + a.date; (groups[g] = groups[g] || []).push(a);
+    });
+    if (me.role === 'supervisor') Object.keys(groups).forEach(function (g) {
+      var arr = groups[g], late = arr.some(function (a) { return a.decLate; });
+      out.push({ type: 'absDecide', sec: 'abs', id: 'D:' + g, title: 'قرار غياب الشعبة ' + arr[0].section + ' — ' + arDate_(arr[0].date),
+        sub: arr.length + (arr.length === 1 ? ' طالبة' : ' طالبات') + ' • حددي: بعذر أم بدون عذر' + (late ? ' • ⛔ متأخر' : ''), late: late });
+    });
+  }
+  var st = me.role;
+  mine.forEach(function (a) {
+    var s = a.stages && a.stages[st];
+    if (s && s.need && s.open && !s.documented) {
+      out.push({ type: 'abs', sec: 'abs', id: a.id, title: a.student + ' — ' + a.section,
+        sub: 'غياب بدون عذر • اليوم رقم ' + a.n + (s.late ? ' • ⛔ متأخر' : ' • آخر موعد ' + arDate_(s.due)), late: s.late });
+    }
+  });
+  out.sort(function (x, y) { return (y.late ? 1 : 0) - (x.late ? 1 : 0); });
+  return out;
+}
+
+/** إحصاء كل طالبة والأهلية للاختبارات (المادة 3.4.1.3) */
+function absStudents_(list, secs) {
+  var P = absPolicy_(), t = today_();
+  var m = {};
+  students_().forEach(function (s) { if (!secs || secs.indexOf(s.section) >= 0) m[s.name + '|' + s.section] = { student: s.name, section: s.section, total: 0, U: 0, E: 0, P: 0, last: '', uDates: [] }; });
+  list.forEach(function (a) {
+    var o = m[a.student + '|' + a.section];
+    if (!o || a.kind === 'late' || a.kind === 'dup') return;
+    o.total++; if (a.date > o.last) o.last = a.date;
+    if (a.kind === 'U') { o.U++; o.uDates.push(a.date); } else if (a.kind === 'E') o.E++; else if (a.kind === 'P' || a.kind === 'undecided') o.P++;
+  });
+  return Object.keys(m).map(function (k) {
+    var o = m[k], g = o.section.split('-')[0];
+    var exams = P.exams.filter(function (e) { return e.grades.indexOf(g) >= 0; });
+    o.denied = [];
+    exams.forEach(function (e) {
+      var before = o.uDates.filter(function (d) { return d < e.date; }).length;
+      if (before > e.limit && (t >= e.date || o.U > e.limit)) o.denied.push(e.name);
+    });
+    var next = exams.filter(function (e) { return e.date > t; })[0];
+    if (next) {
+      var left = next.limit - o.U;
+      o.next = { name: next.name, date: next.date, limit: next.limit, left: left,
+        text: left < 0 ? '⛔ غير مؤهلة لـ' + next.name + ' (تجاوزت ' + next.limit + ' أيام)' : left <= 2 ? '⚠ متبقٍ ' + left + ' ' + (left === 1 ? 'يوم' : 'أيام') + ' قبل ' + next.name : '✔ مؤهلة — متبقٍ ' + left + ' أيام قبل ' + next.name };
+    } else o.next = null;
+    o.risk = !!(o.next && o.next.left <= 2 && o.next.left >= 0);
+    delete o.uDates;
+    return o;
+  });
+}
+
+function absBoot_(me) {
+  var P = absPolicy_();
+  var list = absData_();
+  var secs = absSections_(me);
+  var mine = absFor_(me, list);
+  if (me.role !== 'teacher' && me.role !== 'supervisor' && me.role !== 'admin') mine = mine.filter(function (a) { return a.kind === 'U'; });
+  var res = { sections: secs, students: studentsFor_(secs), excuses: P.excuses.map(function (e) { return e.name; }), decisions: ABS_DECISIONS, contacts: ABS_CONTACT,
+    exams: P.exams, excuseDays: Number(setting_('مهلة العذر', 2)) || 2,
+    records: mine.slice(-1500).map(absPublic_).reverse(), tasks: absTasks_(me, list) };
+  // ما سُجّل اليوم في شعب المعلمة (لتأكيد معلمة الحصة الثانية)
+  var t = today_();
+  res.todayInSections = list.filter(function (a) { return a.date === t && secs.indexOf(a.section) >= 0; }).map(function (a) {
+    return { id: a.id, section: a.section, student: a.student, period: a.period, by: a.by, lateArrival: a.lateArrival };
+  });
+  return res;
+}
+
+/* ---------- الواجهات ---------- */
+API.recordAbsence = function (me, req) {
+  if (['teacher', 'supervisor', 'admin'].indexOf(me.role) < 0) throw new Error('تسجيل الغياب للمعلمات والمشرفات');
+  var section = str_(req.section), date = str_(req.date), period = str_(req.period) || 'الأولى';
+  if (absSections_(me).indexOf(section) < 0) throw new Error('الشعبة ليست ضمن شعبكِ');
+  checkDate_(date);
+  var names = (req.students || []).map(str_).filter(String);
+  if (!names.length) throw new Error('اختاري الطالبات الغائبات');
+  var existing = {};
+  absData_().forEach(function (a) { if (a.date === date && a.section === section && a.kind !== 'late') existing[a.student] = 1; });
+  var added = [], skipped = [];
+  var base = nextNo_(rows_(SH.abs).map(function (x) { return str_(x['المعرف']); }));
+  names.forEach(function (n) {
+    if (!student_(n, section)) throw new Error('الطالبة لا تتبع الشعبة المختارة: ' + n);
+    if (existing[n]) { skipped.push(n); return; }
+    existing[n] = 1;
+    append_(SH.abs, COLS.abs, { 'المعرف': 'غ-' + pad_(base + added.length, 4), 'وقت الإدخال': now_(), 'التاريخ': date, 'الشعبة': section, 'الطالبة': n,
+      'الحصة': period, 'سجّلتها': me.name });
+    added.push(n);
+  });
+  flush_();
+  if (added.length) {
+    var sups = sectionInfo_(section).supervisors.filter(function (x) { return x !== me.name; });
+    var body = 'السلام عليكم ورحمة الله وبركاته،\nنحيطكِ علمًا بغياب ' + (added.length === 1 ? 'الطالبة الآتية' : 'الطالبات الآتيات') + ' من الشعبة ' + section +
+      ' يوم ' + arDate_(date) + ' (رصد الحصة ' + period + '):\n' + added.map(function (n) { return '• ' + n; }).join('\n') +
+      '\nيرجى تحديد القرار (بعذر / بدون عذر) وإخطار ولي الأمر وفق سياسة الغياب.\nوتفضلوا بقبول فائق الاحترام والتقدير،\n' + me.name;
+    notify_(sups, 'غياب الشعبة ' + section + ' — ' + arDate_(date) + ' (' + added.length + ')', body, '', 'غياب', 'abs');
+  }
+  return { added: added.length, skipped: skipped, abs: absBoot_(me) };
+};
+
+/** معلمة الحصة الثانية: الطالبة حضرت متأخرة (لا يُحتسب) أو التراجع عن ذلك */
+API.markLateArrival = function (me, req) {
+  var a = absData_().filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!a) throw new Error('السجل غير موجود');
+  if (absSections_(me).indexOf(a.section) < 0) throw new Error('الشعبة ليست ضمن شعبكِ');
+  if (a.decision) throw new Error('حددت المشرفة القرار لهذا الغياب — للتعديل تواصلي معها');
+  var row = absRows_().filter(function (x) { return str_(x['المعرف']) === a.id; })[0];
+  update_(SH.abs, row, { 'حضرت متأخرة': req.late ? 'نعم' : '', 'أكّدتها': me.name });
+  flush_();
+  return { abs: absBoot_(me) };
+};
+
+/** قرار المشرفة لعدة طالبات دفعة واحدة */
+API.decideAbsence = function (me, req) {
+  if (me.role !== 'supervisor' && me.role !== 'admin') throw new Error('القرار للمشرفة الإدارية');
+  var items = req.items || [];
+  if (!items.length) throw new Error('لا توجد قرارات للحفظ');
+  var P = absPolicy_();
+  var all = absData_();
+  items.forEach(function (it) {
+    var a = all.filter(function (x) { return x.id === str_(it.id); })[0];
+    if (!a) throw new Error('السجل غير موجود');
+    if (absFor_(me, [a]).length === 0) throw new Error('الشعبة ليست ضمن شعبكِ');
+    var d = str_(it.decision);
+    if (ABS_DECISIONS.indexOf(d) < 0) throw new Error('اختاري القرار لكل طالبة');
+    if (d === 'بعذر' && !P.excuses.some(function (e) { return e.name === str_(it.excuse); })) throw new Error('اختاري نوع العذر المقبول حسب المادة 3.4.1.4 — ' + a.student);
+    if (a.stages && CHAIN.some(function (s) { return a.doc[s].date; }) && d !== a.decision) throw new Error('لا يمكن تغيير القرار بعد توثيق الإجراءات — ' + a.student);
+    var row = absRows_().filter(function (x) { return str_(x['المعرف']) === a.id; })[0];
+    update_(SH.abs, row, { 'القرار': d, 'نوع العذر': d === 'بعذر' ? str_(it.excuse) : '', 'ملاحظات القرار': str_(it.notes), 'قررتها': me.name, 'وقت القرار': now_() });
+  });
+  flush_();
+  return { abs: absBoot_(me) };
+};
+
+API.documentAbsence = function (me, req) {
+  var st = me.role;
+  if (CHAIN.indexOf(st) < 0) throw new Error('لا يوجد دور توثيق لهذه الصفة');
+  var a = absData_().filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!a) throw new Error('السجل غير موجود');
+  if (absFor_(me, [a]).length === 0) throw new Error('الحالة لا تخصكِ');
+  var s = a.stages[st];
+  if (!s || !s.need) throw new Error('لا يوجد إجراء مطلوب منكِ في هذه الحالة حسب السياسة');
+  if (!s.open) throw new Error('لم يحن دوركِ بعد — بانتظار ' + STAGE_PREFIX[a.next]);
+  var d = str_(req.date);
+  if (!d) throw new Error('اختاري تاريخ التنفيذ');
+  checkDate_(d); if (d < a.date) throw new Error('تاريخ التنفيذ قبل تاريخ الغياب');
+  var p = STAGE_PREFIX[st], ch = {};
+  ch[p + ': تاريخ التنفيذ'] = d;
+  ch[p + ': ملاحظات'] = str_(req.notes);
+  if (st === 'supervisor') {
+    if (a.req.guardian && !str_(req.contact)) throw new Error('السياسة تطلب إخطار ولي الأمر — اختاري طريقة التواصل');
+    ch['المشرفة: التواصل مع ولي الأمر'] = str_(req.contact); ch['المشرفة: من وثّقت'] = me.name;
+  } else {
+    if (!str_(req.taken)) throw new Error('اختاري الإجراء المتخذ');
+    ch[p + ': الإجراء المتخذ'] = str_(req.taken);
+  }
+  var row = absRows_().filter(function (x) { return str_(x['المعرف']) === a.id; })[0];
+  var before = a.next;
+  update_(SH.abs, row, ch);
+  flush_();
+  var a2 = absData_().filter(function (x) { return x.id === a.id; })[0];
+  if (a2.next && a2.next !== before) notifyAbsStage_(a2);
+  return { record: absPublic_(a2), abs: absBoot_(me) };
+};
+
+function notifyAbsStage_(a) {
+  var st = a.next; if (!st) return;
+  var to = stageOwners_(a, st);
+  var subj = 'غياب بدون عذر بانتظار إجرائكِ — ' + a.student + ' (' + a.section + ')';
+  var body = 'السلام عليكم ورحمة الله وبركاته،\n' +
+    'نشكر لكِ جهودكِ المخلصة وحرصكِ الدائم على متابعة طالباتنا، ونحيطكِ علمًا بوصول الحالة الآتية إليكِ وفق سياسة الغياب:\n' +
+    '• الطالبة: ' + a.student + ' — الشعبة ' + a.section + '\n' +
+    '• غياب بدون عذر يوم ' + arDate_(a.date) + ' — اليوم رقم ' + a.n + ' من أيام غيابها بدون عذر\n' +
+    '• المطلوب منكِ حسب السياسة: ' + (a.text[st] || '') + '\n' +
+    (a.elig ? '• ⛔ ' + a.elig + '\n' : '') +
+    'يرجى تنفيذ الإجراء وتوثيقه في المنصة خلال المهلة المعتمدة.\nوتفضلوا بقبول فائق الاحترام والتقدير،';
+  notify_(to, subj, body, a.id, 'غياب', st);
+}
+
+API.deleteAbsence = function (me, req) {
+  var a = absData_().filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!a) throw new Error('السجل غير موجود');
+  var mineUndecided = a.by === me.name && !a.decision;
+  if (me.role !== 'admin' && !mineUndecided) throw new Error('لا يمكن حذف السجل بعد قرار المشرفة — تواصلي مع الإدارة');
+  var row = absRows_().filter(function (x) { return str_(x['المعرف']) === a.id; })[0];
+  update_(SH.abs, row, { 'محذوف': 'نعم' });
+  flush_();
+  return { abs: absBoot_(me) };
+};
+
+/** متابعة الطالبات والأهلية */
+API.absStudents = function (me) {
+  if (me.role === 'teacher') throw new Error('هذه الصفحة للإدارة والمشرفات والأخصائيات');
+  var secs = absSections_(me);
+  var s = absStudents_(absData_(), secs).filter(function (o) { return o.total > 0 || o.denied.length; });
+  s.sort(function (a, b) { return b.U - a.U || b.total - a.total; });
+  return { students: s, exams: absPolicy_().exams };
+};
+
+/** لوحة الغياب */
+API.absDashboard = function (me, req) {
+  if (me.role !== 'admin' && me.role !== 'supervisor') throw new Error('لوحة التحكم للإدارة');
+  var secs = sectionsFor_(me);
+  var from = str_(req.from) || '0000', to = str_(req.to) || '9999';
+  var all = absData_().filter(function (a) { return secs.indexOf(a.section) >= 0 && a.kind !== 'dup'; });
+  var inP = function (d) { return d >= from && d <= to; };
+  var L = all.filter(function (a) { return inP(a.date); });
+  var counted = L.filter(function (a) { return a.kind !== 'late'; });
+  var studs = students_().filter(function (s) { return secs.indexOf(s.section) >= 0; });
+  var t = today_();
+  var sd = days_().filter(function (d) { return d <= t && inP(d); }).length;
+  var countBy = function (arr, f) { var m = {}; arr.forEach(function (x) { var k = f(x); m[k] = (m[k] || 0) + 1; }); return m; };
+  var top = function (m, n) { return Object.keys(m).map(function (k) { return { k: k, n: m[k] }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, n || 6); };
+  var stu = absStudents_(absData_(), secs);
+  var U = counted.filter(function (a) { return a.kind === 'U'; });
+  var comp = {};
+  var addC = function (who, role, code) {
+    var k = who + '|' + role; comp[k] = comp[k] || { name: who, role: role, req: 0, onTime: 0, late: 0, notDone: 0, within: 0 };
+    var o = comp[k]; if (code === 5 || !code) return; o.req++;
+    if (code === 1) o.onTime++; else if (code === 2) o.late++; else if (code === 3) o.notDone++; else if (code === 4) o.within++;
+  };
+  U.forEach(function (a) {
+    CHAIN.forEach(function (st) {
+      var s = a.stages[st]; if (!s || !s.need) return;
+      var owners = st === 'supervisor' ? [a.supervisors.join('، ')] : st === 'admin' ? ['الإدارة'] : stageOwners_(a, st);
+      owners.forEach(function (o) { addC(o, ROLE_LABEL[st], s.compliance); });
+    });
+  });
+  counted.filter(function (a) { return a.kind === 'undecided'; }).forEach(function (a) { addC(a.supervisors.join('، '), 'مشرفة إدارية (القرار)', a.decLate ? 3 : 4); });
+  var months = ['2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-06'].map(function (m) {
+    var x = all.filter(function (a) { return a.kind !== 'late' && a.date.slice(0, 7) === m; });
+    return { m: m, total: x.length, U: x.filter(function (a) { return a.kind === 'U'; }).length };
+  });
+  var grade = function (s) { return s.split('-')[0]; };
+  return {
+    period: { from: from, to: to },
+    tiles: { students: studs.length, schoolDays: sd, total: counted.length, U: U.length, E: counted.filter(function (a) { return a.kind === 'E'; }).length,
+      P: counted.filter(function (a) { return a.kind === 'P'; }).length, undecided: counted.filter(function (a) { return a.kind === 'undecided'; }).length,
+      lateArrivals: L.filter(function (a) { return a.kind === 'late'; }).length,
+      absentStudents: Object.keys(countBy(counted, function (a) { return a.student + '|' + a.section; })).length,
+      rate: studs.length && sd ? Math.round(1000 * counted.length / (studs.length * sd)) / 10 : 0,
+      denied: stu.filter(function (o) { return o.denied.length; }).length, risk: stu.filter(function (o) { return o.risk; }).length,
+      pending: U.filter(function (a) { return a.status.code !== 'done'; }).length, lateActions: U.filter(function (a) { return a.status.code === 'late'; }).length },
+    months: months,
+    byGrade: ['10', '11', '12'].map(function (g) {
+      var x = counted.filter(function (a) { return grade(a.section) === g; });
+      var n = studs.filter(function (s) { return grade(s.section) === g; }).length;
+      return { k: g, students: n, total: x.length, U: x.filter(function (a) { return a.kind === 'U'; }).length, rate: n && sd ? Math.round(1000 * x.length / (n * sd)) / 10 : 0 };
+    }),
+    topSections: top(countBy(counted, function (a) { return a.section; })),
+    topStudents: top(countBy(U, function (a) { return a.student + ' — ' + a.section; })),
+    compliance: Object.keys(comp).map(function (k) { return comp[k]; }).filter(function (o) { return o.req > 0; }),
+    denied: stu.filter(function (o) { return o.denied.length; }).map(function (o) { return { student: o.student, section: o.section, U: o.U, denied: o.denied }; }),
+    late: U.filter(function (a) { return a.status.code === 'late'; }).map(function (a) { return { id: a.id, student: a.student, section: a.section, n: a.n, status: a.status.text }; })
+  };
+};
+
+/* ============================================================
  *  التهيئة (تُشغَّل مرة واحدة من محرر Apps Script)
  * ============================================================ */
 function setup() {
   var ss = ss_();
-  var need = { teacher: SH.teacher, cases: SH.cases, tardy: SH.tardy, messages: SH.messages, mailLog: SH.mailLog };
+  var need = { teacher: SH.teacher, cases: SH.cases, tardy: SH.tardy, messages: SH.messages, mailLog: SH.mailLog, abs: SH.abs };
   Object.keys(need).forEach(function (k) {
     var name = need[k], sh = ss.getSheetByName(name);
     if (!sh) sh = ss.insertSheet(name);
@@ -976,6 +1382,7 @@ function setup() {
   var keys = st.getRange(2, 1, Math.max(1, st.getLastRow() - 1), 1).getValues().map(function (r) { return String(r[0]); });
   if (keys.indexOf('رابط المنصة') < 0) st.appendRow(['رابط المنصة', 'https://althasair.github.io/namoos/', 'يظهر في الإيميلات']);
   if (keys.indexOf('مدة الجلسة بالأيام') < 0) st.appendRow(['مدة الجلسة بالأيام', 30, 'تبقى الموظفة مسجّلة الدخول على جهازها هذه المدة']);
+  if (keys.indexOf('مهلة العذر') < 0) st.appendRow(['مهلة العذر', 2, 'أيام دراسية لاستلام العذر، بعدها يُحتسب الغياب بدون عذر (المادة 3.4.1.5)']);
   return 'تمت التهيئة';
 }
 
