@@ -294,6 +294,10 @@ function checkDate_(d) {
 }
 
 /* ---------- الطالبات والجدول ---------- */
+/** الحصة المشتركة تُكتب «اسم / اسم»، فتظهر لكل معلمة من المشتركات فيها */
+function teaches_(r, name) {
+  return str_(r['المعلمة']).split('/').map(str_).indexOf(name) >= 0;
+}
 function students_() {
   return rows_(SH.students).map(function (r) {
     return { name: str_(r['الاسم']), section: str_(r['الشعبة']), guardian: str_(r['ولي الأمر']), phone: str_(r['هاتف ولي الأمر']) };
@@ -554,7 +558,7 @@ API.bootstrap = function (me) {
   var res = { me: publicUser_(me), today: today_(), dates: allowedDates_(), deadlineDays: Number(setting_('المهلة', 2)) || 2,
     lists: lists_(), staff: users_().map(function (u) { return { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role] }; }) };
   if (me.role === 'teacher') {
-    var asg = rows_(SH.schedule).filter(function (r) { return str_(r['المعلمة']) === me.name; })
+    var asg = rows_(SH.schedule).filter(function (r) { return teaches_(r, me.name); })
       .map(function (r) { return { section: str_(r['الشعبة']), subject: str_(r['المادة']) }; });
     var secs = {};
     asg.forEach(function (a) { secs[a.section] = 1; });
@@ -665,7 +669,7 @@ API.recordTeacher = function (me, req) {
   if (me.role !== 'teacher') throw new Error('هذه الصفحة للمعلمات');
   var P = policy_();
   var subject = str_(req.subject), section = str_(req.section), date = str_(req.date), student = str_(req.student), viol = str_(req.violation);
-  var ok = rows_(SH.schedule).some(function (r) { return str_(r['المعلمة']) === me.name && str_(r['الشعبة']) === section && str_(r['المادة']) === subject; });
+  var ok = rows_(SH.schedule).some(function (r) { return teaches_(r, me.name) && str_(r['الشعبة']) === section && str_(r['المادة']) === subject; });
   if (!ok) throw new Error('المادة غير مقررة لكِ في هذه الشعبة');
   checkDate_(date);
   if (!student_(student, section)) throw new Error('الطالبة لا تتبع الشعبة المختارة');
