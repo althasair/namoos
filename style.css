@@ -168,6 +168,8 @@ table.t tr:nth-child(even) td{background:#FAFAF9}
 .list button[disabled]{opacity:.55;cursor:default}
 a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 
+.guide-link{display:block;text-align:center;color:var(--tq);font-weight:600;text-decoration:none;padding:6px}
+.guide-link:hover{text-decoration:underline}
 /* ---------- الجوال ---------- */
 @media (max-width:860px){
   .decrow{grid-template-columns:minmax(0,1fr)}

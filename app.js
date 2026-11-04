@@ -142,6 +142,7 @@
       '<div class="err" id="lerr">' + esc(msg || '') + '</div>' +
       '<button class="btn wide" type="submit">دخول</button>' +
       '<div class="note">' + ICON.lock + '<span>كل موظفة ترى صفحتها فقط، وبيانات الطالبات محفوظة خارج الموقع.</span></div>' +
+      '<a class="guide-link" href="guide/">📘 دليل الاستخدام المصوّر</a>' +
       '</form></section></main>';
     $$('.pill').forEach(function (b) {
       b.onclick = function () { $$('.pill').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); }); b.setAttribute('aria-pressed', 'true'); role = b.dataset.role; $('#pin').focus(); };

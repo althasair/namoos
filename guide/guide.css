@@ -1,0 +1,97 @@
+/* أدلة استخدام نوماس — مشتركة لكل الفئات */
+:root{
+  --ink:#1E2629; --char:#131C25; --char2:#1C2732; --gold:#C9A46E;
+  --tq:#0E7275; --tq-d:#0B5C5F; --tq-l:#DDF1F1; --tq-b:#18A0A4;
+  --ap:#F7D3B5; --ap-l:#FBEADB; --ap-b:#F2CFB0; --ap-ink:#6B3A16;
+  --mk:#E8590C; --red:#B42318; --red-l:#FDECEA; --ok:#1F7A4D; --ok-l:#E3F4EA;
+  --sil:#C9CED3; --sil-l:#E6E9EC; --bg:#F7F6F4; --mut:#55636A;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Marhey',system-ui,sans-serif;font-size:17px;line-height:1.85}
+.verse{font-family:'Amiri',serif}
+a{color:var(--tq)}
+.wrap{max-width:980px;margin:0 auto;padding:0 18px}
+
+/* الغلاف */
+.cover{position:relative;overflow:hidden;background:var(--char);color:#fff;min-height:100vh;display:flex;flex-direction:column;justify-content:space-between;padding:40px 28px 34px;text-align:center}
+.cover .pat{position:absolute;inset:0;opacity:.07;background-image:radial-gradient(circle at 25px 25px,#fff 2px,transparent 2.5px);background-size:50px 50px}
+.cover > *{position:relative}
+.cover .school{color:#DCE3E8;font-size:16px}
+.cover .school::after{content:'';display:block;width:70px;height:3px;background:var(--gold);margin:10px auto 0;border-radius:2px}
+.cover .logo{width:min(380px,78vw);margin:24px auto 8px;display:block}
+.cover .kind{display:inline-block;margin:14px auto 0;padding:10px 30px;border-radius:30px;background:var(--gold);color:var(--char);font-size:clamp(26px,6vw,40px);font-weight:700}
+.cover .sub{color:#E8EDF0;margin-top:14px;font-size:18px}
+.cover .tag{color:var(--ap);font-size:22px;margin-top:22px}
+.cover .vs{color:var(--ap);font-size:24px;margin-top:6px}
+.cover .foot{color:#AEB9C1;font-size:14px}
+
+/* الأقسام */
+.toc{background:#fff;border:1px solid #DADFE3;border-radius:22px;padding:22px 24px;margin:28px 0}
+.toc h2{margin:0 0 10px;font-size:22px}
+.toc ol{margin:0;padding-inline-start:22px;columns:2;column-gap:30px}
+.toc li{margin:4px 0}
+.role{background:linear-gradient(135deg,var(--tq) 0%,var(--tq-d) 100%);color:#fff;border-radius:22px;padding:22px 24px;margin:28px 0}
+.role h2{margin:0 0 6px;font-size:23px}
+.role ul{margin:6px 0 0;padding-inline-start:22px}
+.role li{margin:6px 0}
+.role .src{margin-top:10px;font-size:14px;color:#CDEBEC}
+.sec{margin:40px 0 10px;display:flex;align-items:center;gap:14px}
+.sec .ic{flex:0 0 54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--ap-l);border:1px solid var(--ap-b)}
+.sec h2{margin:0;font-size:26px}
+.sec p{margin:0;color:var(--mut);font-size:15px}
+.sec.abs .ic{background:var(--tq-l);border-color:#BFE3E3}
+
+/* الخطوة */
+.st{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:26px;align-items:center;background:#fff;border:1px solid #DADFE3;border-radius:24px;padding:22px 24px;margin:16px 0;break-inside:avoid;page-break-inside:avoid}
+.st .n{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:21px;background:var(--char);color:#fff;font-weight:700;font-size:20px;margin-bottom:8px}
+.st h3{margin:0 0 6px;font-size:21px}
+.st p{margin:6px 0}
+.st ol.marks{list-style:none;padding:0;margin:10px 0 0}
+.st ol.marks li{display:flex;gap:10px;align-items:flex-start;margin:7px 0}
+.st ol.marks li b.k{flex:0 0 28px;height:28px;border-radius:14px;background:var(--mk);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:15px;margin-top:2px}
+.phone{justify-self:center;width:270px;border-radius:34px;padding:9px;background:var(--char);box-shadow:0 14px 34px rgba(19,28,37,.22)}
+.phone img{display:block;width:100%;border-radius:26px}
+.tip,.warn,.good{border-radius:14px;padding:10px 14px;margin:10px 0;font-size:15px}
+.tip{background:var(--ap-l);border:1px solid var(--ap-b);color:var(--ap-ink)}
+.warn{background:var(--red-l);border:1px solid #F3C5C0;color:var(--red)}
+.good{background:var(--ok-l);border:1px solid #BFE3CF;color:var(--ok)}
+.chipx{display:inline-block;padding:0 10px;border-radius:10px;background:var(--sil-l);font-size:14px}
+
+/* التثبيت */
+.inst{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.inst .c{background:#fff;border:1px solid #DADFE3;border-radius:22px;padding:18px 20px;break-inside:avoid}
+.inst h3{margin:0 0 8px;display:flex;gap:10px;align-items:center}
+.inst ol{margin:0;padding-inline-start:22px}
+.inst li{margin:8px 0}
+.key{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:10px;border:1.5px solid var(--sil);background:var(--bg);font-size:14px;direction:ltr;unicode-bidi:isolate}
+.key svg{width:18px;height:18px}
+
+/* الأسئلة */
+.faq{background:#fff;border:1px solid #DADFE3;border-radius:22px;padding:6px 22px;margin:16px 0}
+.faq .q{border-bottom:1px solid var(--sil-l);padding:12px 0;break-inside:avoid}
+.faq .q:last-child{border:none}
+.faq .q b{display:block}
+.faq .q p{margin:4px 0 0}
+.end{text-align:center;margin:40px 0 60px;color:var(--mut)}
+.end .tg{color:var(--tq);font-size:22px}
+.top-link{position:sticky;top:0;z-index:5;background:rgba(19,28,37,.96);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:8px 16px;font-size:15px}
+.top-link a{color:var(--ap);text-decoration:none}
+.top-link img{height:30px}
+
+@media (max-width:760px){
+  .st{grid-template-columns:minmax(0,1fr);padding:18px 16px}
+  .phone{width:min(260px,78vw)}
+  .toc ol{columns:1}
+  .inst{grid-template-columns:minmax(0,1fr)}
+}
+@media print{
+  @page{size:A4;margin:12mm}
+  html,body{background:#fff;font-size:12.5pt}
+  .top-link,.noprint{display:none!important}
+  .cover{min-height:auto;height:270mm;break-after:page;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .role,.phone,.st .n,.sec .ic,.tip,.warn,.good,.cover .kind,.st ol.marks li b.k{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .st{grid-template-columns:minmax(0,1fr) 62mm;padding:14px 16px;margin:10px 0}
+  .phone{width:62mm;padding:6px;border-radius:24px;box-shadow:none}
+  .phone img{border-radius:18px}
+  .sec{break-after:avoid;page-break-after:avoid;margin-top:22px}
+}
