@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.1.1';
+var VERSION = '2.1.2';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -699,18 +699,22 @@ API.dailyReport = function (me, req) {
     return { qid: s.qid || '', student: name, section: section, grade: section.split('-')[0], n: n, phone: s.phone || '', guardian: s.guardian || '' };
   };
   var sortFn = function (a, b) { return a.section === b.section ? (a.student < b.student ? -1 : 1) : (secKey_(a.section) < secKey_(b.section) ? -1 : 1); };
-  // التأخير: عدد مرات التأخير حتى التاريخ المختار
-  var cnt = {}, tardy = [];
-  tardyRows_().slice().sort(function (a, b) { return orderKey_(a, 'التاريخ', 'وقت الإدخال') < orderKey_(b, 'التاريخ', 'وقت الإدخال') ? -1 : 1; })
-    .forEach(function (r) {
-      var dt = iso_(r['التاريخ']); if (dt > d) return;
-      var k = str_(r['الطالبة']) + '|' + str_(r['الشعبة']);
-      cnt[k] = (cnt[k] || 0) + 1;
-      if (dt === d) tardy.push({ k: k, student: str_(r['الطالبة']), section: str_(r['الشعبة']) });
-    });
-  var seenT = {};
-  tardy = tardy.filter(function (t) { if (seenT[t.k]) return false; seenT[t.k] = 1; return true; })
-    .map(function (t) { return row(t.student, t.section, cnt[t.k]); }).sort(sortFn);
+  // التأخير: من «التأخير الصباحي» + مخالفات التأخر المسجّلة «خارج الصف» — عدد المرات حتى التاريخ المختار
+  var ev = [];
+  tardyRows_().forEach(function (r) { ev.push({ date: iso_(r['التاريخ']), student: str_(r['الطالبة']), section: str_(r['الشعبة']), src: 'التأخير الصباحي' }); });
+  allData_().cases.forEach(function (c) {
+    if (c.source === 'خارج الصف' && /^التأخر/.test(c.violation)) ev.push({ date: c.date, student: c.student, section: c.section, src: c.short || c.violation });
+  });
+  var cnt = {}, seenD = {}, tardy = [], seenT = {};
+  ev.sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (e) {
+    if (!e.date || e.date > d) return;
+    var k = e.student + '|' + e.section;
+    if (seenD[k + '|' + e.date]) return;          // اليوم الواحد يُحتسب مرة واحدة
+    seenD[k + '|' + e.date] = 1;
+    cnt[k] = (cnt[k] || 0) + 1;
+    if (e.date === d && !seenT[k]) { seenT[k] = 1; tardy.push({ k: k, student: e.student, section: e.section, src: e.src }); }
+  });
+  tardy = tardy.map(function (t) { var o = row(t.student, t.section, cnt[t.k]); o.src = t.src; return o; }).sort(sortFn);
   // الغياب: أيام الغياب المحتسبة حتى التاريخ المختار (دون «حضرت متأخرة» والمكرر)
   var aCnt = {}, abs = [], seenA = {};
   absData_().forEach(function (a) {
@@ -720,7 +724,10 @@ API.dailyReport = function (me, req) {
     if (a.date === d && !seenA[k]) { seenA[k] = 1; abs.push(a); }
   });
   abs = abs.map(function (a) { var o = row(a.student, a.section, aCnt[a.student + '|' + a.section]); o.decision = a.decision || 'بانتظار قرار المشرفة'; return o; }).sort(sortFn);
-  return { date: d, tardy: tardy, absence: abs };
+  var t0 = today_(), lastT = '', lastA = '';
+  ev.forEach(function (e) { if (e.date && e.date <= t0 && e.date > lastT) lastT = e.date; });
+  absData_().forEach(function (a) { if (a.kind !== 'late' && a.kind !== 'dup' && a.date <= t0 && a.date > lastA) lastA = a.date; });
+  return { date: d, tardy: tardy, absence: abs, last: { tardy: lastT, absence: lastA } };
 };
 function secKey_(s) { var p = String(s).split('-'); return ('00' + p[0]).slice(-2) + '-' + ('00' + (p[1] || '')).slice(-2); }
 
