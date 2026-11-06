@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.1.2';
+var VERSION = '2.2.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -82,7 +82,7 @@ function out_(o) {
 }
 
 var PUBLIC = { login: 1, ping: 1 };
-var WRITES = { recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+var WRITES = { sendForm: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
   recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
   recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
@@ -421,6 +421,7 @@ function enrichCases_(all, teacherIndex) {
     c.supervisors = info.supervisors; c.social = info.social;
     var stu = student_(c.student, c.section) || {};
     c.guardian = stu.guardian ? stu.guardian + (stu.phone ? ' ☎ ' + stu.phone : '') : '';
+    c.qid = stu.qid || ''; c.phone = stu.phone || ''; c.gName = stu.guardian || ''; c.subject = t ? (t.subject || '') : '';
     computeStages_(c);
     return c;
   });
@@ -566,7 +567,7 @@ API.bootstrap = function (me) {
   var P = policy_();
   var data = allData_();
   var res = { me: publicUser_(me), today: today_(), dates: allowedDates_(), deadlineDays: Number(setting_('المهلة', 2)) || 2,
-    lists: lists_(), staff: users_().map(function (u) { return { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role] }; }) };
+    lists: lists_(), forms: formsInfo_(), staff: users_().map(function (u) { return { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role] }; }) };
   if (me.role === 'daily') {
     res.tasks = []; res.taskCounts = { beh: 0, abs: 0 }; res.abs = null; res.unread = unread_(me);
     return res;
@@ -638,7 +639,8 @@ function casePublic_(c) {
   return { id: c.id, source: c.source, transferNo: c.transferNo, teacher: c.teacher, date: c.date, section: c.section,
     student: c.student, violation: c.violation, short: c.short, degree: c.degree, rep: c.rep, key: c.key, req: c.req, text: c.text,
     doc: c.doc, stages: c.stages, status: c.status, next: c.next, teacherDid: c.teacherDid, teacherAlert: c.teacherAlert,
-    guardian: c.guardian, supervisors: c.supervisors, social: c.social, by: c.by };
+    guardian: c.guardian, supervisors: c.supervisors, social: c.social, by: c.by,
+    qid: c.qid, phone: c.phone, gName: c.gName, subject: c.subject };
 }
 
 /** الحالات التي تخص المستخدمة */
@@ -730,6 +732,50 @@ API.dailyReport = function (me, req) {
   return { date: d, tardy: tardy, absence: abs, last: { tardy: lastT, absence: lastA } };
 };
 function secKey_(s) { var p = String(s).split('-'); return ('00' + p[0]).slice(-2) + '-' + ('00' + (p[1] || '')).slice(-2); }
+
+
+/* ============================================================
+ *  الاستمارات الرسمية — الأسماء في خانات التوقيع، والإرسال بالبريد مع النسخة
+ * ============================================================ */
+function formsInfo_() {
+  var vp = usersByRole_('admin').filter(function (u) { return u.roleAr === 'النائب الإداري'; })[0];
+  return { principal: str_(setting_('اسم مديرة المدرسة', 'شيخة الرميحي')), adminVP: vp ? vp.name : '',
+    coordinators: usersByRole_('coordinator').map(function (u) { return u.name; }),
+    psych: usersByRole_('psych').map(function (u) { return u.name; }), year: str_(setting_('العام الدراسي', '')) };
+}
+function ccEmails_() {
+  var v = str_(setting_('بريد نسخة الاستمارات', ''));
+  if (v) return v.split(/[،,;\s]+/).filter(String);
+  var out = [];
+  users_().forEach(function (u) { if (u.email && (u.roleAr === 'النائب الإداري' || u.name === str_(setting_('اسم مديرة المدرسة', 'شيخة الرميحي')))) out.push(u.email); });
+  return out;
+}
+API.sendForm = function (me, req) {
+  if (me.role === 'teacher' || me.role === 'daily') throw new Error('الإرسال للإدارة والمشرفات والأخصائيات');
+  var to = users_().filter(function (u) { return u.name === str_(req.to) && u.email; })[0];
+  if (!to) throw new Error('لا يوجد بريد مسجّل لـ ' + str_(req.to));
+  var b64 = String(req.pdf || '').replace(/^data:[^,]+,/, '');
+  if (!b64) throw new Error('الاستمارة غير جاهزة');
+  if (b64.length > 9000000) throw new Error('حجم الاستمارة كبير');
+  var name = (str_(req.title) || 'استمارة') + ' — ' + str_(req.student) + '.pdf';
+  var blob = Utilities.newBlob(Utilities.base64Decode(b64), 'application/pdf', name);
+  var cc = ccEmails_().filter(function (e) { return e !== to.email; });
+  var subject = str_(req.title) + ' — ' + str_(req.student) + (req.section ? ' (' + str_(req.section) + ')' : '');
+  var note = str_(req.note);
+  var body = 'السلام عليكم ورحمة الله وبركاته،\nنرفق لكم ' + str_(req.title) + ' للطالبة ' + str_(req.student) +
+    (req.section ? ' — الشعبة ' + str_(req.section) : '') + '.\n' + (note ? note + '\n' : '') + '\nمرسلة من: ' + me.name + ' (' + ROLE_LABEL[me.role] + ')';
+  var html = '<div dir="rtl" style="font-family:Tahoma,Arial;font-size:15px;line-height:1.9;text-align:right">' + esc_(body).replace(/\n/g, '<br>') + '</div>';
+  var res = 'تم';
+  try {
+    MailApp.sendEmail({ to: to.email, cc: cc.join(','), subject: subject, body: body, htmlBody: html, attachments: [blob], name: 'منصة نوماس — ' + me.name });
+  } catch (err) { res = 'تعذّر: ' + err; }
+  append_(SH.mailLog, COLS.mailLog, { 'الوقت': now_(), 'إلى': to.email + (cc.length ? ' • نسخة: ' + cc.join('، ') : ''), 'الموضوع': subject, 'النتيجة': res });
+  if (res !== 'تم') throw new Error('تعذّر الإرسال، حاولي مرة أخرى');
+  append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': now_(), 'من': me.name, 'إلى': to.name,
+    'الموضوع': subject, 'النص': body + '\n📎 الاستمارة مرفقة في بريدكِ الرسمي.', 'الحالة': str_(req.caseId), 'مقروءة': '', 'النوع': 'استمارة', 'الرابط': '' });
+  flush_();
+  return { sent: true, to: to.name, cc: cc.length };
+};
 
 /* ---------- المعلمة ---------- */
 API.recordTeacher = function (me, req) {
@@ -1134,7 +1180,7 @@ function absPublic_(a) {
   return { id: a.id, date: a.date, section: a.section, student: a.student, period: a.period, by: a.by, kind: a.kind, flag: a.flag,
     decision: a.decision, excuse: a.excuse, decNotes: a.decNotes, decBy: a.decBy, excuseDue: a.excuseDue || '', decDue: a.decDue || '', decLate: !!a.decLate,
     n: a.n, key: a.key, req: a.req, text: a.text, elig: a.elig || '', doc: a.doc, stages: a.stages, status: a.status, next: a.next || '',
-    guardian: stu.guardian || '', phone: stu.phone || '', lateArrival: a.lateArrival, confirmedBy: a.confirmedBy, supervisors: a.supervisors, social: a.social };
+    guardian: stu.guardian || '', phone: stu.phone || '', qid: stu.qid || '', lateArrival: a.lateArrival, confirmedBy: a.confirmedBy, supervisors: a.supervisors, social: a.social };
 }
 
 /** من يرى السجل */

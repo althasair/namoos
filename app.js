@@ -55,6 +55,7 @@
         throw new Error('تعذّر الاتصال بالمنصة — تحققي من الإنترنت');
       });
   }
+  if (window.NamoosForms) setTimeout(function () { NamoosForms.init({ S: S, api: api, toast: toast, esc: esc, ar: ar, arFull: arFull }); }, 0);
   function toast(msg, kind, ms) {
     var t = $('#toast'); if (t) t.remove();
     t = document.createElement('div'); t.id = 'toast'; t.className = 'toast ' + (kind || ''); t.setAttribute('role', 'status');
@@ -474,7 +475,7 @@
       (c.guardian && (st !== 'supervisor' || c.req.guardian) ? '<div class="row">' + ICON.phone + ' ولي الأمر: ' + esc(c.guardian.split('☎')[0]) + ' • ' + tel((c.guardian.split('☎')[1] || '').trim()) + '</div>' : '') +
       (txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
       (st === 'supervisor' && c.req.pledge && c.req.coordinator ? '<div class="note">📎 بعد أخذ التعهد الخطي سلّميه للمنسقة، فهي الجهة التالية في هذه الحالة.</div>' : '') +
-      stageChips(c) +
+      stageChips(c) + (window.NamoosForms ? NamoosForms.buttons('case', c) : '') +
       (withForm ? '<div>' + (s.late ? '<span class="chip red">⛔ متأخر — آخر موعد كان ' + ar(s.due) + '</span>' : '<span class="chip ap">آخر موعد: ' + arFull(s.due) + '</span>') + '</div>' + caseForm(c, st) : '<div class="row">' + esc(c.status.text) + '</div>') +
       '</article>';
   }
@@ -812,7 +813,7 @@
       g + (withForm && txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
       (a.elig ? '<div class="note" style="background:var(--red-l);color:var(--red)">⛔ ' + esc(a.elig) + '</div>' : '') +
       (withForm && st === 'supervisor' ? '<details><summary class="btn sm sec" style="width:max-content">💬 رسالة ولي الأمر جاهزة</summary>' + smsTools(a) + '</details>' : '') +
-      absStageChips(a) +
+      absStageChips(a) + (window.NamoosForms ? NamoosForms.buttons('abs', a) : '') +
       (withForm ? '<div>' + (s.late ? '<span class="chip red">⛔ متأخر — آخر موعد كان ' + ar(s.due) + '</span>' : '<span class="chip ap">آخر موعد: ' + arFull(s.due) + '</span>') + '</div>' + absForm(a, st)
         : '<div class="row">' + esc(a.status.text) + '</div>' + (S.me.role === 'admin' ? '<div><button class="btn sm sec" data-adel="' + esc(a.id) + '">حذف السجل</button></div>' : '')) +
       '</article>';
