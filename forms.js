@@ -64,7 +64,7 @@
       '<tr><td class="l">اسم الطالب</td><td class="v" colspan="3">' + e(c.student) + '</td></tr>' +
       '<tr><td class="l">الصف</td><td class="v">' + grade(c.section) + '</td><td class="l">الشعبة</td><td class="v">' + e(c.section) + '</td></tr>' +
       '<tr><td class="l">الرقم الشخصي</td><td colspan="3" class="p0">' + qidBoxes(c.qid) + '</td></tr>' +
-      '<tr><td class="l">تاريخ الميلاد</td><td>' + ed(yearOf(c.qid) ? '     /     / ' + yearOf(c.qid) : '', '') + '</td><td class="l">الجنسية</td><td>' + ed(natOf(c.qid), '') + '</td></tr>' +
+      '<tr><td class="l">تاريخ الميلاد</td><td>' + ed(yearOf(c.qid) ? '     /     / ' + yearOf(c.qid) : '', '') + '</td><td class="l">الجنسية</td><td>' + ed(c.nat || natOf(c.qid), '') + '</td></tr>' +
       '<tr><td class="l">الحالة الدراسية</td><td>' + bx('مترفع') + ' &nbsp;&nbsp; ' + bx('باق') + '</td><td class="l">رقم ولي الأمر</td><td class="v" dir="ltr">' + e(c.phone || '') + '</td></tr>' +
       '</table>' +
       '<table class="nf">' +

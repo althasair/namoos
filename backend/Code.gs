@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.2.0';
+var VERSION = '2.2.1';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -310,7 +310,7 @@ function teaches_(r, name) {
 }
 function students_() {
   return rows_(SH.students).map(function (r) {
-    return { name: str_(r['الاسم']), section: str_(r['الشعبة']), guardian: str_(r['ولي الأمر']), phone: str_(r['هاتف ولي الأمر']), qid: str_(r['الرقم الشخصي']) };
+    return { name: str_(r['الاسم']), section: str_(r['الشعبة']), guardian: str_(r['ولي الأمر']), phone: str_(r['هاتف ولي الأمر']), qid: str_(r['الرقم الشخصي']), nat: str_(r['الجنسية']) };
   }).filter(function (s) { return s.name && s.section; });
 }
 function student_(name, section) {
@@ -421,7 +421,7 @@ function enrichCases_(all, teacherIndex) {
     c.supervisors = info.supervisors; c.social = info.social;
     var stu = student_(c.student, c.section) || {};
     c.guardian = stu.guardian ? stu.guardian + (stu.phone ? ' ☎ ' + stu.phone : '') : '';
-    c.qid = stu.qid || ''; c.phone = stu.phone || ''; c.gName = stu.guardian || ''; c.subject = t ? (t.subject || '') : '';
+    c.qid = stu.qid || ''; c.nat = stu.nat || ''; c.phone = stu.phone || ''; c.gName = stu.guardian || ''; c.subject = t ? (t.subject || '') : '';
     computeStages_(c);
     return c;
   });
@@ -640,7 +640,7 @@ function casePublic_(c) {
     student: c.student, violation: c.violation, short: c.short, degree: c.degree, rep: c.rep, key: c.key, req: c.req, text: c.text,
     doc: c.doc, stages: c.stages, status: c.status, next: c.next, teacherDid: c.teacherDid, teacherAlert: c.teacherAlert,
     guardian: c.guardian, supervisors: c.supervisors, social: c.social, by: c.by,
-    qid: c.qid, phone: c.phone, gName: c.gName, subject: c.subject };
+    qid: c.qid, nat: c.nat, phone: c.phone, gName: c.gName, subject: c.subject };
 }
 
 /** الحالات التي تخص المستخدمة */
@@ -1180,7 +1180,7 @@ function absPublic_(a) {
   return { id: a.id, date: a.date, section: a.section, student: a.student, period: a.period, by: a.by, kind: a.kind, flag: a.flag,
     decision: a.decision, excuse: a.excuse, decNotes: a.decNotes, decBy: a.decBy, excuseDue: a.excuseDue || '', decDue: a.decDue || '', decLate: !!a.decLate,
     n: a.n, key: a.key, req: a.req, text: a.text, elig: a.elig || '', doc: a.doc, stages: a.stages, status: a.status, next: a.next || '',
-    guardian: stu.guardian || '', phone: stu.phone || '', qid: stu.qid || '', lateArrival: a.lateArrival, confirmedBy: a.confirmedBy, supervisors: a.supervisors, social: a.social };
+    guardian: stu.guardian || '', phone: stu.phone || '', qid: stu.qid || '', nat: stu.nat || '', lateArrival: a.lateArrival, confirmedBy: a.confirmedBy, supervisors: a.supervisors, social: a.social };
 }
 
 /** من يرى السجل */
