@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.2.1';
+var VERSION = '2.3.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -82,7 +82,7 @@ function out_(o) {
 }
 
 var PUBLIC = { login: 1, ping: 1 };
-var WRITES = { sendForm: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+var WRITES = { sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
   recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
   recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
@@ -854,9 +854,33 @@ API.guardianFor = function (me, req) {
 API.deleteTeacher = function (me, req) {
   var r = teacherRecords_().filter(function (x) { return str_(x['المعرف']) === str_(req.id) && str_(x['المعلمة']) === me.name; })[0];
   if (!r) throw new Error('السجل غير موجود');
-  if (str_(r['رقم التحويل'])) throw new Error('لا يمكن حذف سجل بعد تحويله — للتصحيح تواصلي مع المشرفة');
   update_(SH.teacher, r, { 'محذوف': 'نعم' });
-  return { deleted: true };
+  var tno = str_(r['رقم التحويل']);
+  if (tno) caseRows_().filter(function (x) { return str_(x['رقم التحويل']) === tno; }).forEach(function (x) { update_(SH.cases, x, { 'محذوف': 'نعم' }); });
+  flush_();
+  return { deleted: true, caseDeleted: !!tno };
+};
+
+/** تعديل سجل المعلمة (التاريخ أو المخالفة)، ويتعدل معه سجل الحالة المحوّلة */
+API.editTeacher = function (me, req) {
+  var P = policy_();
+  var r = teacherRecords_().filter(function (x) { return str_(x['المعرف']) === str_(req.id) && str_(x['المعلمة']) === me.name; })[0];
+  if (!r) throw new Error('السجل غير موجود');
+  var ch = {};
+  if (req.date) { checkDate_(str_(req.date)); ch['التاريخ'] = str_(req.date); }
+  if (req.violation) { if (!P.classV[str_(req.violation)]) throw new Error('المخالفة غير موجودة في القائمة'); ch['المخالفة'] = str_(req.violation); }
+  update_(SH.teacher, r, ch);
+  flush_();
+  var rec = allData_().teacher.filter(function (x) { return x.id === str_(req.id); })[0];
+  if (rec.transferNo) {
+    caseRows_().filter(function (x) { return str_(x['رقم التحويل']) === rec.transferNo; }).forEach(function (x) {
+      var cc = {}; if (ch['التاريخ']) cc['التاريخ'] = ch['التاريخ']; if (ch['المخالفة']) cc['المخالفة'] = rec.official;
+      update_(SH.cases, x, cc);
+    });
+    flush_();
+    rec = allData_().teacher.filter(function (x) { return x.id === str_(req.id); })[0];
+  }
+  return { record: teacherPublic_(rec) };
 };
 
 /* ---------- المشرفة: حالة خارج الصف ---------- */
@@ -919,14 +943,33 @@ API.documentCase = function (me, req) {
   return { case: casePublic_(c2) };
 };
 
+function canFixCase_(me, c) {
+  if (me.role === 'admin') return true;
+  if (c.by === me.name) return true;
+  return me.role === 'supervisor' && sectionsFor_(me).indexOf(c.section) >= 0;
+}
 API.deleteCase = function (me, req) {
   var c = allData_().cases.filter(function (x) { return x.id === str_(req.id); })[0];
   if (!c) throw new Error('الحالة غير موجودة');
-  if (me.role !== 'admin' && !(me.role === 'supervisor' && c.by === me.name && !c.transferNo && !CHAIN.some(function (s) { return c.doc[s].date; })))
-    throw new Error('لا يمكن حذف الحالة بعد توثيقها — تواصلي مع الإدارة');
+  if (!canFixCase_(me, c)) throw new Error('الحذف لمشرفة الشعبة أو الإدارة');
   var row = caseRows_().filter(function (x) { return str_(x['رقم الحالة']) === c.id; })[0];
   update_(SH.cases, row, { 'محذوف': 'نعم' });
+  flush_();
   return { deleted: true };
+};
+/** تعديل تاريخ المخالفة أو نوعها — يُعاد حساب التكرار والإجراءات تلقائيًا */
+API.editCase = function (me, req) {
+  var P = policy_();
+  var c = allData_().cases.filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!c) throw new Error('الحالة غير موجودة');
+  if (!canFixCase_(me, c)) throw new Error('التعديل لمشرفة الشعبة أو الإدارة');
+  var ch = {};
+  if (req.date) { checkDate_(str_(req.date)); ch['التاريخ'] = str_(req.date); }
+  if (req.violation) { if (!P.off[str_(req.violation)]) throw new Error('المخالفة غير موجودة في السياسة'); ch['المخالفة'] = str_(req.violation); }
+  var row = caseRows_().filter(function (x) { return str_(x['رقم الحالة']) === c.id; })[0];
+  update_(SH.cases, row, ch);
+  flush_();
+  return { case: casePublic_(allData_().cases.filter(function (x) { return x.id === c.id; })[0]) };
 };
 
 /* ---------- سجل التأخير الصباحي ---------- */
@@ -963,12 +1006,26 @@ API.recordTardy = function (me, req) {
   flush_();
   return { added: added, skipped: skipped, ids: ids, tardy: tardyFor_(me).slice(-300).reverse() };
 };
+function canFixTardy_(me, r) {
+  return me.role === 'admin' || str_(r['سجّلتها']) === me.name || (me.role === 'supervisor' && sectionsFor_(me).indexOf(str_(r['الشعبة'])) >= 0);
+}
 API.deleteTardy = function (me, req) {
   var r = tardyRows_().filter(function (x) { return str_(x['المعرف']) === str_(req.id); })[0];
   if (!r) throw new Error('السجل غير موجود');
-  if (me.role !== 'admin' && str_(r['سجّلتها']) !== me.name) throw new Error('يمكن حذف سجلاتكِ فقط');
+  if (!canFixTardy_(me, r)) throw new Error('الحذف لمشرفة الشعبة أو الإدارة');
   update_(SH.tardy, r, { 'محذوف': 'نعم' });
   return { deleted: true };
+};
+API.editTardy = function (me, req) {
+  var r = tardyRows_().filter(function (x) { return str_(x['المعرف']) === str_(req.id); })[0];
+  if (!r) throw new Error('السجل غير موجود');
+  if (!canFixTardy_(me, r)) throw new Error('التعديل لمشرفة الشعبة أو الإدارة');
+  var d = str_(req.date); checkDate_(d);
+  var dup = tardyRows_().some(function (x) { return x !== r && str_(x['الطالبة']) === str_(r['الطالبة']) && str_(x['الشعبة']) === str_(r['الشعبة']) && iso_(x['التاريخ']) === d; });
+  if (dup) throw new Error('الطالبة مسجّلة متأخرة في هذا اليوم مسبقًا');
+  update_(SH.tardy, r, { 'التاريخ': d });
+  flush_();
+  return { tardy: tardyFor_(me).slice(-300).reverse() };
 };
 
 /* ---------- الرسائل ---------- */
@@ -1333,7 +1390,6 @@ API.decideAbsence = function (me, req) {
     var d = str_(it.decision);
     if (ABS_DECISIONS.indexOf(d) < 0) throw new Error('اختاري القرار لكل طالبة');
     if (d === 'بعذر' && !P.excuses.some(function (e) { return e.name === str_(it.excuse); })) throw new Error('اختاري نوع العذر المقبول حسب المادة 3.4.1.4 — ' + a.student);
-    if (a.stages && CHAIN.some(function (s) { return a.doc[s].date; }) && d !== a.decision) throw new Error('لا يمكن تغيير القرار بعد توثيق الإجراءات — ' + a.student);
     var row = absRows_().filter(function (x) { return str_(x['المعرف']) === a.id; })[0];
     update_(SH.abs, row, { 'القرار': d, 'نوع العذر': d === 'بعذر' ? str_(it.excuse) : '', 'ملاحظات القرار': str_(it.notes), 'قررتها': me.name, 'وقت القرار': now_() });
   });
@@ -1386,13 +1442,26 @@ function notifyAbsStage_(a) {
   notify_(to, subj, body, a.id, 'غياب', st);
 }
 
+function canFixAbs_(me, a) {
+  if (me.role === 'admin' || a.by === me.name) return true;
+  return me.role === 'supervisor' && absFor_(me, [a]).length > 0;
+}
 API.deleteAbsence = function (me, req) {
   var a = absData_().filter(function (x) { return x.id === str_(req.id); })[0];
   if (!a) throw new Error('السجل غير موجود');
-  var mineUndecided = a.by === me.name && !a.decision;
-  if (me.role !== 'admin' && !mineUndecided) throw new Error('لا يمكن حذف السجل بعد قرار المشرفة — تواصلي مع الإدارة');
+  if (!canFixAbs_(me, a)) throw new Error('الحذف لمن سجّلته أو مشرفة الشعبة أو الإدارة');
   var row = absRows_().filter(function (x) { return str_(x['المعرف']) === a.id; })[0];
   update_(SH.abs, row, { 'محذوف': 'نعم' });
+  flush_();
+  return { abs: absBoot_(me) };
+};
+API.editAbsence = function (me, req) {
+  var a = absData_().filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!a) throw new Error('السجل غير موجود');
+  if (!canFixAbs_(me, a)) throw new Error('التعديل لمن سجّلته أو مشرفة الشعبة أو الإدارة');
+  var d = str_(req.date); checkDate_(d);
+  var row = absRows_().filter(function (x) { return str_(x['المعرف']) === a.id; })[0];
+  update_(SH.abs, row, { 'التاريخ': d });
   flush_();
   return { abs: absBoot_(me) };
 };

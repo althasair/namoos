@@ -419,7 +419,7 @@
           (r.cat === 1 ? '<span class="chip">التنبيه ' + r.alert + '</span>' : '<span class="chip red">بلاغ</span>') + (r.transferNo ? '<span class="chip tq">' + esc(r.transferNo) + '</span>' : '') + '</div></div>' +
           '<div class="req">' + esc(r.action) + '</div>' +
           (r.after ? '<div class="row">ما تم بعد التحويل: ' + esc(r.after) + '</div>' : '') +
-          (r.status.code !== 'done' ? '<button class="btn sm" data-doc="' + esc(r.id) + '">وثّقي الآن</button><div id="dd-' + esc(r.id) + '"></div>' : '') +
+          (r.status.code !== 'done' ? '<button class="btn sm" data-doc="' + esc(r.id) + '">وثّقي الآن</button><div id="dd-' + esc(r.id) + '"></div>' : '') + fixBar('trec', r) +
           '</article>';
       }).join('') : '<div class="empty"><span class="tg">' + T1 + '</span>لا توجد سجلات هنا</div>') + '</div>';
     $$('[data-f]', el).forEach(function (b) { b.onclick = function () { S.filter.mine = b.dataset.f; vMine(el); }; });
@@ -475,7 +475,7 @@
       (c.guardian && (st !== 'supervisor' || c.req.guardian) ? '<div class="row">' + ICON.phone + ' ولي الأمر: ' + esc(c.guardian.split('☎')[0]) + ' • ' + tel((c.guardian.split('☎')[1] || '').trim()) + '</div>' : '') +
       (txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
       (st === 'supervisor' && c.req.pledge && c.req.coordinator ? '<div class="note">📎 بعد أخذ التعهد الخطي سلّميه للمنسقة، فهي الجهة التالية في هذه الحالة.</div>' : '') +
-      stageChips(c) + (window.NamoosForms ? NamoosForms.buttons('case', c) : '') +
+      stageChips(c) + (window.NamoosForms ? NamoosForms.buttons('case', c) : '') + fixBar('case', c) +
       (withForm ? '<div>' + (s.late ? '<span class="chip red">⛔ متأخر — آخر موعد كان ' + ar(s.due) + '</span>' : '<span class="chip ap">آخر موعد: ' + arFull(s.due) + '</span>') + '</div>' + caseForm(c, st) : '<div class="row">' + esc(c.status.text) + '</div>') +
       '</article>';
   }
@@ -558,6 +558,94 @@
       }).catch(fail);
     };
   }
+
+
+  /* =====================================================
+   *  التعديل والحذف — لكل السجلات
+   * ===================================================== */
+  function canFix(kind, o) {
+    var r = S.me.role, me = S.me.name;
+    if (r === 'admin') return true;
+    if (kind === 'trec') return r === 'teacher';
+    if (kind === 'case') return o.by === me || (r === 'supervisor' && (S.boot.sections || []).indexOf(o.section) >= 0);
+    if (kind === 'abs') return o.by === me || r === 'supervisor';
+    if (kind === 'tardy') return true;
+    return false;
+  }
+  function myDocDone(kind, o) { var st = myStage(); return o.doc && o.doc[st] && o.doc[st].date && o.stages && o.stages[st] && o.stages[st].need; }
+  function fixBar(kind, o) {
+    var core = canFix(kind, o), doc = kind !== 'trec' && myDocDone(kind, o);
+    if (!core && !doc) return '';
+    return '<div class="fx-bar"><button type="button" class="btn sm sec" data-fx-edit="' + kind + '" data-fx-id="' + esc(o.id) + '">✏️ تعديل</button>' +
+      (core ? '<button type="button" class="btn sm sec fx-del" data-fx-del="' + kind + '" data-fx-id="' + esc(o.id) + '">🗑 حذف</button>' : '') + '</div>';
+  }
+  function fxFind(kind, id) {
+    var b = S.boot;
+    var arr = kind === 'case' ? b.cases : kind === 'trec' ? b.records : kind === 'tardy' ? b.tardy : (b.abs && b.abs.records);
+    return (arr || []).filter(function (x) { return x.id === id; })[0];
+  }
+  function fxClose() { var m = document.getElementById('fx'); if (m) m.remove(); document.body.classList.remove('nf-open'); }
+  function fxDone(msg) { fxClose(); toast(msg || '✔ تم الحفظ', 'ok'); refresh(true); }
+  function fxOpen(kind, id) {
+    var o = fxFind(kind, id); if (!o) { toast('لم أجد السجل — حدّثي الصفحة', 'bad'); return; }
+    var core = canFix(kind, o), st = myStage(), b = S.boot, h = '';
+    var title = { case: 'تعديل الحالة ' + o.id, trec: 'تعديل سجل المخالفة', abs: 'تعديل سجل الغياب', tardy: 'تعديل سجل التأخير' }[kind];
+    if (core) {
+      h += '<form class="card grid g2" id="fx-core"><div class="field"><label class="lbl" for="fx-date">' + (kind === 'abs' ? 'تاريخ الغياب' : kind === 'tardy' ? 'تاريخ التأخير' : 'تاريخ المخالفة') + '</label><select class="inp" id="fx-date">' + datesOptions(o.date) + '</select></div>';
+      if (kind === 'case' || kind === 'trec') {
+        var cur = kind === 'case' ? o.violation : o.violation;
+        h += '<div class="field"><label class="lbl" for="fx-v">المخالفة</label><select class="inp" id="fx-v">' + (b.violations || []).map(function (v) { return '<option' + (v.label === cur ? ' selected' : '') + '>' + esc(v.label) + '</option>'; }).join('') + '</select></div>';
+      }
+      if (kind === 'abs' && (S.me.role === 'supervisor' || S.me.role === 'admin') && o.kind !== 'late') {
+        h += '<div class="field"><label class="lbl" for="fx-d">قرار المشرفة</label><select class="inp" id="fx-d"><option value="">— دون تغيير —</option>' + ['بدون عذر', 'بعذر', 'عذر قيد الاستلام'].map(function (d) { return '<option' + (d === o.decision ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select></div>' +
+          '<div class="field"><label class="lbl" for="fx-e">نوع العذر (عند «بعذر»)</label><select class="inp" id="fx-e"><option value="">—</option>' + (AB().excuses || []).map(function (x) { return '<option' + (x === o.excuse ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div>';
+      }
+      h += '<div class="field" style="grid-column:1/-1"><button class="btn wide" type="submit">حفظ التعديل</button></div></form>';
+    }
+    if (kind === 'case' && myDocDone(kind, o)) h += '<div class="card"><h3 style="margin:0 0 8px">تعديل توثيقي</h3>' + caseForm(o, st) + '</div>';
+    if (kind === 'abs' && myDocDone(kind, o)) h += '<div class="card"><h3 style="margin:0 0 8px">تعديل توثيقي</h3>' + absForm(o, st) + '</div>';
+    if (kind === 'trec' && o.done) h += '<div class="card"><h3 style="margin:0 0 8px">تعديل توثيقي</h3><div id="fx-tdoc"><button class="btn sm" id="fx-tdocb" type="button">افتحي التوثيق</button></div></div>';
+    var m = document.createElement('div'); m.id = 'fx';
+    m.innerHTML = '<div class="nf-back"></div><div class="fx-dlg" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><div class="nf-bar"><b>' + esc(title) + ' — ' + esc(o.student) + '</b><button class="btn sec" id="fx-x" type="button">إغلاق</button></div><div class="fx-body">' + h + '</div></div>';
+    document.body.appendChild(m); document.body.classList.add('nf-open');
+    $('#fx-x').onclick = fxClose; m.querySelector('.nf-back').onclick = fxClose;
+    var body = m.querySelector('.fx-body');
+    bindCaseForms(body, function () { fxClose(); });
+    bindAbsForms(body, function () { fxClose(); });
+    var tb = $('#fx-tdocb'); if (tb) tb.onclick = function () { api('guardianFor', { id: o.id }).then(function (g) { docTeacher($('#fx-tdoc'), o, g.guardian, null); }).catch(fail); };
+    var cf = $('#fx-core');
+    if (cf) cf.onsubmit = function (e) {
+      e.preventDefault();
+      var d = { id: o.id }, nd = $('#fx-date').value; if (nd && nd !== o.date) d.date = nd;
+      var vv = $('#fx-v'); if (vv && vv.value !== o.violation) d.violation = vv.value;
+      var p = Promise.resolve(), any = false;
+      if (kind === 'case' && (d.date || d.violation)) { any = true; p = api('editCase', d); }
+      if (kind === 'trec' && (d.date || d.violation)) { any = true; p = api('editTeacher', d); }
+      if (kind === 'tardy' && d.date) { any = true; p = api('editTardy', d); }
+      if (kind === 'abs') {
+        if (d.date) { any = true; p = api('editAbsence', d); }
+        var dd = $('#fx-d');
+        if (dd && dd.value && (dd.value !== o.decision || ($('#fx-e').value || '') !== (o.excuse || ''))) {
+          if (dd.value === 'بعذر' && !$('#fx-e').value) { toast('اختاري نوع العذر', 'bad'); return; }
+          any = true; p = p.then(function () { return api('decideAbsence', { items: [{ id: o.id, decision: dd.value, excuse: $('#fx-e').value }] }); });
+        }
+      }
+      if (!any) { toast('لم يتغير شيء', 'bad'); return; }
+      p.then(function () { fxDone('✔ تم حفظ التعديل — وأُعيد حساب التكرار والإجراءات تلقائيًا'); }).catch(fail);
+    };
+  }
+  function fxDelete(kind, id) {
+    var o = fxFind(kind, id); if (!o) return;
+    var msg = kind === 'trec' && o.transferNo ? 'حذف هذا السجل؟ سيُحذف معه التحويل ' + o.transferNo + ' والحالة المرتبطة به عند المشرفة.' : 'حذف هذا السجل نهائيًا من الإحصاءات؟';
+    if (!confirm(msg)) return;
+    var a = { case: 'deleteCase', trec: 'deleteTeacher', abs: 'deleteAbsence', tardy: 'deleteTardy' }[kind];
+    api(a, { id: id }).then(function () { fxDone('✔ تم الحذف'); }).catch(fail);
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('[data-fx-edit],[data-fx-del]'); if (!t) return;
+    e.preventDefault(); e.stopPropagation();
+    if (t.dataset.fxEdit) fxOpen(t.dataset.fxEdit, t.dataset.fxId); else fxDelete(t.dataset.fxDel, t.dataset.fxId);
+  }, true);
 
   /* ---------- التأخير الصباحي ---------- */
   function vTardy(el) {
@@ -813,9 +901,9 @@
       g + (withForm && txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
       (a.elig ? '<div class="note" style="background:var(--red-l);color:var(--red)">⛔ ' + esc(a.elig) + '</div>' : '') +
       (withForm && st === 'supervisor' ? '<details><summary class="btn sm sec" style="width:max-content">💬 رسالة ولي الأمر جاهزة</summary>' + smsTools(a) + '</details>' : '') +
-      absStageChips(a) + (window.NamoosForms ? NamoosForms.buttons('abs', a) : '') +
+      absStageChips(a) + (window.NamoosForms ? NamoosForms.buttons('abs', a) : '') + fixBar('abs', a) +
       (withForm ? '<div>' + (s.late ? '<span class="chip red">⛔ متأخر — آخر موعد كان ' + ar(s.due) + '</span>' : '<span class="chip ap">آخر موعد: ' + arFull(s.due) + '</span>') + '</div>' + absForm(a, st)
-        : '<div class="row">' + esc(a.status.text) + '</div>' + (S.me.role === 'admin' ? '<div><button class="btn sm sec" data-adel="' + esc(a.id) + '">حذف السجل</button></div>' : '')) +
+        : '<div class="row">' + esc(a.status.text) + '</div>') +
       '</article>';
   }
   function absForm(a, st) {
@@ -916,7 +1004,7 @@
     el.innerHTML = '<div><h2 class="pt">غياب سجّلته</h2><p class="sub">ما سجّلتِه من غياب، وقرار المشرفة فيه.</p></div>' +
       '<div class="items">' + (list.slice(0, 200).map(function (a) {
         return '<article class="item">' + absHead(a) + '<div class="row">' + esc(a.status.text) + '</div>' +
-          (!a.decision && a.kind !== 'late' ? '<div><button class="btn sm sec" data-mdel="' + esc(a.id) + '">حذف (سُجّل بالخطأ)</button></div>' : '') + '</article>';
+          fixBar('abs', a) + '</article>';
       }).join('') || '<div class="empty card"><span class="tg">' + T1 + '</span>لم تسجّلي غيابًا بعد</div>') + '</div>';
     $$('[data-mdel]', el).forEach(function (b) {
       b.onclick = function () { if (!confirm('حذف هذا السجل؟')) return; api('deleteAbsence', { id: b.dataset.mdel }).then(function (r) { S.boot.abs = Object.assign(S.boot.abs, r.abs); vAbsMine(el); }).catch(fail); };
