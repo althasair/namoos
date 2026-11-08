@@ -405,7 +405,8 @@ function enrichCases_(all, teacherIndex) {
   var P = policy_();
   var tIdx = teacherIndex || {};
   var sorted = all.slice().sort(function (a, b) { return orderKey_(a, 'التاريخ', 'وقت الإنشاء') < orderKey_(b, 'التاريخ', 'وقت الإنشاء') ? -1 : 1; });
-  var count = {};
+  var count = {}, seen = {};
+  var isPriorDoc = function (d) { return /^سجل سابق/.test(d.notes || '') || d.action === 'سجل سابق' || d.who === 'سجل سابق'; };
   return sorted.map(function (r) {
     var off = P.off[str_(r['المخالفة'])] || {};
     var c = { id: str_(r['رقم الحالة']), created: str_(r['وقت الإنشاء']), createdDay: iso_(r['وقت الإنشاء']), source: str_(r['المصدر']), transferNo: str_(r['رقم التحويل']),
@@ -434,7 +435,31 @@ function enrichCases_(all, teacherIndex) {
     var stu = student_(c.student, c.section) || {};
     c.guardian = stu.guardian ? stu.guardian + (stu.phone ? ' ☎ ' + stu.phone : '') : '';
     c.qid = stu.qid || ''; c.nat = stu.nat || ''; c.phone = stu.phone || ''; c.gName = stu.guardian || ''; c.subject = t ? (t.subject || '') : '';
+    // لا يبدأ دور جهة قبل أن تُستكمل فعليًا إجراءات الجهات السابقة: إن كانت دراسة الحالة أو التدخل أو اجتماع الفريق
+    // في تكرارات سابقة مسجّلة «سجل سابق» فقط (دون توثيق فعلي)، تُضاف تلك الجهات إلى هذه الحالة قبل الجهة التالية
+    c.extra = {};
+    var live = !CHAIN.some(function (st) { return c.doc[st].date && isPriorDoc(c.doc[st]); });
+    if (live) {
+      (seen[k] || []).forEach(function (o) {
+        ['coordinator', 'social', 'psych'].forEach(function (st) {
+          if (o.req[st] && o.doc[st].date && isPriorDoc(o.doc[st]) && !c.req[st]) {
+            c.extra[st] = c.extra[st] || []; c.extra[st].push({ rep: o.rep, text: o.text[st] || '' });
+          }
+        });
+      });
+      Object.keys(c.extra).forEach(function (st) {
+        var l = c.extra[st], last = l[l.length - 1];
+        c.req[st] = true;
+        c.text[st] = 'استكمال ما لم يُوثَّق فعليًا في التكرار ' + l.map(function (x) { return x.rep; }).join(' و') + ' قبل انتقال الحالة للجهة التالية: ' + last.text +
+          (st === 'social' || st === 'psych' ? ' — مع كتابة ملخص دراسة الحالة في الملاحظات' : '');
+      });
+    }
+    // لا يبدأ دور المنسقة/الأخصائيتين/الإدارة في هذا التكرار قبل اكتمال إجراءات التكرار السابق
+    c.waitPrev = (seen[k] || []).filter(function (o) { return o.pending.some(function (st) { return st !== 'supervisor'; }); }).map(function (o) { return o.id; });
+    c.afterPrev = '';
+    (seen[k] || []).forEach(function (o) { CHAIN.forEach(function (st) { if (st !== 'supervisor' && o.doc[st].date && !isPriorDoc(o.doc[st]) && o.doc[st].date > c.afterPrev) c.afterPrev = o.doc[st].date; }); });
     computeStages_(c);
+    (seen[k] = seen[k] || []).push(c);
     return c;
   });
 }
@@ -444,9 +469,13 @@ function computeStages_(c) {
   var prevDone = startDay_(c.date, c.createdDay); // يبدأ دور أول جهة من تاريخ المخالفة، أو من يوم إدخالها إن أُدخلت بأثر رجعي
   var blocked = false;
   c.stages = {};
+  var exStart = iso_(setting_('بداية استكمال الإجراءات', '2026-11-09'));
   CHAIN.forEach(function (st) {
     var need = !!c.req[st];
     var d = c.doc[st];
+    if (need && c.extra && c.extra[st] && prevDone < exStart) prevDone = exStart; // مهلة الاستكمال تبدأ من تفعيله لا من تاريخ المخالفة
+    if (need && st !== 'supervisor' && c.afterPrev && prevDone < c.afterPrev) prevDone = c.afterPrev; // تبدأ المهلة بعد آخر إجراء في التكرار السابق
+    if (need && st !== 'supervisor' && c.waitPrev && c.waitPrev.length) blocked = true;
     var documented = need && !!d.date && (st !== 'supervisor' || !c.req.guardian || !!d.contact);
     var s = { need: need, documented: documented, open: false, start: '', due: '', late: false, compliance: 0 };
     if (need) {
@@ -470,6 +499,7 @@ function computeStages_(c) {
   c.next = pending[0] || '';
   if (!pending.length) c.status = { code: 'done', text: '✔ اكتملت الإجراءات' };
   else if (lateNow.length) c.status = { code: 'late', text: '⛔ متأخر: ' + lateNow.map(function (s) { return STAGE_PREFIX[s]; }).join(' • ') };
+  else if (c.waitPrev && c.waitPrev.length && pending[0] !== 'supervisor') c.status = { code: 'wait', text: '⏳ بانتظار اكتمال إجراءات الحالة السابقة ' + c.waitPrev.join('، ') + ' قبل دور ' + STAGE_PREFIX[pending[0]] };
   else c.status = { code: 'wait', text: '⏳ بانتظار: ' + STAGE_PREFIX[pending[0]] };
 }
 
@@ -487,8 +517,35 @@ function allData_() {
     r.caseStatus = cs ? cs.status.text : '';
     r.after = cs ? caseSummary_(cs) : '';
   });
+  attachHistory_(c);
   _cache._all = { teacher: t, cases: c };
   return _cache._all;
+}
+
+/** سجل الإجراءات السابقة للطالبة في المخالفة نفسها — يظهر لكل جهة قبل أن تنفّذ دورها */
+function attachHistory_(cases) {
+  var by = {};
+  cases.forEach(function (c) { var k = [c.student, c.section, c.violation].join('|'); (by[k] = by[k] || []).push(c); });
+  var isPrior = function (d) { return /^سجل سابق/.test(d.notes || '') || d.action === 'سجل سابق' || d.who === 'سجل سابق'; };
+  var steps = function (c, upto) {
+    var out = [];
+    if (c.teacherDid) out.push({ st: 'teacher', need: true, done: /^نُفّذ/.test(c.teacherDid), date: c.date, action: c.teacherDid, text: c.text.teacher || '' });
+    CHAIN.forEach(function (st) {
+      if (upto && st === upto) upto = '#';
+      if (upto === '#') return;
+      var x = c.stages[st]; if (!x.need) return;
+      var d = c.doc[st];
+      out.push({ st: st, need: true, done: x.documented, prior: x.documented && isPrior(d), date: d.date, action: d.action || d.contact || '', notes: isPrior(d) ? '' : d.notes, who: d.who && d.who !== 'سجل سابق' ? d.who : '', text: c.text[st] || '' });
+    });
+    return out;
+  };
+  cases.forEach(function (c) {
+    if (c.status.code === 'done') return;
+    var list = by[[c.student, c.section, c.violation].join('|')] || [];
+    c.history = list.filter(function (o) { return o.id !== c.id && (o.date < c.date || (o.date === c.date && o.rep < c.rep)); })
+      .map(function (o) { return { id: o.id, rep: o.rep, date: o.date, steps: steps(o) }; });
+    c.current = steps(c, c.next);
+  });
 }
 
 function caseSummary_(c) {
@@ -652,7 +709,7 @@ function casePublic_(c) {
     student: c.student, violation: c.violation, short: c.short, degree: c.degree, rep: c.rep, key: c.key, req: c.req, text: c.text,
     doc: c.doc, stages: c.stages, status: c.status, next: c.next, teacherDid: c.teacherDid, teacherAlert: c.teacherAlert,
     guardian: c.guardian, supervisors: c.supervisors, social: c.social, by: c.by,
-    qid: c.qid, nat: c.nat, phone: c.phone, gName: c.gName, subject: c.subject };
+    qid: c.qid, nat: c.nat, phone: c.phone, gName: c.gName, subject: c.subject, history: c.history || [], current: c.current || [] };
 }
 
 /** الحالات التي تخص المستخدمة */
@@ -933,7 +990,7 @@ API.documentCase = function (me, req) {
   if (casesFor_(me, [c]).length === 0) throw new Error('الحالة لا تخصكِ');
   var s = c.stages[st];
   if (!s || !s.need) throw new Error('لا يوجد إجراء مطلوب منكِ في هذه الحالة حسب السياسة');
-  if (!s.open) throw new Error('لم يحن دوركِ بعد — بانتظار ' + STAGE_PREFIX[c.next]);
+  if (!s.open) throw new Error(c.waitPrev && c.waitPrev.length && st !== 'supervisor' ? 'لم يحن دوركِ بعد — بانتظار اكتمال إجراءات الحالة السابقة ' + c.waitPrev.join('، ') : 'لم يحن دوركِ بعد — بانتظار ' + STAGE_PREFIX[c.next]);
   var d = str_(req.date);
   if (d) { checkDate_(d); if (d < c.date) throw new Error('تاريخ التنفيذ قبل تاريخ المخالفة'); }
   var p = STAGE_PREFIX[st], ch = {};
@@ -941,13 +998,18 @@ API.documentCase = function (me, req) {
   ch[p + ': ملاحظات'] = str_(req.notes);
   if (st === 'supervisor') { ch['المشرفة: التواصل مع ولي الأمر'] = str_(req.contact); ch['المشرفة: من وثّقت'] = me.name; }
   else ch[p + ': الإجراء المتخذ'] = str_(req.taken);
+  if ((st === 'social' || st === 'psych') && d && str_(req.notes).length < 15) throw new Error('اكتبي ملخص دراسة الحالة أو التدخل في الملاحظات (سطر واحد على الأقل)؛ لتطّلع عليه الجهة التالية');
   if (st === 'supervisor' && c.req.guardian && d && !str_(req.contact)) throw new Error('السياسة تطلب التواصل مع ولي الأمر — اختاري طريقة التواصل');
   var row = caseRows_().filter(function (x) { return str_(x['رقم الحالة']) === c.id; })[0];
   var before = c.next;
+  var waiting = allData_().cases.filter(function (x) { return (x.waitPrev || []).indexOf(c.id) >= 0; }).map(function (x) { return x.id; });
   update_(SH.cases, row, ch);
   flush_();
   var c2 = allData_().cases.filter(function (x) { return x.id === c.id; })[0];
   if (c2.next && c2.next !== before) notifyStageOpen_(c2);
+  // اكتملت هذه الحالة ← يبدأ دور الجهة التالية في التكرار الذي كان ينتظرها
+  allData_().cases.filter(function (x) { return waiting.indexOf(x.id) >= 0 && !(x.waitPrev || []).length && x.next && x.next !== 'supervisor'; })
+    .forEach(function (x) { notifyStageOpen_(x); });
   if (!c2.next && before && c2.teacher) {
     notify_([c2.teacher], 'اكتملت إجراءات الحالة ' + c2.id, 'نحيطكِ علمًا باكتمال جميع الإجراءات المطلوبة وفق السياسة للحالة ' + c2.id +
       ' (الطالبة ' + c2.student + ' — الشعبة ' + c2.section + ').\nلأنّ الطِّيب نوماس.', c2.id, 'إشعار', 'teacher');

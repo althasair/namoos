@@ -301,3 +301,19 @@ body.nf-open{overflow:hidden}
 .cmpleg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-left:5px;vertical-align:middle}
 .s0{background:#5FB3B5} .s1{background:#E9B48A} .s2{background:#9AA7B5}
 @media print{.rmsel{display:none}.cmpchart i,.cmpleg i,.cmpt td.hibad,.cmpt td.hiok{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+
+/* ===== سجل ما تم حسب السياسة ===== */
+.hist{border:1px solid #DADFE3;border-radius:12px;background:#FAFBFB;padding:8px 12px;margin:8px 0}
+.hist summary{cursor:pointer;font-weight:700;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none}
+.hist summary::-webkit-details-marker{display:none}
+.hist .hr{margin-top:10px}
+.hist .hh{font-size:13px;font-weight:700;color:var(--tq-d);border-bottom:1px solid #E6E9EC;padding-bottom:3px;margin-bottom:4px}
+.hist ul{list-style:none;margin:0;padding:0}
+.hs{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:14px;line-height:1.7}
+.hs i{flex:0 0 22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:700;margin-top:2px}
+.hs.ok i{background:var(--ok-l);color:var(--ok)} .hs.pr i{background:var(--warn-l);color:var(--warn)} .hs.no i{background:var(--red-l);color:var(--red)}
+.hs .hn{background:#fff;border-right:3px solid var(--tq);padding:4px 8px;margin-top:3px;border-radius:4px}
+.hs .ht{font-size:12px;color:var(--mut)}
+.hgap{background:var(--warn-l);color:var(--warn);padding:8px 10px;border-radius:8px;margin-top:8px;font-size:14px}
+.hok{background:var(--ok-l);color:var(--ok);padding:8px 10px;border-radius:8px;margin-top:8px;font-size:14px}
+.hnext{background:var(--tq-l);padding:8px 10px;border-radius:8px;margin-top:8px;font-size:14px;line-height:1.9}

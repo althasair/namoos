@@ -462,10 +462,44 @@
       f += '<div class="field"><label class="lbl">ملاحظات (اختياري)</label><input class="inp" name="notes" value="' + esc(c.doc.supervisor.notes) + '" placeholder="مثل: سُلّم التعهد للمنسقة"></div>';
     } else {
       f += '<div class="field"><label class="lbl">الإجراء المتخذ</label><select class="inp" name="taken">' + listOptions(actionList(st), c.doc[st].action) + '</select></div>';
-      f += '<div class="field"><label class="lbl">ملاحظات (اختياري)</label><input class="inp" name="notes" value="' + esc(c.doc[st].notes) + '"></div>';
+      f += (st === 'social' || st === 'psych') ?
+        '<div class="field" style="grid-column:1/-1"><label class="lbl">ملخص ' + (st === 'social' ? 'دراسة الحالة' : 'التدخل الفردي') + ' (مطلوب — يطّلع عليه من بعدكِ)</label><textarea class="inp" name="notes" rows="3" placeholder="مثل: تمت مقابلة الطالبة وولي أمرها، وتبيّن أن سبب التأخر… وتم الاتفاق على…">' + esc(c.doc[st].notes) + '</textarea></div>' :
+        '<div class="field"><label class="lbl">ملاحظات (اختياري)</label><input class="inp" name="notes" value="' + esc(c.doc[st].notes) + '"></div>';
     }
     f += '<div class="field" style="grid-column:1/-1"><button class="btn wide" type="submit">حفظ وتوثيق التنفيذ</button></div></form>';
     return f;
+  }
+  /* سجل ما تم حسب سياسة إدارة السلوك + الخطوة القادمة */
+  var STG = Object.assign({ teacher: 'المعلمة' }, STAGE);
+  function histStep(x) {
+    var st = x.done && !x.prior ? 'ok' : x.prior ? 'pr' : 'no';
+    var mark = { ok: '✔', pr: '!', no: '✖' }[st];
+    var stat = st === 'ok' ? 'تم ' + ar(x.date) + (x.who ? ' — ' + esc(x.who) : '') + (x.action ? ' • ' + esc(x.action) : '') :
+      st === 'pr' ? 'سُجّل «سجل سابق» عند نقل البيانات، ولا يوجد توثيق فعلي لما تم' : 'لم يُنفّذ بعد';
+    return '<li class="hs ' + st + '"><i>' + mark + '</i><div><b>' + STG[x.st] + '</b>: ' + stat +
+      (x.notes ? '<div class="hn">' + (x.st === 'social' ? 'ملخص دراسة الحالة: ' : x.st === 'psych' ? 'ملخص التدخل: ' : 'ملاحظات: ') + esc(x.notes) + '</div>' : '') +
+      (x.text ? '<div class="ht">المطلوب حسب السياسة: ' + esc(x.text) + '</div>' : '') + '</div></li>';
+  }
+  function histPanel(c, st) {
+    var H = c.history || [], cur = c.current || [];
+    if (!H.length && !cur.length) return '';
+    var all = []; H.forEach(function (h) { h.steps.forEach(function (x) { all.push(x); }); }); cur.forEach(function (x) { all.push(x); });
+    var covered = {}; cur.forEach(function (x) { if (x.done && !x.prior) covered[x.st] = x.date; });
+    var real = function (x) { return x.done && !x.prior; };
+    var ok = all.filter(real).length;
+    var gaps = all.filter(function (x) { return !real(x) && x.st !== st && !covered[x.st]; });
+    var repHtml = function (h) {
+      var allPrior = h.steps.length && h.steps.every(function (x) { return x.prior; });
+      if (allPrior) return '<div class="hr"><div class="hh">التكرار ' + h.rep + ' • ' + ar(h.date) + ' • ' + esc(h.id) + '</div><ul><li class="hs pr"><i>!</i><div>سُجّل «سجل سابق» عند نقل البيانات (' + h.steps.map(function (x) { return STG[x.st]; }).join('، ') + ') دون توثيق فعلي' +
+        (h.steps.some(function (x) { return covered[x.st]; }) ? '<div class="ht">استُكمل في التكرار الحالي: ' + h.steps.filter(function (x) { return covered[x.st]; }).map(function (x) { return STG[x.st]; }).join('، ') + '</div>' : '') + '</div></li></ul></div>';
+      return '<div class="hr"><div class="hh">التكرار ' + h.rep + ' • ' + ar(h.date) + ' • ' + esc(h.id) + '</div><ul>' + h.steps.map(histStep).join('') + '</ul></div>';
+    };
+    var after = ['supervisor', 'coordinator', 'social', 'psych', 'admin'].filter(function (k, i, a) { return i > a.indexOf(st) && c.req[k]; });
+    return '<details class="hist"' + (gaps.length || st === 'admin' ? ' open' : '') + '><summary>📋 ما تم حسب سياسة إدارة السلوك <span class="chip ' + (gaps.length ? 'red' : 'ok') + '">' + (gaps.length ? 'يوجد نقص في التوثيق' : '✔ مكتملة') + '</span></summary>' +
+      H.map(repHtml).join('') +
+      (cur.length ? '<div class="hr"><div class="hh">التكرار الحالي (' + c.rep + ') — قبل دوركِ</div><ul>' + cur.map(histStep).join('') + '</ul></div>' : '') +
+      (gaps.length ? '<div class="hgap">⚠ لا يوجد توثيق فعلي لإجراء ' + gaps.map(function (x) { return STG[x.st]; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join('، ') + ' في تكرارات سابقة. تأكدي منها قبل التنفيذ.</div>' : '<div class="hok">✔ جميع الإجراءات السابقة مكتملة وموثّقة.</div>') +
+      '<div class="hnext"><b>الخطوة القادمة (دوركِ):</b> ' + esc(c.text[st] || '') + '<br><b>بعد توثيقكِ:</b> ' + (after.length ? 'تنتقل الحالة إلى ' + after.map(function (k) { return STAGE[k]; }).join(' ثم ') + '.' : 'تكتمل إجراءات الحالة.') + '</div></details>';
   }
   function caseCard(c, withForm) {
     var st = myStage(), s = c.stages[st] || {};
@@ -473,6 +507,7 @@
     return '<article class="item' + (s.late ? ' late' : '') + (S.focus === c.id ? ' focus' : '') + '" id="it-' + esc(c.id) + '">' + caseHead(c) +
       (c.teacherDid ? '<div class="row">ما قامت به المعلمة (' + esc(c.teacherAlert) + '): ' + esc(c.teacherDid) + '</div>' : '') +
       (c.guardian && (st !== 'supervisor' || c.req.guardian) ? '<div class="row">' + ICON.phone + ' ولي الأمر: ' + esc(c.guardian.split('☎')[0]) + ' • ' + tel((c.guardian.split('☎')[1] || '').trim()) + '</div>' : '') +
+      (withForm ? histPanel(c, st) : '') +
       (txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
       (st === 'supervisor' && c.req.pledge && c.req.coordinator ? '<div class="note">📎 بعد أخذ التعهد الخطي سلّميه للمنسقة، فهي الجهة التالية في هذه الحالة.</div>' : '') +
       stageChips(c) + (window.NamoosForms ? NamoosForms.buttons('case', c) : '') + fixBar('case', c) +
@@ -486,6 +521,7 @@
         var d = { id: f.dataset.id, date: f.date.value, notes: f.notes ? f.notes.value : '' };
         if (f.contact) { d.contact = f.contact.value; if (!d.contact) { toast('السياسة تطلب التواصل مع ولي الأمر — اختاري طريقة التواصل', 'bad'); return; } }
         if (f.taken) { d.taken = f.taken.value; if (!d.taken) { toast('اختاري الإجراء المتخذ', 'bad'); return; } }
+        if (f.notes && f.notes.tagName === 'TEXTAREA' && d.notes.trim().length < 15) { toast('اكتبي ملخص دراسة الحالة أو التدخل؛ لتطّلع عليه الجهة التالية', 'bad'); return; }
         api('documentCase', d).then(function (r) {
           var c = r.case;
           var i = S.boot.cases.findIndex(function (x) { return x.id === c.id; });
