@@ -279,3 +279,25 @@ body.nf-open{overflow:hidden}
 .rr-day{font-family:inherit;font-size:13px;border:1.5px solid #C9CED3;background:#fff;border-radius:10px;padding:4px 10px;cursor:pointer;color:#1E2629}
 .rr-day[aria-pressed="true"]{background:#0E7275;border-color:#0E7275;color:#fff}
 .rr-day.had{background:#E6E9EC;color:#8A949A;border-color:#E6E9EC;cursor:default}
+
+/* ===== مقارنة الأشهر ===== */
+.rmchips{display:flex;flex-wrap:wrap;gap:8px}
+.rmchip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid #C9CED3;background:#fff;border-radius:12px;padding:6px 12px;cursor:pointer;font-size:14px;white-space:nowrap}
+.rmchip input{accent-color:#0E7275;margin:0}
+.rmchip.on{border-color:#0E7275;background:var(--tq-l);color:var(--tq-d);font-weight:700}
+.cmpt td,.cmpt th{text-align:center;white-space:nowrap}
+.cmpt td:first-child,.cmpt th:first-child{text-align:right;white-space:normal}
+.cmpt td.hibad{background:#FBEDEC}
+.cmpt td.hiok{background:#E9F5EF}
+.tr{font-size:13px;white-space:nowrap}
+.tr.ok{color:var(--ok)} .tr.bad{color:var(--red)} .tr.eq{color:var(--mut)}
+.cmpchart{display:flex;gap:14px;align-items:flex-end;justify-content:center;padding:16px 4px 4px;border-bottom:1px solid #DADFE3;margin-top:10px;overflow-x:auto}
+.cmpchart .cg{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:64px}
+.cmpchart .cb{display:flex;gap:4px;align-items:flex-end;height:140px}
+.cmpchart i{display:block;width:16px;border-radius:4px 4px 0 0;position:relative}
+.cmpchart i em{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-style:normal;font-size:11px;color:#3A4448}
+.cmpchart span{font-size:13px;font-weight:700}
+.cmpleg{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;font-size:13px;margin:8px 0 4px}
+.cmpleg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-left:5px;vertical-align:middle}
+.s0{background:#5FB3B5} .s1{background:#E9B48A} .s2{background:#9AA7B5}
+@media print{.rmsel{display:none}.cmpchart i,.cmpleg i,.cmpt td.hibad,.cmpt td.hiok{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

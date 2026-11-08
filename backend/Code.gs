@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.4.0';
+var VERSION = '2.5.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -91,6 +91,7 @@ function route_(req) {
   if (a === 'ping') return { name: 'نوماس', version: VERSION };
   if (a === 'login') return login_(req);
   var me = verify_(req.token);
+  autoImportAbs_();
   var fn = API[a];
   if (!fn) throw new Error('إجراء غير معروف');
   if (WRITES[a]) {
@@ -164,10 +165,12 @@ function rows_(name) {
   var v = sheet_(name).getDataRange().getValues();
   var head = v.shift().map(function (h) { return String(h).trim(); });
   var list = v.filter(function (r) { return r.some(function (c) { return c !== '' && c !== null; }); })
-    .map(function (r, i) { var o = { _row: i + 2 }; head.forEach(function (h, j) { o[h] = r[j]; }); return o; });
+    .map(function (r, i) { var o = { _row: i + 2 }; head.forEach(function (h, j) { o[h] = (h === 'الشعبة' && r[j] instanceof Date) ? secFromDate_(r[j]) : r[j]; }); return o; });
   _cache[name] = list;
   return list;
 }
+// شعبة كُتبت يدويًا في الورقة فحوّلها Sheets إلى تاريخ (10-5 ← 5 أكتوبر): تُعاد إلى صيغتها
+function secFromDate_(d) { return Utilities.formatDate(d, ss_().getSpreadsheetTimeZone(), 'M-d'); }
 function flush_() { _cache = {}; }
 function str_(v) { return v === null || v === undefined ? '' : String(v).trim(); }
 function iso_(v) {
@@ -1632,4 +1635,91 @@ function setup() {
 /** اختبار سريع للإيميل: يرسل رسالة تجريبية لصاحبة الحساب */
 function testEmail() {
   MailApp.sendEmail(Session.getActiveUser().getEmail(), 'تجربة منصة نوماس', 'وصلت رسالة التجربة بنجاح.');
+}
+
+/* ============================================================
+ *  استيراد تقرير الغياب اليومي الرسمي (ورقة «استيراد الغياب»)
+ *  كل صف: الرقم الشخصي | الاسم | الشعبة | بدون عذر | بعذر | الحالة
+ *  التواريخ بصيغة MMDD مفصولة بمسافة. الأيام السابقة لليوم تُحتسب في التكرار فقط
+ *  (تُوثّق «سجل سابق»)، وغياب اليوم يدخل دورة الإجراءات كالمعتاد.
+ *  يعمل تلقائيًا مع أول طلب بعد النشر، ويمكن تشغيله يدويًا: importAbsenceReport
+ * ============================================================ */
+var ABS_IMPORT_SHEET = 'استيراد الغياب';
+function autoImportAbs_() {
+  try { autoImportAbsRun_(); } catch (e) {}
+}
+function autoImportAbsRun_() {
+  var sh = ss_().getSheetByName(ABS_IMPORT_SHEET);
+  if (!sh || sh.getLastRow() < 2) return;
+  var st = sh.getRange(2, 6, sh.getLastRow() - 1, 1).getValues();
+  if (!st.some(function (r) { return !str_(r[0]); })) return;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+  try { importAbsenceReport(); } catch (e) { try { sh.getRange(1, 8).setValue('تعذر الاستيراد: ' + (e && e.message || e)); } catch (e2) {} }
+  finally { lock.releaseLock(); flush_(); }
+}
+function importAbsenceReport() {
+  var sh = ss_().getSheetByName(ABS_IMPORT_SHEET);
+  if (!sh || sh.getLastRow() < 2) return 'لا توجد بيانات';
+  var data = sh.getRange(2, 1, sh.getLastRow() - 1, 6).getValues();
+  var t = today_(), stamp = now_(), SRC = 'تقرير الغياب الرسمي';
+  var ymd = function (x) { x = ('0000' + str_(x)).slice(-4); var m = Number(x.slice(0, 2)); return (m >= 8 ? '2026' : '2027') + '-' + x.slice(0, 2) + '-' + x.slice(2); };
+  // الطالبات حسب الرقم الشخصي (وإضافة من لم تُسجّل بعد)
+  var studs = students_(), byQ = {};
+  studs.forEach(function (s) { if (s.qid) byQ[s.qid] = s; });
+  var addStu = [];
+  data.forEach(function (r) {
+    var q = str_(r[0]).replace(/^'/, '');
+    if (!str_(r[5]) && q && !byQ[q] && str_(r[1]) && str_(r[2])) { byQ[q] = { name: str_(r[1]), section: str_(r[2]), qid: q }; addStu.push(byQ[q]); }
+  });
+  if (addStu.length) {
+    var ssh = sheet_(SH.students), head = ssh.getRange(1, 1, 1, ssh.getLastColumn()).getValues()[0].map(str_);
+    appendMany_(SH.students, head, addStu.map(function (s) { return { 'الاسم': s.name, 'الشعبة': s.section, 'الرقم الشخصي': "'" + s.qid }; }));
+  }
+  // السجلات الموجودة: لا تكرار، وتُستكمل القرارات الفارغة فقط (لا يُغيَّر قرار وضعته الموظفة)
+  var existing = {};
+  rows_(SH.abs).forEach(function (r) { var k = str_(r['الطالبة']) + '|' + str_(r['الشعبة']) + '|' + iso_(r['التاريخ']); (existing[k] = existing[k] || []).push(r); });
+  var base = nextNo_(rows_(SH.abs).map(function (x) { return str_(x['المعرف']); }));
+  var add = [], filled = 0, conflicts = [];
+  data.forEach(function (r, i) {
+    if (str_(r[5])) return;
+    var s = byQ[str_(r[0]).replace(/^'/, '')];
+    if (!s) { data[i][5] = 'لم تُعرف الطالبة'; return; }
+    var sups = sectionInfo_(s.section).supervisors.join('، ') || SRC;
+    var items = [];
+    str_(r[3]).split(/\s+/).filter(String).forEach(function (d) { items.push({ date: ymd(d), dec: 'بدون عذر' }); });
+    str_(r[4]).split(/\s+/).filter(String).forEach(function (d) { items.push({ date: ymd(d), dec: 'بعذر' }); });
+    items.forEach(function (it) {
+      var ex = existing[s.name + '|' + s.section + '|' + it.date];
+      if (ex) {
+        ex.forEach(function (row) {
+          if (str_(row['محذوف']) === 'نعم' || str_(row['حضرت متأخرة']) === 'نعم') return;
+          if (!str_(row['القرار'])) { update_(SH.abs, row, { 'القرار': it.dec, 'ملاحظات القرار': 'من ' + SRC, 'قررتها': SRC, 'وقت القرار': stamp }); filled++; }
+          else if (str_(row['القرار']) !== it.dec) conflicts.push(s.name + ' ' + it.date);
+        });
+        return;
+      }
+      var past = it.date < t;
+      var o = { 'المعرف': 'غ-' + pad_(base + add.length, 4), 'وقت الإدخال': past ? it.date + 'T07:30:00' : stamp, 'التاريخ': it.date,
+        'الشعبة': s.section, 'الطالبة': s.name, 'الحصة': 'الأولى', 'سجّلتها': sups,
+        'القرار': it.dec, 'ملاحظات القرار': 'من ' + SRC, 'قررتها': SRC, 'وقت القرار': past ? it.date + 'T08:00:00' : stamp };
+      if (past && it.dec === 'بدون عذر') {
+        o['المشرفة: التواصل مع ولي الأمر'] = 'سجل سابق'; o['المشرفة: من وثّقت'] = 'سجل سابق';
+        CHAIN.forEach(function (stg) { o[STAGE_PREFIX[stg] + ': تاريخ التنفيذ'] = it.date; o[STAGE_PREFIX[stg] + ': ملاحظات'] = 'سجل سابق — من ' + SRC; });
+        ['المنسقة', 'الاجتماعية', 'النفسية', 'الإدارة'].forEach(function (p) { o[p + ': الإجراء المتخذ'] = 'سجل سابق'; });
+      }
+      add.push(o);
+      existing[s.name + '|' + s.section + '|' + it.date] = [o];
+    });
+    data[i][5] = 'تم ' + stamp.slice(0, 10);
+  });
+  add.sort(function (a, b) { return a['التاريخ'] < b['التاريخ'] ? -1 : 1; });
+  add.forEach(function (o, k) { o['المعرف'] = 'غ-' + pad_(base + k, 4); });
+  appendMany_(SH.abs, COLS.abs, add);
+  sh.getRange(2, 6, data.length, 1).setValues(data.map(function (r) { return [r[5]]; }));
+  var msg = 'أُضيف ' + add.length + ' سجل غياب، واستُكمل قرار ' + filled + ' سجل، وأُضيفت ' + addStu.length + ' طالبة. اختلاف مع قرار سابق: ' + conflicts.length;
+  sh.getRange(1, 8).setValue(msg);
+  if (conflicts.length) sh.getRange(2, 8, conflicts.length, 1).setValues(conflicts.map(function (c) { return [c]; }));
+  flush_();
+  return msg;
 }

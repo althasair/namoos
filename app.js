@@ -875,12 +875,35 @@
    * ===================================================== */
   function num(n, one, two, few, many) { return n === 0 ? 'لا ' + few : n === 1 ? one : n === 2 ? two : n <= 10 ? n + ' ' + few : n + ' ' + many; }
   function vReport(el) {
-    var m = S.reportMonth || (S.boot.today || '').slice(0, 7);
-    var i = SCHOOL_MONTHS.indexOf(m), prev = i > 0 ? SCHOOL_MONTHS[i - 1] : '';
+    var cur = (S.boot.today || '').slice(0, 7);
+    var avail = SCHOOL_MONTHS.filter(function (x) { return x <= cur; });
+    if (!avail.length) avail = SCHOOL_MONTHS.slice(0, 1);
+    var mode = S.reportMode || 'one';
+    var m = S.reportMonth || cur;
+    if (avail.indexOf(m) < 0) m = avail[avail.length - 1];
+    var sel = (S.reportMonths || avail.slice(-3)).filter(function (x) { return avail.indexOf(x) >= 0; });
     el.innerHTML = '<div class="noprint" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px"><div><h2 class="pt">التقرير الشهري</h2><p class="sub">يُكتب تلقائيًا من بيانات المنصة، وجاهز للطباعة.</p></div>' +
-      '<div style="display:flex;gap:8px"><select class="inp" id="rm" style="width:auto">' + SCHOOL_MONTHS.map(function (x) { return '<option value="' + x + '"' + (x === m ? ' selected' : '') + '>' + monthLabel(x) + '</option>'; }).join('') + '</select><button class="btn" id="rp">طباعة</button></div></div><div id="rx"></div>';
-    $('#rm').onchange = function () { S.reportMonth = this.value; vReport(el); };
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="modesw"><button data-rmode="one"' + (mode === 'one' ? ' class="on"' : '') + '>شهر واحد</button><button data-rmode="cmp"' + (mode === 'cmp' ? ' class="on"' : '') + '>مقارنة أشهر</button></div>' +
+      (mode === 'one' ? '<select class="inp" id="rm" style="width:auto">' + avail.map(function (x) { return '<option value="' + x + '"' + (x === m ? ' selected' : '') + '>' + monthLabel(x) + '</option>'; }).join('') + '</select>' : '') +
+      '<button class="btn" id="rp">طباعة</button></div></div>' +
+      (mode === 'cmp' ? '<div class="card noprint rmsel"><div class="sub" style="margin-bottom:8px">اختاري شهرين أو أكثر للمقارنة:</div><div class="rmchips">' + avail.map(function (x) {
+        return '<label class="rmchip' + (sel.indexOf(x) >= 0 ? ' on' : '') + '"><input type="checkbox" value="' + x + '"' + (sel.indexOf(x) >= 0 ? ' checked' : '') + '>' + monthLabel(x) + '</label>'; }).join('') +
+        '</div><button class="btn" id="rgo" style="margin-top:10px">اعرضي المقارنة</button></div>' : '') +
+      '<div id="rx"></div>';
+    $$('[data-rmode]').forEach(function (b) { b.onclick = function () { S.reportMode = b.dataset.rmode; vReport(el); }; });
+    if ($('#rm')) $('#rm').onchange = function () { S.reportMonth = this.value; vReport(el); };
     $('#rp').onclick = function () { window.print(); };
+    if (mode === 'cmp') {
+      $$('.rmchip input').forEach(function (c) { c.onchange = function () { c.parentNode.classList.toggle('on', c.checked); }; });
+      $('#rgo').onclick = function () {
+        var pick = $$('.rmchip input').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }).sort();
+        if (pick.length < 2) { toast('اختاري شهرين على الأقل'); return; }
+        S.reportMonths = pick; reportCompare(pick);
+      };
+      if (sel.length >= 2) reportCompare(sel.sort()); else $('#rx').innerHTML = '<div class="empty">اختاري شهرين أو أكثر ثم اضغطي «اعرضي المقارنة».</div>';
+      return;
+    }
+    var i = SCHOOL_MONTHS.indexOf(m), prev = i > 0 ? SCHOOL_MONTHS[i - 1] : '';
     Promise.all([api('dashboard', monthRange(m)), prev ? api('dashboard', monthRange(prev), true) : Promise.resolve(null),
       api('absDashboard', monthRange(m), true), prev ? api('absDashboard', monthRange(prev), true) : Promise.resolve(null)]).then(function (res) {
       var d = res[0], p = res[1], t = d.tiles, ad = res[2], ap = res[3], at = ad.tiles, apt = ap ? ap.tiles : {};
@@ -929,6 +952,117 @@
         '<div class="sig"><div><b>النائبة الإدارية</b>أ. وداد الكربي</div><div><b>نائب المديرة للشؤون الأكاديمية</b>أ. آسيا الذبياني</div><div><b>مديرة المدرسة</b>أ. شيخة الرميحي</div></div>' +
         '</article>';
     }).catch(fail);
+  }
+
+  /* ---------- مقارنة الأشهر ---------- */
+  function reportCompare(ms) {
+    var GR = { 10: 'العاشر', 11: 'الحادي عشر', 12: 'الثاني عشر' };
+    $('#rx').innerHTML = '<div class="empty">جارٍ تجهيز المقارنة…</div>';
+    var calls = [];
+    ms.forEach(function (m) { calls.push(api('dashboard', monthRange(m), true)); calls.push(api('absDashboard', monthRange(m), true)); });
+    loading(true);
+    Promise.all(calls).then(function (res) {
+      loading(false);
+      var D = ms.map(function (m, k) { return { m: m, b: res[2 * k], a: res[2 * k + 1] }; });
+      var short = function (m) { return MONTHS[Number(m.slice(5, 7)) - 1]; };
+      var compl = function (x) {
+        var list = x.b.compliance.concat(x.a.compliance), base = 0, on = 0;
+        list.forEach(function (c) { base += c.req - c.within; on += c.onTime; });
+        return base ? Math.round(100 * on / base) : null;
+      };
+      var IND = [
+        ['beh', 'المخالفات الصفية المسجّلة من المعلمات', function (x) { return x.b.tiles.classroom; }],
+        ['beh', 'التحويلات للمشرفات', function (x) { return x.b.tiles.transfers; }],
+        ['beh', 'المخالفات السلوكية الرسمية', function (x) { return x.b.tiles.cases; }],
+        ['beh', 'مخالفات جسيمة (الدرجتان 3 و4)', function (x) { return x.b.tiles.serious; }],
+        ['beh', 'حالات التأخير الصباحي', function (x) { return x.b.tiles.tardy; }],
+        ['beh', 'الطالبات المتأخرات صباحًا', function (x) { return x.b.tiles.tardyStudents; }],
+        ['abs', 'أيام الغياب المسجّلة', function (x) { return x.a.tiles.total; }],
+        ['abs', 'الغياب بدون عذر', function (x) { return x.a.tiles.U; }],
+        ['abs', 'الغياب بعذر', function (x) { return x.a.tiles.E; }],
+        ['abs', 'نسبة الغياب %', function (x) { return x.a.tiles.rate; }, 1],
+        ['abs', 'غير مؤهلات لدخول الاختبار', function (x) { return x.a.tiles.denied; }, 1],
+        ['cmp', 'نسبة الالتزام بتنفيذ الإجراءات في الوقت %', compl, 1]
+      ];
+      var trend = function (a, b, good) {
+        if (a === null || b === null) return '—';
+        if (a === b) return '<span class="tr eq">= ثابت</span>';
+        var up = b > a, pct = a ? Math.round(100 * Math.abs(b - a) / a) : null;
+        var cls = (up === !!good) ? 'ok' : 'bad';
+        return '<span class="tr ' + cls + '">' + (up ? '▲ ارتفاع' : '▼ انخفاض') + (pct !== null ? ' ' + pct + '%' : '') + '</span>';
+      };
+      var table = function (grp) {
+        return '<div class="tw"><table class="t cmpt"><thead><tr><th>البند</th>' + D.map(function (x) { return '<th>' + short(x.m) + '</th>'; }).join('') + (grp === 'cmp' ? '' : '<th>المجموع</th>') + '<th>التغيّر (' + short(ms[0]) + ' ← ' + short(ms[ms.length - 1]) + ')</th></tr></thead><tbody>' +
+          IND.filter(function (r) { return r[0] === grp; }).map(function (r) {
+            var v = D.map(function (x) { return r[2](x); });
+            var nums = v.filter(function (n) { return n !== null; }), mx = Math.max.apply(null, nums.concat([0])), mn = Math.min.apply(null, nums.concat([mx]));
+            var good = grp === 'cmp';
+            return '<tr><td>' + r[1] + '</td>' + v.map(function (n) {
+              var c = n === null || mx === mn ? '' : n === mx ? (good ? ' class="hiok"' : ' class="hibad"') : n === mn ? (good ? ' class="hibad"' : ' class="hiok"') : '';
+              return '<td' + c + '>' + (n === null ? '—' : n) + '</td>'; }).join('') +
+              (grp === 'cmp' ? '' : '<td><b>' + (r[3] ? '—' : nums.reduce(function (s, n) { return s + n; }, 0)) + '</b></td>') +
+              '<td>' + trend(v[0], v[v.length - 1], good) + '</td></tr>';
+          }).join('') + '</tbody></table></div>';
+      };
+      // رسم أعمدة مقارن
+      var chart = function (series) {
+        var mx = 1; D.forEach(function (x) { series.forEach(function (s) { mx = Math.max(mx, s[2](x) || 0); }); });
+        return '<div class="cmpchart">' + D.map(function (x) {
+          return '<div class="cg"><div class="cb">' + series.map(function (s, k) { var n = s[2](x) || 0; return '<i class="s' + k + '" style="height:' + Math.max(2, Math.round(120 * n / mx)) + 'px"><em>' + n + '</em></i>'; }).join('') + '</div><span>' + short(x.m) + '</span></div>';
+        }).join('') + '</div><div class="cmpleg">' + series.map(function (s, k) { return '<span><i class="s' + k + '"></i>' + s[1] + '</span>'; }).join('') + '</div>';
+      };
+      var S1 = [IND[2], IND[4], IND[0]], S2 = [IND[7], IND[8]];
+      // المخالفات الأكثر تكرارًا عبر الأشهر
+      var vk = {};
+      D.forEach(function (x, k) { x.b.topViolations.forEach(function (v) { vk[v.k] = vk[v.k] || D.map(function () { return 0; }); vk[v.k][k] = v.n; }); });
+      var vlist = Object.keys(vk).map(function (k) { return { k: k, v: vk[k], t: vk[k].reduce(function (s, n) { return s + n; }, 0) }; }).sort(function (a, b) { return b.t - a.t; }).slice(0, 8);
+      var sk = {};
+      D.forEach(function (x, k) { x.b.topSections.forEach(function (v) { sk[v.k] = sk[v.k] || D.map(function () { return 0; }); sk[v.k][k] = v.n; }); });
+      var slist = Object.keys(sk).map(function (k) { return { k: k, v: sk[k], t: sk[k].reduce(function (s, n) { return s + n; }, 0) }; }).sort(function (a, b) { return b.t - a.t; }).slice(0, 8);
+      var mtab = function (title, list, esck) {
+        return '<div class="tw"><table class="t cmpt"><thead><tr><th>' + title + '</th>' + D.map(function (x) { return '<th>' + short(x.m) + '</th>'; }).join('') + '<th>المجموع</th></tr></thead><tbody>' +
+          (list.map(function (r) { return '<tr><td>' + (esck ? esc(r.k) : r.k) + '</td>' + r.v.map(function (n) { return '<td>' + n + '</td>'; }).join('') + '<td><b>' + r.t + '</b></td></tr>'; }).join('') || '<tr><td colspan="' + (D.length + 2) + '">لا توجد بيانات</td></tr>') + '</tbody></table></div>';
+      };
+      var gtab = '<div class="tw"><table class="t cmpt"><thead><tr><th>الصف</th>' + D.map(function (x) { return '<th>' + short(x.m) + '<div class="sub">مخالفات • تأخير • بدون عذر</div></th>'; }).join('') + '</tr></thead><tbody>' +
+        ['10', '11', '12'].map(function (g) {
+          return '<tr><td>' + GR[g] + '</td>' + D.map(function (x) {
+            var b = x.b.byGrade.filter(function (y) { return String(y.k) === g; })[0] || {}, a = x.a.byGrade.filter(function (y) { return String(y.k) === g; })[0] || {};
+            return '<td>' + ((b.cases || 0) + (b.classroom || 0)) + ' • ' + (b.tardy || 0) + ' • ' + (a.U || 0) + '</td>'; }).join('') + '</tr>';
+        }).join('') + '</tbody></table></div>';
+      // السرد المقارن
+      var phr = function (r, unit) {
+        var v = D.map(function (x) { return r[2](x); }), a = v[0], b = v[v.length - 1];
+        var mxI = v.indexOf(Math.max.apply(null, v)), mnI = v.indexOf(Math.min.apply(null, v));
+        var ch = a === b ? 'دون تغيّر' : (b > a ? 'بارتفاع' : 'بانخفاض') + (a ? ' نسبته ' + Math.round(100 * Math.abs(b - a) / a) + '%' : '');
+        return '«' + r[1] + '» من ' + a + unit + ' في ' + short(ms[0]) + ' إلى ' + b + unit + ' في ' + short(ms[ms.length - 1]) + ' ' + ch + (mxI !== mnI ? '، وبلغ أعلاه في ' + short(ms[mxI]) + ' وأدناه في ' + short(ms[mnI]) : '');
+      };
+      var narr = 'تم إعداد هذه المقارنة للأشهر: ' + ms.map(monthLabel).join('، ') + '. وانتقل مؤشر ' + phr(IND[2], '') + '؛ ومؤشر ' + phr(IND[4], '') + '؛ ومؤشر ' + phr(IND[7], '') + '؛ ومؤشر ' + phr(IND[9], '%') + '.';
+      var cA = compl(D[0]), cB = compl(D[D.length - 1]);
+      if (cA !== null && cB !== null) narr += ' كما ' + (cB > cA ? 'تحسّنت' : cB < cA ? 'تراجعت' : 'استقرت') + ' نسبة الالتزام بتنفيذ الإجراءات في الوقت المحدد من ' + cA + '% إلى ' + cB + '%.';
+      // توصيات مبنية على الاتجاه
+      var recs = [], last = D[D.length - 1], first = D[0];
+      if (last.b.tiles.cases > first.b.tiles.cases) recs.push('مراجعة أسباب ارتفاع المخالفات السلوكية الرسمية بين ' + short(ms[0]) + ' و' + short(ms[ms.length - 1]) + '، وتفعيل برامج وقائية' + (vlist.length ? ' تستهدف مخالفة «' + vlist[0].k + '» بوصفها الأكثر تكرارًا خلال الفترة' : '') + '.');
+      else recs.push('الاستمرار في البرامج الوقائية التي أسهمت في استقرار المخالفات السلوكية أو انخفاضها خلال الفترة.');
+      if (last.b.tiles.tardy > first.b.tiles.tardy) recs.push('تكثيف متابعة التأخير الصباحي مع أولياء الأمور، إذ ارتفع من ' + first.b.tiles.tardy + ' إلى ' + last.b.tiles.tardy + ' حالة.');
+      if (last.a.tiles.U > first.a.tiles.U) recs.push('متابعة الغياب بدون عذر الذي ارتفع من ' + first.a.tiles.U + ' إلى ' + last.a.tiles.U + ' يومًا، بالتنسيق مع الأخصائيتين الاجتماعيتين وإخطار أولياء الأمور بحدود الأهلية للاختبارات.');
+      else recs.push('تعزيز الانضباط في الحضور وتكريم الطالبات المنتظمات، مع استمرار متابعة الغياب بدون عذر.');
+      if (slist.length) recs.push('تركيز المتابعة على الشعب الأعلى تكرارًا للمخالفات خلال الفترة (' + slist.slice(0, 2).map(function (x) { return x.k; }).join('، ') + ').');
+      if (cA !== null && cB !== null && cB < cA) recs.push('معالجة تراجع الالتزام بالمهلة المعتمدة لتنفيذ الإجراءات وتوثيقها مع الجهات المعنية.');
+      $('#rx').innerHTML = '<article class="report">' +
+        '<h1>مدرسة الشيماء الثانوية للبنات</h1><div style="text-align:center;font-weight:700;margin-top:6px">تقرير مقارنة الأشهر لمتابعة السلوك والانضباط والحضور — ' + ms.map(short).join('، ') + ' ' + ms[ms.length - 1].slice(0, 4) + '</div>' +
+        '<div class="verse" style="text-align:center;color:var(--tq);font-size:20px;margin-top:8px">' + VERSE2 + '</div>' +
+        '<div style="text-align:center;color:var(--mut);font-size:13px">العام الدراسي 2026 – 2027 • ' + T3 + '</div>' +
+        '<p style="background:var(--ap-l);padding:14px 16px;border-radius:8px;margin-top:18px">' + esc(narr) + '</p>' +
+        '<h2>أولًا: مؤشرات السلوك والانضباط</h2>' + table('beh') + chart(S1) +
+        '<h2>ثانيًا: مؤشرات الحضور (الغياب)</h2>' + table('abs') + chart(S2) +
+        '<h2>ثالثًا: الالتزام بتنفيذ الإجراءات</h2>' + table('cmp') +
+        '<h2>رابعًا: المقارنة حسب الصف الدراسي</h2>' + gtab +
+        '<h2>خامسًا: المخالفات الأكثر تكرارًا عبر الأشهر</h2>' + mtab('المخالفة', vlist, 1) +
+        '<h2>سادسًا: الشعب الأكثر مخالفات عبر الأشهر</h2>' + mtab('الشعبة', slist) +
+        '<h2>سابعًا: التوصيات</h2><p><b>وأوصي بما يلي:</b></p><ul style="line-height:2.1">' + recs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
+        '<div class="sig"><div><b>النائبة الإدارية</b>أ. وداد الكربي</div><div><b>نائب المديرة للشؤون الأكاديمية</b>أ. آسيا الذبياني</div><div><b>مديرة المدرسة</b>أ. شيخة الرميحي</div></div>' +
+        '</article>';
+    }).catch(function (e) { loading(false); fail(e); });
   }
 
   /* =====================================================
