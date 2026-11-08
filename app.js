@@ -456,7 +456,7 @@
   function caseForm(c, st) {
     var s = c.stages[st];
     var f = '<form class="cf" data-id="' + esc(c.id) + '">' +
-      '<div class="field"><label class="lbl">تاريخ التنفيذ</label><select class="inp" name="date">' + datesOptions(c.doc[st].date || '', s.start || c.date) + '</select></div>';
+      '<div class="field"><label class="lbl">تاريخ التنفيذ</label><select class="inp" name="date">' + datesOptions(c.doc[st].date || '', c.date) + '</select></div>';
     if (st === 'supervisor') {
       f += c.req.guardian ? '<div class="field"><label class="lbl">التواصل مع ولي الأمر (مطلوب)</label><select class="inp" name="contact">' + listOptions('تواصل المشرفة', c.doc.supervisor.contact) + '</select></div>' : '';
       f += '<div class="field"><label class="lbl">ملاحظات (اختياري)</label><input class="inp" name="notes" value="' + esc(c.doc.supervisor.notes) + '" placeholder="مثل: سُلّم التعهد للمنسقة"></div>';
@@ -647,14 +647,93 @@
     if (t.dataset.fxEdit) fxOpen(t.dataset.fxEdit, t.dataset.fxId); else fxDelete(t.dataset.fxDel, t.dataset.fxId);
   }, true);
 
+
+  /* =====================================================
+   *  الإدخال بأثر رجعي: طالبة واحدة ← عدة أيام (للتأخير والغياب)
+   * ===================================================== */
+  function modeSwitch(key, cur) {
+    return '<div class="opts modesw">' + [['day', 'يوم واحد لعدة طالبات'], ['retro', 'بأثر رجعي: عدة أيام لطالبة']].map(function (m) {
+      return '<button type="button" class="opt" data-mode="' + key + ':' + m[0] + '" aria-pressed="' + (cur === m[0]) + '">' + m[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  function vRetro(el, kind) {
+    var b = S.boot, isA = kind === 'abs';
+    var Rr = (S.retro = S.retro || {})[kind] = (S.retro[kind] || { dates: {} });
+    var sections = isA ? AB().sections : b.sections;
+    var studentsOf = function (sec) { return (isA ? AB().students : b.students)[sec] || []; };
+    if (!Rr.section && sections.length === 1) Rr.section = sections[0];
+    var have = {};
+    if (Rr.student) {
+      (isA ? AB().records : (b.tardy || [])).forEach(function (x) { if (x.student === Rr.student && x.section === Rr.section && !x.lateArrival && x.kind !== 'late') have[x.date] = 1; });
+    }
+    var days = (b.dates || []).filter(function (d) { return d <= b.today; }).slice().reverse();
+    var months = {}; days.forEach(function (d) { var k = d.slice(0, 7); (months[k] = months[k] || []).push(d); });
+    var n = Object.keys(Rr.dates).length;
+    el.innerHTML = '<div><h2 class="pt">' + (isA ? 'تسجيل الغياب' : 'التأخير الصباحي') + '</h2><p class="sub">بأثر رجعي: اختاري الطالبة، ثم أشّري على كل الأيام التي ' + (isA ? 'غابت' : 'تأخرت') + ' فيها، واحفظي مرة واحدة.</p></div>' +
+      modeSwitch(kind, 'retro') +
+      '<div class="card grid g2"><div class="field"><label class="lbl" for="rr-s">الشعبة</label><select class="inp" id="rr-s"><option value="">— اختاري —</option>' + sections.map(function (x) { return '<option' + (Rr.section === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div>' +
+      (isA ? '<div class="field"><label class="lbl" for="rr-d">القرار لكل الأيام (اختياري)</label><select class="inp" id="rr-d">' + [['', 'بدون قرار الآن — أقرره لاحقًا'], ['بدون عذر', 'بدون عذر'], ['عذر قيد الاستلام', 'عذر قيد الاستلام']].map(function (o) { return '<option value="' + o[0] + '"' + ((Rr.decision || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' : '<div></div>') + '</div>' +
+      (Rr.section ? step(1, 'الطالبة' + (Rr.student ? ': ' + esc(Rr.student) : ''), searchList('rr-q', 'ابحثي باسم الطالبة') + '<div class="list" id="rr-l"></div>', Rr.student ? 'done' : '') : '') +
+      (Rr.student ? step(2, 'الأيام (' + n + ')', '<div class="sub">الأيام الرمادية مسجّلة مسبقًا.</div>' + Object.keys(months).map(function (m) {
+        return '<div class="rr-m"><b>' + MONTHS[Number(m.slice(5, 7)) - 1] + '</b><div class="rr-days">' + months[m].map(function (d) {
+          var x = new Date(d + 'T12:00:00');
+          return have[d] ? '<span class="rr-day had">' + WD[x.getDay()] + ' ' + Number(d.slice(8)) + '</span>'
+            : '<button type="button" class="rr-day" data-rd="' + d + '" aria-pressed="' + !!Rr.dates[d] + '">' + WD[x.getDay()] + ' ' + Number(d.slice(8)) + '</button>';
+        }).join('') + '</div></div>';
+      }).join(''), n ? 'done' : '') +
+        '<button class="btn wide" id="rr-save" ' + (n ? '' : 'disabled') + '>' + (isA ? 'تسجيل الغياب' : 'تسجيل التأخير') + ' (' + n + ' ' + (n === 1 ? 'يوم' : 'أيام') + ')</button>' : '');
+    $$('[data-mode]', el).forEach(bindMode);
+    $('#rr-s').onchange = function () { Rr.section = this.value; Rr.student = ''; Rr.dates = {}; vRetro(el, kind); };
+    var dd = $('#rr-d'); if (dd) dd.onchange = function () { Rr.decision = this.value; };
+    if (Rr.section) {
+      var draw = function () {
+        var qn = norm($('#rr-q').value);
+        $('#rr-l').innerHTML = studentsOf(Rr.section).filter(function (x) { return !qn || norm(x).indexOf(qn) >= 0; }).map(function (x) {
+          return '<button type="button" data-rs="' + esc(x) + '" aria-pressed="' + (Rr.student === x) + '"><span>' + esc(x) + '</span><span>' + (Rr.student === x ? '✔' : '') + '</span></button>';
+        }).join('');
+        $$('[data-rs]', $('#rr-l')).forEach(function (x) { x.onclick = function () { Rr.student = x.dataset.rs; Rr.dates = {}; vRetro(el, kind); }; });
+      };
+      $('#rr-q').oninput = draw; draw();
+    }
+    $$('[data-rd]', el).forEach(function (x) {
+      x.onclick = function () { var d = x.dataset.rd; if (Rr.dates[d]) delete Rr.dates[d]; else Rr.dates[d] = 1; x.setAttribute('aria-pressed', !!Rr.dates[d]); var k = Object.keys(Rr.dates).length; var sv = $('#rr-save'); sv.disabled = !k; sv.textContent = (isA ? 'تسجيل الغياب' : 'تسجيل التأخير') + ' (' + k + ' ' + (k === 1 ? 'يوم' : 'أيام') + ')'; };
+    });
+    var sv = $('#rr-save');
+    if (sv) sv.onclick = function () {
+      var ds = Object.keys(Rr.dates).sort(); if (!ds.length || sv.disabled) return;
+      sv.disabled = true; sv.textContent = 'جارٍ الحفظ… انتظري لحظة';
+      var entries = ds.map(function (d) { return { student: Rr.student, date: d }; });
+      var call = isA ? api('recordAbsence', { section: Rr.section, entries: entries, decision: Rr.decision || '' })
+        : api('recordTardy', { section: Rr.section, entries: entries });
+      call.then(function (r) {
+        if (isA) S.boot.abs = Object.assign(S.boot.abs, r.abs); else S.boot.tardy = r.tardy;
+        Rr.dates = {};
+        toast(savedMsg(r, isA), 'ok', 9000);
+        vRetro(el, kind); refresh(true);
+      }).catch(function (e) { sv.disabled = false; fail(e); });
+    };
+  }
+  function savedMsg(r, isA) {
+    var m = '✔ حُفظ ' + r.added + ' ' + (isA ? 'غياب' : 'تأخير');
+    if (r.skipped && r.skipped.length) m += '\n↺ مسجّل مسبقًا: ' + r.skipped.join('، ');
+    var need = (r.cases || []).filter(function (c) { return c.next; });
+    if (need.length) m += '\n📌 ' + need.map(function (c) { return c.student.split(' ')[0] + ' — التكرار ' + c.rep + ' (' + ar(c.date) + ')'; }).join(' • ') + '\nالإجراء المطلوب حسب السياسة ظاهر في «الوارد».';
+    else if (r.cases && r.cases.length) m += '\nلا يتطلب التكرار الحالي إجراءً حسب السياسة.';
+    return m;
+  }
+  function bindMode(x) {
+    x.onclick = function () { var p = x.dataset.mode.split(':'); S.modes = S.modes || {}; S.modes[p[0]] = p[1]; view(S.view, true); };
+  }
+
   /* ---------- التأخير الصباحي ---------- */
   function vTardy(el) {
+    if ((S.modes || {}).tardy === 'retro') return vRetro(el, 'tardy');
     var b = S.boot, T = S.tardy;
     if (!T.date) T.date = b.dates.indexOf(b.today) >= 0 ? b.today : b.dates[b.dates.length - 1];
     T.sel = T.sel || {};
     var recent = (b.tardy || []).slice().sort(function (x, y) { return (y.created || '') < (x.created || '') ? -1 : (y.created || '') > (x.created || '') ? 1 : 0; }).slice(0, 40);
     var fresh = T.fresh || {};
-    el.innerHTML = '<div><h2 class="pt">التأخير الصباحي</h2><p class="sub">اختاري الشعبة، ثم أشّري على كل المتأخرات دفعة واحدة.</p></div>' +
+    el.innerHTML = '<div><h2 class="pt">التأخير الصباحي</h2><p class="sub">اختاري الشعبة، ثم أشّري على كل المتأخرات دفعة واحدة.</p></div>' + modeSwitch('tardy', 'day') +
       '<div class="card grid g2"><div class="field"><label class="lbl" for="tdd">التاريخ</label><select class="inp" id="tdd">' + datesOptions(T.date) + '</select></div>' +
       '<div class="field"><label class="lbl" for="tds">الشعبة</label><select class="inp" id="tds"><option value="">— اختاري —</option>' + b.sections.map(function (s) { return '<option' + (T.section === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div></div>' +
       (T.section ? searchList('tq', 'ابحثي باسم الطالبة') + '<div class="list" id="tl"></div>' +
@@ -662,6 +741,7 @@
       '<div class="card"><h3 style="margin:0 0 10px">آخر ما سُجّل</h3><div class="tw"><table class="t"><thead><tr><th>التاريخ</th><th>الطالبة</th><th>الشعبة</th><th>رقم التأخير</th><th></th></tr></thead><tbody>' +
       (recent.map(function (r) { return '<tr' + (fresh[r.id] ? ' style="background:var(--ok-l)"' : '') + '><td>' + (r.date ? arFull(r.date) : 'سجل سابق بلا تاريخ') + '</td><td>' + esc(r.student) + '</td><td>' + esc(r.section) + '</td><td><span class="chip ' + (r.n > 1 ? 'ap' : '') + '">' + r.n + '</span></td><td>' + (r.by === S.me.name || S.me.role === 'admin' ? '<button class="btn sm sec" data-del="' + esc(r.id) + '">حذف</button>' : '') + '</td></tr>'; }).join('') || '<tr><td colspan="5">لا توجد سجلات</td></tr>') +
       '</tbody></table></div></div>';
+    $$('[data-mode]', el).forEach(bindMode);
     $('#tdd').onchange = function () { T.date = this.value; };
     $('#tds').onchange = function () { T.section = this.value; T.sel = {}; vTardy(el); };
     if (T.section) {
@@ -680,9 +760,7 @@
         btn.disabled = true; btn.textContent = 'جارٍ الحفظ… انتظري لحظة';
         api('recordTardy', { section: T.section, date: T.date || $('#tdd').value, students: list }).then(function (r) {
           b.tardy = r.tardy; T.sel = {}; if (r.added) { T.fresh = {}; (r.ids || []).forEach(function (id) { T.fresh[id] = 1; }); }
-          var msg = r.added ? '✔ حُفظ ' + r.added + ' ' + (r.added === 1 ? 'تأخير' : 'حالات تأخير') + ' — يظهر باللون الأخضر في «آخر ما سُجّل»' : '';
-          if (r.skipped && r.skipped.length) msg += (msg ? '\n' : '') + '↺ مسجّلة مسبقًا لهذا اليوم: ' + r.skipped.join('، ');
-          toast(msg, r.added ? 'ok' : 'bad', 7000); vTardy(el);
+          toast(savedMsg(r, false), r.added ? 'ok' : 'bad', 9000); vTardy(el); refresh(true);
         }).catch(function (e) { btn.disabled = false; btn.textContent = 'تسجيل التأخير (' + list.length + ')'; fail(e); });
       };
     }
@@ -858,11 +936,15 @@
    * ===================================================== */
   function AB() { return S.boot.abs; }
   var KIND = { U: ['بدون عذر', 'red'], E: ['بعذر', 'ok'], P: ['عذر قيد الاستلام', 'ap'], undecided: ['بانتظار القرار', 'ap'], late: ['حضرت متأخرة', ''], dup: ['مكررة', ''] };
+  function absNth(a) {
+    var n = AB().records.filter(function (x) { return x.student === a.student && x.section === a.section && x.kind !== 'late' && x.kind !== 'dup' && x.date <= a.date; }).length;
+    return n > 1 ? '، وهو الغياب رقم ' + n + ' لها هذا العام الدراسي' : '';
+  }
   function smsText(a) {
     var u = a.kind === 'U';
     return 'ولي أمر الطالبة/ ' + a.student + ' المحترم\nالسلام عليكم ورحمة الله وبركاته،\nتشكر إدارة مدرسة الشيماء الثانوية للبنات حرصكم وتعاونكم الدائم، ' +
       (u ? 'ونحيطكم علمًا بغياب ابنتكم يوم ' + arFull(a.date) + ' بدون عذر، وهو اليوم رقم ' + a.n + ' من أيام غيابها بدون عذر' + (a.elig ? '، وبذلك أصبحت ' + a.elig : '') + '، ونأمل تعاونكم في الحرص على انتظامها في الدوام المدرسي.'
-        : 'ونحيطكم علمًا بغياب ابنتكم يوم ' + arFull(a.date) + '، ونرجو تزويد المدرسة بسبب الغياب أو العذر الرسمي خلال ' + (AB().excuseDays === 2 ? 'يومين دراسيين' : AB().excuseDays + ' أيام دراسية') + '.') +
+        : 'ونحيطكم علمًا بغياب ابنتكم يوم ' + arFull(a.date) + absNth(a) + '، ونرجو تزويد المدرسة بسبب الغياب أو العذر الرسمي خلال ' + (AB().excuseDays === 2 ? 'يومين دراسيين' : AB().excuseDays + ' أيام دراسية') + '.') +
       '\nوتفضلوا بقبول فائق الاحترام والتقدير،\nإدارة مدرسة الشيماء الثانوية للبنات';
   }
   function smsTools(a) {
@@ -908,7 +990,7 @@
   }
   function absForm(a, st) {
     var s = a.stages[st];
-    var f = '<form class="af" data-id="' + esc(a.id) + '"><div class="field"><label class="lbl">تاريخ التنفيذ</label><select class="inp" name="date">' + datesOptions(a.doc[st].date || '', s.start || a.date) + '</select></div>';
+    var f = '<form class="af" data-id="' + esc(a.id) + '"><div class="field"><label class="lbl">تاريخ التنفيذ</label><select class="inp" name="date">' + datesOptions(a.doc[st].date || '', a.date) + '</select></div>';
     if (st === 'supervisor') {
       f += '<div class="field"><label class="lbl">إخطار ولي الأمر (مطلوب)</label><select class="inp" name="contact"><option value="">— اختاري —</option>' + AB().contacts.map(function (x) { return '<option' + (x === a.doc.supervisor.contact ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div>';
     } else {
@@ -941,6 +1023,8 @@
 
   /* ---------- تسجيل الغياب (المعلمة / المشرفة) ---------- */
   function vAbsRec(el) {
+    var canRetro = S.me.role === 'supervisor' || S.me.role === 'admin';
+    if (canRetro && (S.modes || {}).abs === 'retro') return vRetro(el, 'abs');
     var b = S.boot, A = AB(), R = S.absr = S.absr || {};
     if (!R.date) R.date = b.dates.indexOf(b.today) >= 0 ? b.today : b.dates[b.dates.length - 1];
     if (!R.section && A.sections.length === 1) R.section = A.sections[0];
@@ -948,7 +1032,7 @@
     R.sel = R.sel || {};
     var already = {};
     A.records.concat(A.todayInSections || []).forEach(function (x) { if (x.section === R.section && (x.date || b.today) === R.date && !x.lateArrival) already[x.student] = 1; });
-    el.innerHTML = '<div><h2 class="pt">تسجيل الغياب</h2><p class="sub">في منتصف الحصة: اختاري الشعبة، ثم أشّري على الغائبات واضغطي «تسجيل». يصل الغياب للمشرفة فورًا.</p></div>' +
+    el.innerHTML = '<div><h2 class="pt">تسجيل الغياب</h2><p class="sub">في منتصف الحصة: اختاري الشعبة، ثم أشّري على الغائبات واضغطي «تسجيل». يصل الغياب للمشرفة فورًا.</p></div>' + (canRetro ? modeSwitch('abs', 'day') : '') +
       step(1, 'الشعبة', '<div class="opts">' + A.sections.map(function (s) { return '<button class="opt" data-s="' + s + '" aria-pressed="' + (R.section === s) + '">' + s + '</button>'; }).join('') +
         (A.sections.length ? '' : '<div class="sub">لا توجد شعب مسندة لكِ في الجدول — تواصلي مع الإدارة</div>') + '</div>', R.section ? 'done' : '') +
       step(2, 'التاريخ والحصة', '<div class="grid g2"><select class="inp" id="ard" aria-label="التاريخ">' + datesOptions(R.date) + '</select>' +
@@ -956,6 +1040,7 @@
       step(3, 'الطالبات الغائبات', R.section ? searchList('arq', 'ابحثي باسم الطالبة') + '<div class="list" id="arl"></div>' : '', R.section ? (Object.keys(R.sel).length ? 'done' : '') : 'locked') +
       '<button class="btn wide" id="arsave" ' + (R.section && Object.keys(R.sel).length ? '' : 'disabled') + '>تسجيل الغياب (' + Object.keys(R.sel).length + ')</button>' +
       '<div id="artoday"></div>';
+    $$('[data-mode]', el).forEach(bindMode);
     $$('[data-s]', el).forEach(function (x) { x.onclick = function () { R.section = x.dataset.s; R.sel = {}; vAbsRec(el); }; });
     $$('[data-p]', el).forEach(function (x) { x.onclick = function () { R.period = x.dataset.p; vAbsRec(el); }; });
     $('#ard').onchange = function () { R.date = this.value; R.sel = {}; vAbsRec(el); };

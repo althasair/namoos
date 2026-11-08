@@ -270,3 +270,12 @@ body.nf-open{overflow:hidden}
 #fx{position:fixed;inset:0;z-index:85}
 .fx-dlg{position:absolute;inset:6vh 3vw auto;max-width:640px;margin:0 auto;max-height:88vh;overflow:auto;background:var(--bg,#F7F6F4);border-radius:18px;display:flex;flex-direction:column}
 .fx-body{padding:14px;display:grid;gap:12px}
+
+/* ===== الإدخال بأثر رجعي ===== */
+.modesw{margin:4px 0 2px}
+.rr-m{margin:8px 0}
+.rr-m b{display:block;margin-bottom:4px}
+.rr-days{display:flex;flex-wrap:wrap;gap:6px}
+.rr-day{font-family:inherit;font-size:13px;border:1.5px solid #C9CED3;background:#fff;border-radius:10px;padding:4px 10px;cursor:pointer;color:#1E2629}
+.rr-day[aria-pressed="true"]{background:#0E7275;border-color:#0E7275;color:#fff}
+.rr-day.had{background:#E6E9EC;color:#8A949A;border-color:#E6E9EC;cursor:default}
