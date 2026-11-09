@@ -330,6 +330,39 @@
       '<div class="nf-appr">يعتمد،<br>رئيس الفريق<br>' + e(people().pr) + '<br>......................................</div>' + gFoot();
   }
 
+  /* قرار عدم الأهلية لدخول الاختبار (الحرمان) — لا يوجد له نموذج رسمي في الدليل؛ صيغته من نص سياسة الغياب 2026 */
+  function eligInfo(o) {
+    var t = txt(o, 'admin') + ' • ' + txt(o, 'coordinator'), el = String(o.elig || '');
+    var warn = /بالعلم بعدم أهلية|إنذار نهائي/.test(t) && !/^غير مؤهلة/.test(el) ? true : /بالعلم بعدم أهلية|إنذار نهائي/.test(t) && !/قرار عدم أهلية/.test(t);
+    var exam = (t.match(/(?:عدم أهلية الطالب|بعدم أهلية الطالب)\s*(?:ل\s*)?لدخول\s*(اختبار[^•]*?)(?:\s*وإخطار|\s*في حال|\s*•|$)/) || [])[1] || el.replace(/^غير مؤهلة لدخول\s*/, '').replace(/\s*وإخطار.*$/, '');
+    return { warn: warn, exam: String(exam || '').trim() };
+  }
+  function g9(o) {
+    var P = people(), I = eligInfo(o);
+    var recs = ((N.S.boot.abs && N.S.boot.abs.records) || []).filter(function (x) { return x.student === o.student && x.section === o.section && x.kind === 'U' && x.date <= o.date; })
+      .sort(function (x, y) { return x.date < y.date ? -1 : 1; });
+    if (!recs.some(function (x) { return x.id === o.id; })) recs.push(o);
+    var dates = recs.map(function (x) { return dmy(x.date); });
+    var cnt = Math.max(recs.length, Number(o.n) || 0);
+    var soc = o.social || '';
+    var title = I.warn ? 'إشعار ولي الأمر بالعلم بعدم أهلية الطالب لدخول الاختبار' : 'قرار عدم أهلية الطالب لدخول الاختبار وإخطار ولي الأمر';
+    return '<div class="nf-top"><span class="nf-tag">سياسة الغياب 2026</span><span class="nf-sub">فريق إدارة سلوك الطلبة — مدرسة الشيماء الثانوية للبنات</span></div><div class="nf-title">' + title + '</div>' +
+      dayRow(today()) + '<table class="nf">' + stuRows(o, true) + '</table>' +
+      '<table class="nf"><tr><th colspan="4">بيان الغياب بدون عذر رسمي</th></tr>' +
+      '<tr><td class="l">عدد أيام الغياب بدون عذر</td><td class="v">' + cnt + '</td><td class="l">الاختبار</td><td class="v">' + e(I.exam || '') + '</td></tr>' +
+      '<tr><td class="l">تواريخ الغياب</td><td colspan="3" class="v" style="font-size:.85em;line-height:1.7">' + dates.join(' ، ') + '</td></tr></table>' +
+      '<div class="nf-box" style="text-align:right">' + (I.warn ?
+        'بناءً على سياسة إدارة سلوك الطلبة 2026 (إجراءات الغياب بدون عذر)، وبعد استنفاد الإجراءات السابقة، يُحاط ولي أمر الطالب علمًا بأنه في حال تجاوز غياب الطالب بدون عذر رسمي الحد المسموح به فإن الطالب يصبح غير مؤهل لدخول <span class="v">' + e(I.exam || '..............') + '</span>.' :
+        'بناءً على سياسة إدارة سلوك الطلبة 2026 (إجراءات الغياب بدون عذر)، ونظرًا لتغيّب الطالب بدون عذر رسمي (<span class="v">' + cnt + '</span>) أيام، وبعد استنفاد الإجراءات السابقة، فقد قرر فريق إدارة سلوك الطلبة في اجتماعه بتاريخ <span class="v">' + dmy(today()) + '</span> عدم أهلية الطالب لدخول <span class="v">' + e(I.exam || '..............') + '</span> وإخطار ولي الأمر بذلك.') + '</div>' +
+      '<table class="nf"><tr><th colspan="4">إقرار ولي الأمر</th></tr><tr><td colspan="4" style="line-height:1.9">أقر أنا ولي أمر الطالب: <span class="v">' + e(o.student) + '</span> بعلمي بما ورد أعلاه، وأتعهد بالتزام الطالب بالدوام المدرسي.</td></tr>' +
+      '<tr><td class="l">اسم ولي الأمر</td><td class="v">' + e(String(o.gName || '').replace(/\s*\([^)]*\)\s*$/, '')) + '</td><td class="l">التوقيع</td><td class="sgn">&nbsp;</td></tr>' +
+      '<tr><td class="l">طريقة الإخطار</td><td colspan="3">' + bx('حضوريًا') + ' &nbsp; ' + bx('هاتفيًا') + ' &nbsp; ' + bx('رسالة نصية') + ' &nbsp; ' + bx('لم يحضر — أُرسلت رسالة نصية بالقرار') + '</td></tr></table>' +
+      '<table class="nf"><tr><th colspan="3">أعضاء فريق إدارة سلوك الطلبة</th></tr><tr><td class="l">المسمى الوظيفي</td><td class="l">الاسم</td><td class="l">التوقيع</td></tr>' +
+      [['منسق شؤون الطلبة', P.coord], ['الاختصاصي الاجتماعي', soc], ['نائب المدير للشؤون الإدارية وشؤون الطلاب', P.vp]].map(function (m) { return '<tr><td>' + m[0] + '</td><td class="v">' + e(m[1]) + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
+      '<div class="nf-appr">يعتمد،<br>مدير المدرسة / رئيس الفريق<br>' + e(P.pr) + '<br>......................................</div>' +
+      '<div class="nf-foot">صيغة القرار مأخوذة من نصوص سياسة الغياب 2026 — لا يوجد له نموذج في دليل الفريق</div>';
+  }
+
   /* متى يُفتح كل نموذج: عند بلوغ الحالة خطوة السياسة الخاصة به (لا قبلها) */
   function isPriorDoc(d) { return !!d && (/^سجل سابق/.test(d.notes || '') || d.action === 'سجل سابق' || d.who === 'سجل سابق'); }
   function reached(o, st) { var s = o.stages && o.stages[st]; return !!(s && s.need && (s.open || s.documented) && !(s.documented && isPriorDoc(o.doc && o.doc[st]))); }
@@ -344,6 +377,7 @@
     g5p: { title: 'تقرير نهائي عن حالة طالب', no: 'رقم 5', st: 'psych', roles: ['psych'], when: function (o) { return reached(o, 'psych'); }, build: g5 },
     g6: { title: 'مقابلة ولي أمر مع الفريق', no: 'رقم 6', st: 'admin', roles: ['admin'], when: function (o) { return /فريق إدارة سلوك|فريق إدارة السلوك/.test(txt(o, 'coordinator') + txt(o, 'admin')) && (reached(o, 'coordinator') || reached(o, 'admin')); }, build: g6 },
     g7: { title: 'محضر اجتماع الفريق لمجموعة', no: 'رقم 7', st: 'admin', roles: ['admin'], when: function (o) { return GUIDE.g6.when(o); }, build: g7 },
+    g9: { title: 'قرار عدم الأهلية لدخول الاختبار', no: 'سياسة الغياب', st: 'admin', roles: ['admin', 'coordinator'], absOnly: true, when: function (o) { var t = txt(o, 'admin') + txt(o, 'coordinator'); return /عدم أهلية|بعدم أهلية|إنذار نهائي/.test(t + (o.elig || '')) && (reached(o, 'admin') || reached(o, 'coordinator')); }, build: g9 },
     g8: { title: 'محضر اجتماع الفريق مع طالب', no: 'رقم 8', st: 'admin', roles: ['admin'], when: function (o) { return GUIDE.g6.when(o); }, build: g8 }
   };
   // نماذج الغياب (abs): المشرفة تملك مرحلة «الفريق» في الغياب تحت admin
@@ -354,6 +388,7 @@
       if (g.roles.indexOf(r) < 0) return;
       if (kind === 'abs' && o.kind !== 'U') return;
       if (kind === 'abs' && id === 'g2') return;
+      if (kind !== 'abs' && g.absOnly) return;
       try { if (g.when(o)) out.push(id); } catch (err) {}
     });
     return out;
