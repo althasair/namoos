@@ -166,22 +166,22 @@
 
   /* ---------------- التشغيل ---------------- */
   var NAV = {
-    teacher: [['record', 'تسجيل مخالفة'], ['mine', 'حالاتي', 'tasks'], ['messages', 'الرسائل', 'messages']],
+    teacher: [['record', 'تسجيل مخالفة'], ['mine', 'حالاتي', 'tasks'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     supervisor: [['tasks', 'الوارد', 'tasks'], ['outside', 'مخالفة خارج الصف'], ['tardy', 'التأخير الصباحي'], ['cases', 'كل الحالات'], ['dash', 'لوحة شعبي'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     coordinator: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     social: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     psych: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
-    admin: [['dash', 'لوحة التحكم'], ['report', 'التقرير الشهري'], ['tasks', 'مهام الإدارة', 'tasks'], ['cases', 'كل الحالات'], ['outside', 'تسجيل مخالفة'], ['tardy', 'التأخير الصباحي'], ['messages', 'الرسائل', 'messages']],
+    admin: [['dash', 'لوحة التحكم'], ['report', 'التقرير الشهري'], ['tasks', 'مهام الإدارة', 'tasks'], ['cases', 'كل الحالات'], ['outside', 'تسجيل مخالفة'], ['tardy', 'التأخير الصباحي'], ['staff', 'طباعة الإجراءات'], ['messages', 'الرسائل', 'messages']],
     daily: [['dTardy', 'حصيلة التأخير'], ['dAbs', 'حصيلة الغياب'], ['messages', 'الرسائل', 'messages']]
   };
   var NAV_ABS = {
-    teacher: [['absRec', 'تسجيل الغياب'], ['absMine', 'غياب سجّلته'], ['messages', 'الرسائل', 'messages']],
+    teacher: [['absRec', 'تسجيل الغياب'], ['absMine', 'غياب سجّلته'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     supervisor: [['absTasks', 'وارد الغياب', 'abstasks'], ['absRec', 'تسجيل الغياب'], ['absLog', 'سجل الغياب'], ['absStud', 'متابعة الطالبات'], ['absDash', 'لوحة الغياب'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     coordinator: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     social: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     psych: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     daily: [['dTardy', 'حصيلة التأخير'], ['dAbs', 'حصيلة الغياب'], ['messages', 'الرسائل', 'messages']],
-    admin: [['absDash', 'لوحة الغياب'], ['report', 'التقرير الشهري'], ['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'سجل الغياب'], ['absStud', 'متابعة الطالبات'], ['absDep', 'المحرومات'], ['messages', 'الرسائل', 'messages']]
+    admin: [['absDash', 'لوحة الغياب'], ['report', 'التقرير الشهري'], ['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'سجل الغياب'], ['absStud', 'متابعة الطالبات'], ['absDep', 'المحرومات'], ['staff', 'طباعة الإجراءات'], ['messages', 'الرسائل', 'messages']]
   };
   function hasAbs() { return !!(S.boot && S.boot.abs); }
   function navList() { return (S.sec === 'abs' && hasAbs() ? NAV_ABS : NAV)[S.me.role]; }
@@ -553,7 +553,7 @@
   function vMyLog(el) {
     var t = S.boot.today || '';
     var F = S.myLog || (S.myLog = { from: t.slice(0, 7) + '-01', to: t, kind: 'all', prior: false });
-    logView(el, S.me, { cases: S.boot.cases || [], abs: S.boot.abs && S.boot.abs.records || [], tardy: S.boot.tardy || [] }, F,
+    logView(el, S.me, { cases: S.boot.cases || [], abs: S.boot.abs && S.boot.abs.records || [], tardy: S.boot.tardy || [], teacher: S.boot.records || [] }, F,
       '<h2 class="pt">طباعة إجراءاتي</h2><p class="sub">كل الإجراءات المطلوبة منكِ حسب السياسة وما نفّذتِه، لفترة تختارينها.</p>', function () { vMyLog(el); });
   }
   function logView(el, me, src, F, headHtml, rerender) {
@@ -587,6 +587,19 @@
         rows.push({ g: 'غياب', date: a.date, student: a.student, section: a.section, what: 'غياب بدون عذر', rep: 'رقم ' + a.n, req: a.text[st] || '', did: s.documented ? (isPrior(d) ? '—' : done(d)) : '', on: s.documented && !isPrior(d) ? d.date : '', due: s.due, st: s.documented && isPrior(d) ? ['prior', 'سجل سابق منقول'] : stat(s, d) });
       });
     }
+    if (st === 'teacher') {
+      if (F.kind !== 'abs') (src.teacher || []).forEach(function (r) {
+        if (!inR(r.date)) return;
+        var did = [r.done === 'نعم' ? 'نُفّذ إجراء المعلمة' : '', r.contact ? 'التواصل مع ولي الأمر: ' + r.contact : '', r.notes].filter(String).join(' — ');
+        var stt = r.status && r.status.code === 'done' ? (r.guardianRequired && r.contactDate > r.due ? ['late', 'نُفّذ متأخرًا'] : ['ok', 'نُفّذ في الوقت']) : r.status && r.status.code === 'late' ? ['bad', 'متأخر — لم يُنفّذ'] : ['wait', 'بانتظار التنفيذ'];
+        rows.push({ g: 'سلوك', date: r.date, student: r.student, section: r.section, what: r.violation, rep: r.transferNo ? 'تحويل ' + r.transferNo : '', req: r.teacherPolicyText || r.action || '', did: did, on: r.contactDate || (r.done === 'نعم' ? r.date : ''), due: r.due, st: stt });
+      });
+      if (F.kind !== 'beh') (src.abs || []).forEach(function (a) {
+        if (a.by !== me.name || !inR(a.date)) return;
+        rows.push({ g: 'غياب', date: a.date, student: a.student, section: a.section, what: 'تسجيل غياب', rep: a.period ? 'الحصة ' + a.period : '', req: 'تسجيل غياب الطالبة', did: 'سُجّل الغياب' + (a.lateArrival === 'نعم' ? ' (حضرت متأخرة)' : ''), on: a.date, due: a.date, st: ['ok', 'نُفّذ في الوقت'] });
+      });
+    }
+    if (F.only) rows = rows.filter(function (r) { return r.st[0] === 'wait' || r.st[0] === 'bad'; });
     var tard = st === 'supervisor' && F.kind !== 'abs' ? src.tardy.filter(function (x) { return x.by === me.name && inR(x.date); }).length : null;
     rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
     var cnt = function (k) { return rows.filter(function (r) { return r.st[0] === k; }).length; };
@@ -601,6 +614,7 @@
       '<div class="field"><label class="lbl">إلى</label><input class="inp" type="date" id="mt" value="' + F.to + '"></div>' +
       '<div class="field"><label class="lbl">النوع</label><select class="inp" id="mk">' + [['all', 'السلوك والغياب'], ['beh', 'السلوك والانضباط'], ['abs', 'الحضور والغياب']].map(function (x) { return '<option value="' + x[0] + '"' + (F.kind === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>' +
       '<label class="mlchk"><input type="checkbox" id="mp"' + (F.prior ? ' checked' : '') + '> إظهار السجلات السابقة المنقولة</label>' +
+      '<label class="mlchk"><input type="checkbox" id="mo"' + (F.only ? ' checked' : '') + '> الإجراءات المتبقية فقط</label>' +
       '<button class="btn" id="mprint">🖨 طباعة</button></div></div>' +
       '<article class="report mylog">' +
       '<h1>مدرسة الشيماء الثانوية للبنات</h1><div style="text-align:center;font-weight:700;margin-top:6px">سجل الإجراءات المنفّذة وفق سياسة إدارة السلوك ومتابعة الحضور</div>' +
@@ -613,26 +627,35 @@
       '<div class="mlme"><b>' + esc(me.roleLabel) + ':</b> أ. ' + esc(nm3(me.name)) + '<span>التوقيع: ..............................</span></div>' +
       '<div class="sig"><div><b>النائبة الإدارية</b>أ. وداد الكربي</div><div><b>نائب المديرة للشؤون الأكاديمية</b>أ. آسيا الذبياني</div><div><b>مديرة المدرسة</b>أ. شيخة الرميحي</div></div>' +
       '</article>';
-    var upd = function () { F.from = $('#mf').value || F.from; F.to = $('#mt').value || F.to; if (F.to < F.from) F.to = F.from; F.kind = $('#mk').value; F.prior = $('#mp').checked; rerender(true); };
-    ['#mf', '#mt', '#mk', '#mp'].forEach(function (k) { $(k).onchange = upd; });
+    var upd = function () { F.from = $('#mf').value || F.from; F.to = $('#mt').value || F.to; if (F.to < F.from) F.to = F.from; F.kind = $('#mk').value; F.prior = $('#mp').checked; F.only = $('#mo').checked; rerender(true); };
+    ['#mf', '#mt', '#mk', '#mp', '#mo'].forEach(function (k) { $(k).onchange = upd; });
     $('#mprint').onclick = function () { window.print(); };
   }
 
   /* ---------- المنسقة: إجراءات المشرفات ---------- */
   function vStaff(el) {
-    var t = S.boot.today || '';
-    var F = S.staffF || (S.staffF = { from: t.slice(0, 7) + '-01', to: t, kind: 'all', prior: false, name: '' });
+    var t = S.boot.today || '', isAdm = S.me.role === 'admin';
+    var F = S.staffF || (S.staffF = { from: t.slice(0, 7) + '-01', to: t, kind: 'all', prior: false, name: '', role: isAdm ? 'supervisor' : 'supervisor' });
+    var ROLES = [['supervisor', 'المشرفات'], ['coordinator', 'منسقة شؤون الطالبات'], ['social', 'الأخصائيتان الاجتماعيتان'], ['psych', 'الأخصائية النفسية'], ['teacher', 'المعلمات'], ['admin', 'الإدارة']];
     var head = function () {
-      return '<h2 class="pt">إجراءات المشرفات</h2><p class="sub">اختاري المشرفة لعرض ما طُلب منها حسب السياسة وما نفّذته، ثم اطبعيه.</p>' +
-        '<div class="stgrid">' + (S.staffList || []).map(function (u) {
-          return '<button class="stcard' + (F.name === u.name ? ' on' : '') + '" data-sn="' + esc(u.name) + '"><span class="av">' + esc(u.name.trim().charAt(0)) + '</span><b>أ. ' + esc(nm3(u.name)) + '</b><small>' + esc((u.sections || []).join('، ')) + '</small></button>';
-        }).join('') + '</div>';
+      var list = (S.staffList || []).filter(function (u) { return u.role === F.role; });
+      return '<h2 class="pt">' + (isAdm ? 'طباعة الإجراءات' : 'إجراءات المشرفات') + '</h2><p class="sub">' + (isAdm ? 'اختاري الفئة ثم الموظفة' : 'اختاري المشرفة') + ' لعرض ما طُلب منها حسب السياسة وما نفّذته وما تبقّى، ثم اطبعيه.</p>' +
+        (isAdm ? '<div class="stroles">' + ROLES.map(function (r) { return '<button class="opt" type="button" data-srole="' + r[0] + '" aria-pressed="' + (F.role === r[0]) + '">' + r[1] + '</button>'; }).join('') + '</div>' : '') +
+        (F.role === 'teacher' ? '<div class="field" style="max-width:420px"><select class="inp" id="stsel"><option value="">— اختاري المعلمة —</option>' + list.map(function (u) { return '<option' + (F.name === u.name ? ' selected' : '') + '>' + esc(u.name) + '</option>'; }).join('') + '</select></div>' :
+        '<div class="stgrid">' + list.map(function (u) {
+          return '<button class="stcard' + (F.name === u.name ? ' on' : '') + '" data-sn="' + esc(u.name) + '"><span class="av">' + esc(u.name.trim().charAt(0)) + '</span><b>أ. ' + esc(nm3(u.name)) + '</b><small>' + esc((u.sections || []).join('، ') || u.roleLabel) + '</small></button>';
+        }).join('') + '</div>');
     };
-    var bind = function () { $$('[data-sn]', el).forEach(function (b) { b.onclick = function () { F.name = b.dataset.sn; load(); }; }); };
+    var bind = function () {
+      $$('[data-sn]', el).forEach(function (b) { b.onclick = function () { F.name = b.dataset.sn; load(); }; });
+      $$('[data-srole]', el).forEach(function (b) { b.onclick = function () { F.role = b.dataset.srole; F.name = ''; load(); }; });
+      if ($('#stsel')) $('#stsel').onchange = function () { F.name = this.value; load(); };
+    };
     var load = function () {
-      if (!F.name) { el.innerHTML = '<div class="noprint">' + head() + '</div>'; bind(); return; }
-      api('staffLog', { name: F.name, from: F.from, to: F.to }).then(function (r) {
-        logView(el, r.who, { cases: r.cases, abs: r.abs, tardy: r.tardy }, F, head(), load);
+      var ok = (S.staffList || []).some(function (u) { return u.name === F.name && u.role === F.role; });
+      if (!ok) { el.innerHTML = '<div class="noprint">' + head() + '</div>'; bind(); return; }
+      api('staffLog', { name: F.name, role: F.role, from: F.from, to: F.to }).then(function (r) {
+        logView(el, r.who, { cases: r.cases || [], abs: r.abs || [], tardy: r.tardy || [], teacher: r.teacher || [] }, F, head(), load);
         bind();
       }).catch(fail);
     };
