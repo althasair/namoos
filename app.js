@@ -168,7 +168,7 @@
   var NAV = {
     teacher: [['record', 'تسجيل مخالفة'], ['mine', 'حالاتي', 'tasks'], ['messages', 'الرسائل', 'messages']],
     supervisor: [['tasks', 'الوارد', 'tasks'], ['outside', 'مخالفة خارج الصف'], ['tardy', 'التأخير الصباحي'], ['cases', 'كل الحالات'], ['dash', 'لوحة شعبي'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
-    coordinator: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
+    coordinator: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     social: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     psych: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     admin: [['dash', 'لوحة التحكم'], ['report', 'التقرير الشهري'], ['tasks', 'مهام الإدارة', 'tasks'], ['cases', 'كل الحالات'], ['outside', 'تسجيل مخالفة'], ['tardy', 'التأخير الصباحي'], ['messages', 'الرسائل', 'messages']],
@@ -177,7 +177,7 @@
   var NAV_ABS = {
     teacher: [['absRec', 'تسجيل الغياب'], ['absMine', 'غياب سجّلته'], ['messages', 'الرسائل', 'messages']],
     supervisor: [['absTasks', 'وارد الغياب', 'abstasks'], ['absRec', 'تسجيل الغياب'], ['absLog', 'سجل الغياب'], ['absStud', 'متابعة الطالبات'], ['absDash', 'لوحة الغياب'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
-    coordinator: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
+    coordinator: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     social: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     psych: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     daily: [['dTardy', 'حصيلة التأخير'], ['dAbs', 'حصيلة الغياب'], ['messages', 'الرسائل', 'messages']],
@@ -204,7 +204,7 @@
     }).catch(function (e) { if (S.token) renderLogin(e.message); });
   }
   function refresh(quiet) {
-    return api('bootstrap', {}, quiet).then(function (b) { S.boot = b; S.me = b.me; S.last.tasks = b.tasks.length; S.last.unread = b.unread; S.taskCounts = b.taskCounts || S.taskCounts; setBadges(b.unread, b.tasks.length); if (['record', 'outside', 'tardy', 'messages', 'absRec'].indexOf(S.view) < 0) view(S.view, true); });
+    return api('bootstrap', {}, quiet).then(function (b) { S.boot = b; S.me = b.me; S.last.tasks = b.tasks.length; S.last.unread = b.unread; S.taskCounts = b.taskCounts || S.taskCounts; setBadges(b.unread, b.tasks.length); if (['record', 'outside', 'tardy', 'messages', 'absRec', 'staff'].indexOf(S.view) < 0) view(S.view, true); });
   }
 
   function shell() {
@@ -228,7 +228,7 @@
     $$('.nav button').forEach(function (b) { if (b.dataset.v === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     var m = $('#main'); if (!m) return;
     var fn = { record: vRecord, mine: vMine, tasks: vTasks, cases: vCases, outside: vOutside, tardy: vTardy, messages: vMessages, dash: vDash, report: vReport,
-      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily, myLog: vMyLog }[v];
+      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily, myLog: vMyLog, staff: vStaff }[v];
     m.innerHTML = secSwitch() + welcome() + '<div id="vw"></div>';
     $$('[data-sec]', m).forEach(function (b) { b.onclick = function () { if (b.dataset.sec !== S.sec) setSec(b.dataset.sec); }; });
     fn($('#vw'));
@@ -551,8 +551,13 @@
   /* ---------- طباعة إجراءاتي: كل ما طُلب من الموظفة وما نفّذته ---------- */
   function nm3(n) { var p = String(n || '').trim().split(/\s+/); return p.length > 3 ? p[0] + ' ' + p[1] + ' ' + p[p.length - 1] : p.join(' '); }
   function vMyLog(el) {
-    var st = myStage(), me = S.me, t = S.boot.today || '';
+    var t = S.boot.today || '';
     var F = S.myLog || (S.myLog = { from: t.slice(0, 7) + '-01', to: t, kind: 'all', prior: false });
+    logView(el, S.me, { cases: S.boot.cases || [], abs: S.boot.abs && S.boot.abs.records || [], tardy: S.boot.tardy || [] }, F,
+      '<h2 class="pt">طباعة إجراءاتي</h2><p class="sub">كل الإجراءات المطلوبة منكِ حسب السياسة وما نفّذتِه، لفترة تختارينها.</p>', function () { vMyLog(el); });
+  }
+  function logView(el, me, src, F, headHtml, rerender) {
+    var st = me.role;
     var stat = function (s, d) {
       if (s.documented) return s.compliance === 1 ? ['ok', 'نُفّذ في الوقت'] : ['late', 'نُفّذ متأخرًا'];
       if (s.compliance === 5) return ['wait', 'لم يحن دوري'];
@@ -565,12 +570,12 @@
     };
     var inR = function (d) { return d >= F.from && d <= F.to; };
     var rows = [];
-    if (F.kind !== 'abs') (S.boot.cases || []).forEach(function (c) {
+    if (F.kind !== 'abs') src.cases.forEach(function (c) {
       var s = c.stages[st]; if (!s || !s.need || !inR(c.date)) return;
       var d = c.doc[st] || {}; if (!F.prior && s.documented && isPrior(d)) return;
       rows.push({ g: 'سلوك', date: c.date, student: c.student, section: c.section, what: c.short, rep: 'التكرار ' + c.rep, req: c.text[st] || '', did: s.documented ? (isPrior(d) ? '—' : done(d)) : '', on: s.documented && !isPrior(d) ? d.date : '', due: s.due, st: s.documented && isPrior(d) ? ['prior', 'سجل سابق منقول'] : stat(s, d) });
     });
-    var ab = S.boot.abs && S.boot.abs.records || [];
+    var ab = src.abs;
     if (F.kind !== 'beh') {
       if (st === 'supervisor') ab.forEach(function (a) {
         if (a.decBy !== me.name || !inR(a.date)) return;
@@ -582,7 +587,7 @@
         rows.push({ g: 'غياب', date: a.date, student: a.student, section: a.section, what: 'غياب بدون عذر', rep: 'رقم ' + a.n, req: a.text[st] || '', did: s.documented ? (isPrior(d) ? '—' : done(d)) : '', on: s.documented && !isPrior(d) ? d.date : '', due: s.due, st: s.documented && isPrior(d) ? ['prior', 'سجل سابق منقول'] : stat(s, d) });
       });
     }
-    var tard = st === 'supervisor' && F.kind !== 'abs' ? (S.boot.tardy || []).filter(function (x) { return x.by === me.name && inR(x.date); }).length : null;
+    var tard = st === 'supervisor' && F.kind !== 'abs' ? src.tardy.filter(function (x) { return x.by === me.name && inR(x.date); }).length : null;
     rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
     var cnt = function (k) { return rows.filter(function (r) { return r.st[0] === k; }).length; };
     var nDone = cnt('ok') + cnt('late');
@@ -591,7 +596,7 @@
     var summary = 'تم خلال الفترة ' + period + ' طلب ' + rows.length + ' إجراء من ' + me.roleLabel + ' وفق سياسة إدارة السلوك ومتابعة الحضور، نُفّذ منها ' + nDone + ' إجراءً (' + cnt('ok') + ' في الوقت المحدد و' + cnt('late') + ' بعد المهلة)' +
       (cnt('bad') ? '، ولم يُنفّذ ' + cnt('bad') + ' إجراءً تجاوز المهلة' : '') + (cnt('wait') ? '، ويوجد ' + cnt('wait') + ' إجراءً قيد الانتظار' : '') + (cnt('prior') ? '، و' + cnt('prior') + ' سجلًا سابقًا منقولًا دون توثيق فعلي' : '') + '. ' +
       (nDone ? 'وبلغت نسبة الالتزام بالمهلة ' + pct + '%.' : '') + (tard !== null ? ' كما تم تسجيل ' + tard + ' حالة تأخير صباحي.' : '');
-    el.innerHTML = '<div class="noprint"><h2 class="pt">طباعة إجراءاتي</h2><p class="sub">كل الإجراءات المطلوبة منكِ حسب السياسة وما نفّذتِه، لفترة تختارينها.</p>' +
+    el.innerHTML = '<div class="noprint">' + headHtml +
       '<div class="card mlf"><div class="field"><label class="lbl">من</label><input class="inp" type="date" id="mf" value="' + F.from + '"></div>' +
       '<div class="field"><label class="lbl">إلى</label><input class="inp" type="date" id="mt" value="' + F.to + '"></div>' +
       '<div class="field"><label class="lbl">النوع</label><select class="inp" id="mk">' + [['all', 'السلوك والغياب'], ['beh', 'السلوك والانضباط'], ['abs', 'الحضور والغياب']].map(function (x) { return '<option value="' + x[0] + '"' + (F.kind === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>' +
@@ -604,13 +609,35 @@
       '<p>' + esc(summary) + '</p>' +
       (rows.length ? '<div class="tw"><table class="t mlt"><thead><tr><th>م</th><th>التاريخ</th><th>الطالبة</th><th>الشعبة</th><th>البند</th><th>المطلوب حسب السياسة</th><th>ما تم تنفيذه</th><th>تاريخ التنفيذ</th><th>الحالة</th></tr></thead><tbody>' +
         rows.map(function (r, i) { return '<tr><td>' + (i + 1) + '</td><td class="nw">' + ar(r.date) + '</td><td class="nw">' + esc(nm3(r.student)) + '</td><td class="nw">' + esc(r.section) + '</td><td>' + esc(r.what) + (r.rep ? '<div class="sm">' + r.rep + '</div>' : '') + '</td><td class="sm">' + esc(r.req) + '</td><td>' + esc(r.did || '—') + '</td><td class="nw">' + (r.on ? ar(r.on) : '—') + '</td><td class="nw"><span class="mls ' + r.st[0] + '">' + r.st[1] + '</span></td></tr>'; }).join('') +
-        '</tbody></table></div>' : '<div class="empty">لا توجد إجراءات مطلوبة منكِ في هذه الفترة.</div>') +
+        '</tbody></table></div>' : '<div class="empty">لا توجد إجراءات مطلوبة في هذه الفترة.</div>') +
       '<div class="mlme"><b>' + esc(me.roleLabel) + ':</b> أ. ' + esc(nm3(me.name)) + '<span>التوقيع: ..............................</span></div>' +
       '<div class="sig"><div><b>النائبة الإدارية</b>أ. وداد الكربي</div><div><b>نائب المديرة للشؤون الأكاديمية</b>أ. آسيا الذبياني</div><div><b>مديرة المدرسة</b>أ. شيخة الرميحي</div></div>' +
       '</article>';
-    var upd = function () { F.from = $('#mf').value || F.from; F.to = $('#mt').value || F.to; if (F.to < F.from) F.to = F.from; F.kind = $('#mk').value; F.prior = $('#mp').checked; vMyLog(el); };
+    var upd = function () { F.from = $('#mf').value || F.from; F.to = $('#mt').value || F.to; if (F.to < F.from) F.to = F.from; F.kind = $('#mk').value; F.prior = $('#mp').checked; rerender(true); };
     ['#mf', '#mt', '#mk', '#mp'].forEach(function (k) { $(k).onchange = upd; });
     $('#mprint').onclick = function () { window.print(); };
+  }
+
+  /* ---------- المنسقة: إجراءات المشرفات ---------- */
+  function vStaff(el) {
+    var t = S.boot.today || '';
+    var F = S.staffF || (S.staffF = { from: t.slice(0, 7) + '-01', to: t, kind: 'all', prior: false, name: '' });
+    var head = function () {
+      return '<h2 class="pt">إجراءات المشرفات</h2><p class="sub">اختاري المشرفة لعرض ما طُلب منها حسب السياسة وما نفّذته، ثم اطبعيه.</p>' +
+        '<div class="stgrid">' + (S.staffList || []).map(function (u) {
+          return '<button class="stcard' + (F.name === u.name ? ' on' : '') + '" data-sn="' + esc(u.name) + '"><span class="av">' + esc(u.name.trim().charAt(0)) + '</span><b>أ. ' + esc(nm3(u.name)) + '</b><small>' + esc((u.sections || []).join('، ')) + '</small></button>';
+        }).join('') + '</div>';
+    };
+    var bind = function () { $$('[data-sn]', el).forEach(function (b) { b.onclick = function () { F.name = b.dataset.sn; load(); }; }); };
+    var load = function () {
+      if (!F.name) { el.innerHTML = '<div class="noprint">' + head() + '</div>'; bind(); return; }
+      api('staffLog', { name: F.name, from: F.from, to: F.to }).then(function (r) {
+        logView(el, r.who, { cases: r.cases, abs: r.abs, tardy: r.tardy }, F, head(), load);
+        bind();
+      }).catch(fail);
+    };
+    if (S.staffList) load();
+    else api('staffList').then(function (r) { S.staffList = r.staff; load(); }).catch(fail);
   }
 
   /* ---------- كل الحالات ---------- */

@@ -334,3 +334,11 @@ body.nf-open{overflow:hidden}
 .mylog .mlme{margin-top:26px;display:flex;gap:18px;flex-wrap:wrap;font-size:14px}
 .mlt td .sm{font-size:11px;color:#55636A}
 .mlt td:nth-child(5){min-width:120px}.mlt td:nth-child(7){min-width:110px}
+
+/* ===== إجراءات المشرفات ===== */
+.stgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:12px 0}
+.stcard{display:flex;flex-direction:column;align-items:center;gap:4px;border:1.5px solid #DADFE3;background:#fff;border-radius:14px;padding:12px 8px;cursor:pointer;font-family:inherit}
+.stcard b{font-size:14px;white-space:nowrap}.stcard small{font-size:11px;color:var(--mut);text-align:center}
+.stcard .av{width:40px;height:40px;border-radius:50%;background:var(--tq-l);color:var(--tq-d);display:grid;place-items:center;font-weight:700;font-size:18px}
+.stcard.on{border-color:#0E7275;background:var(--tq-l)}
+@media print{.stgrid{display:none!important}}

@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.6.0';
+var VERSION = '2.7.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -667,6 +667,25 @@ API.bootstrap = function (me) {
   if (res.abs) delete res.abs.tasks;
   res.unread = unread_(me);
   return res;
+};
+
+/** المنسقة والإدارة: الاطلاع على إجراءات كل مشرفة (للطباعة والمتابعة) */
+API.staffList = function (me) {
+  if (me.role !== 'coordinator' && me.role !== 'admin') throw new Error('هذه الصفحة للمنسقة والإدارة');
+  return { staff: users_().filter(function (u) { return u.role === 'supervisor'; }).map(function (u) { return { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], sections: sectionsFor_(u) }; }) };
+};
+API.staffLog = function (me, req) {
+  if (me.role !== 'coordinator' && me.role !== 'admin') throw new Error('هذه الصفحة للمنسقة والإدارة');
+  var u = users_().filter(function (x) { return x.name === str_(req.name) && x.role === 'supervisor'; })[0];
+  if (!u) throw new Error('المشرفة غير موجودة');
+  var from = str_(req.from) || '0000', to = str_(req.to) || '9999';
+  var inR = function (d) { return d >= from && d <= to; };
+  var data = allData_();
+  var abs = [];
+  try { abs = absFor_(u, absData_()).filter(function (a) { return inR(a.date); }).map(absPublic_); } catch (e) {}
+  return { who: { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], sections: sectionsFor_(u) },
+    cases: casesFor_(u, data.cases).filter(function (c) { return inR(c.date); }).map(casePublic_),
+    abs: abs, tardy: tardyFor_(u).filter(function (t) { return inR(t.date); }) };
 };
 
 function lists_() {
