@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.8.0';
+var VERSION = '2.8.1';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -124,7 +124,7 @@ function verify_(token) {
   var sig = Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(parts[0], secret_()));
   if (sig !== parts[1]) throw new Error('AUTH');
   var p = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
-  if (!p.exp || p.exp < Date.now()) throw new Error('AUTH');
+  // لا تنتهي الجلسة بمرور الوقت (طلب الإدارة) — تبقى صالحة ما دامت الموظفة موجودة بنفس الاسم والصفة
   var u = findUser_(p.n, p.r);
   if (!u) throw new Error('AUTH');
   return u;
