@@ -169,7 +169,7 @@
   /* ---------------- التشغيل ---------------- */
   var NAV = {
     teacher: [['record', 'تسجيل مخالفة'], ['mine', 'حالاتي', 'tasks'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
-    supervisor: [['tasks', 'الوارد', 'tasks'], ['outside', 'مخالفة خارج الصف'], ['tardy', 'التأخير الصباحي'], ['cases', 'كل الحالات'], ['dash', 'لوحة شعبي'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
+    supervisor: [['tasks', 'الوارد', 'tasks'], ['outside', 'مخالفة خارج الصف'], ['tardy', 'التأخير الصباحي'], ['studFile', 'ملف الطالبات'], ['cases', 'كل الحالات'], ['dash', 'لوحة شعبي'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     coordinator: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     social: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     psych: [['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
@@ -178,7 +178,7 @@
   };
   var NAV_ABS = {
     teacher: [['absRec', 'تسجيل الغياب'], ['absMine', 'غياب سجّلته'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
-    supervisor: [['absTasks', 'وارد الغياب', 'abstasks'], ['absRec', 'تسجيل الغياب'], ['absLog', 'سجل الغياب'], ['absStud', 'متابعة الطالبات'], ['absDash', 'لوحة الغياب'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
+    supervisor: [['absTasks', 'وارد الغياب', 'abstasks'], ['absRec', 'تسجيل الغياب'], ['studFile', 'ملف الطالبات'], ['absLog', 'سجل الغياب'], ['absStud', 'متابعة الطالبات'], ['absDash', 'لوحة الغياب'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     coordinator: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     social: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     psych: [['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
@@ -206,7 +206,7 @@
     }).catch(function (e) { if (S.token) renderLogin(e.message); });
   }
   function refresh(quiet) {
-    return api('bootstrap', {}, quiet).then(function (b) { S.boot = b; S.me = b.me; S.last.tasks = b.tasks.length; S.last.unread = b.unread; S.taskCounts = b.taskCounts || S.taskCounts; setBadges(b.unread, b.tasks.length); if (['record', 'outside', 'tardy', 'messages', 'absRec', 'staff'].indexOf(S.view) < 0) view(S.view, true); });
+    return api('bootstrap', {}, quiet).then(function (b) { S.boot = b; S.me = b.me; S.last.tasks = b.tasks.length; S.last.unread = b.unread; S.taskCounts = b.taskCounts || S.taskCounts; setBadges(b.unread, b.tasks.length); if (['record', 'outside', 'tardy', 'messages', 'absRec', 'staff', 'studFile'].indexOf(S.view) < 0) view(S.view, true); });
   }
 
   function shell() {
@@ -233,7 +233,7 @@
     $$('.nav button').forEach(function (b) { if (b.dataset.v === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     var m = $('#main'); if (!m) return;
     var fn = { record: vRecord, mine: vMine, tasks: vTasks, cases: vCases, outside: vOutside, tardy: vTardy, messages: vMessages, dash: vDash, report: vReport,
-      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily, myLog: vMyLog, staff: vStaff }[v];
+      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily, myLog: vMyLog, staff: vStaff, studFile: vStudFile }[v];
     m.innerHTML = secSwitch() + welcome() + '<div id="vw"></div>';
     $$('[data-sec]', m).forEach(function (b) { b.onclick = function () { if (b.dataset.sec !== S.sec) setSec(b.dataset.sec); }; });
     fn($('#vw'));
@@ -593,6 +593,86 @@
         '<div class="empty card"><span class="tg">' + T3 + '</span>لا توجد مهام مطلوبة منكِ الآن</div>') + '</div>' + waitingOthers(S.boot.cases || [], false);
     bindCaseForms(el, function () { S.focus = (myOpenCases()[0] || {}).id || ''; vTasks(el); if (S.focus) { var n = document.getElementById('it-' + S.focus); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); } });
     if (S.focus) { var fe = document.getElementById('it-' + S.focus); if (fe) setTimeout(function () { fe.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); }
+  }
+
+  /* ---------- ملف الطالبات (المشرفة): حالة كل طالبة ومخالفاتها مع التعديل والإجراء ---------- */
+  function gradeLabel(sec) { return { '10': 'العاشر', '11': 'الحادي عشر', '12': 'الثاني عشر' }[String(sec).split('-')[0]] || ''; }
+  function vStudFile(el) {
+    var b = S.boot, st = myStage(), F = S.sf || (S.sf = { tab: 'att', sec: '', q: '', open: {} });
+    var secs = b.sections || [];
+    var isTardyCase = function (c) { return /التأخر عن الطابور/.test(c.violation || ''); };
+    var absR = (b.abs && b.abs.records) || [];
+    var stu = {};
+    var key = function (n, sec) { return sec + '|' + n; };
+    var add = function (n, sec) { var k = key(n, sec); return stu[k] || (stu[k] = { name: n, sec: sec, U: [], E: [], T: [], C: [] }); };
+    absR.forEach(function (a) { if (a.kind === 'U') add(a.student, a.section).U.push(a); else if (a.kind === 'E') add(a.student, a.section).E.push(a); });
+    (b.tardy || []).forEach(function (t) { add(t.student, t.section).T.push(t); });
+    (b.cases || []).forEach(function (c) { if (!isTardyCase(c)) add(c.student, c.section).C.push(c); });
+    var qn = norm(F.q || '');
+    var list = Object.keys(stu).map(function (k) { return stu[k]; }).filter(function (x) {
+      if (F.sec && x.sec !== F.sec) return false;
+      if (qn && norm(x.name).indexOf(qn) < 0) return false;
+      return F.tab === 'att' ? (x.U.length + x.E.length + x.T.length) : x.C.length;
+    }).sort(function (a, b2) {
+      var va = F.tab === 'att' ? a.U.length + a.T.length : a.C.length, vb = F.tab === 'att' ? b2.U.length + b2.T.length : b2.C.length;
+      return vb - va || (a.name < b2.name ? -1 : 1);
+    });
+    var tardyCase = {}; (b.cases || []).forEach(function (c) { if (c.transferNo) tardyCase[c.transferNo] = c; });
+    var myTurn = function (o) { var x = o.stages && o.stages[st]; return !!(x && x.need && x.open && !x.documented); };
+    var stChip = function (o) {
+      if (myTurn(o)) return '<span class="chip red">مطلوب منكِ</span>';
+      if (o.status && o.status.code === 'done') return '<span class="chip ok">مكتملة</span>';
+      if (o.next) return '<span class="chip ap">بانتظار ' + STAGE[o.next] + '</span>';
+      return '';
+    };
+    var btns = function (kind, o, cardKind, card) {
+      var id = esc(o.id);
+      return '<span class="sfb">' + fixBar(kind, o).replace('<div class="fx-bar">', '').replace(/<\/div>$/, '') +
+        (card ? '<button type="button" class="btn sm sec" data-sfx="' + cardKind + ':' + esc(card.id) + '">📋 الإجراء المتبع</button>' : '') + '</span>';
+    };
+    var row = function (label, sub, chip, actions, cardHtml, cid) {
+      return '<div class="sfr"><div class="sfl"><b>' + label + '</b>' + (sub ? ' <span class="sub">' + sub + '</span>' : '') + ' ' + chip + '</div>' + actions + '</div>' +
+        (cid && F.open[cid] ? '<div class="sfcard">' + cardHtml + '</div>' : '');
+    };
+    var body = list.map(function (x) {
+      var k = key(x.name, x.sec), op = F.open['S:' + k];
+      var sum = F.tab === 'att' ?
+        '<span class="sfn bad">غياب بدون عذر <b>' + x.U.length + '</b></span><span class="sfn">بعذر <b>' + x.E.length + '</b></span><span class="sfn warn">تأخير صباحي <b>' + x.T.length + '</b></span>' :
+        x.C.map(function (c) { return '<span class="sfn">' + esc(c.short) + ' <b>' + c.rep + '</b></span>'; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).slice(0, 4).join('');
+      var det = '';
+      if (op) {
+        if (F.tab === 'att') {
+          det += (x.U.length ? '<div class="sfh">الغياب بدون عذر</div>' : '') + x.U.slice().sort(function (p, q) { return p.date < q.date ? 1 : -1; }).map(function (a) {
+            return row(arFull(a.date), 'اليوم ' + a.n, stChip(a), btns('abs', a, 'abs', a), absCard(a, myTurn(a)), 'abs:' + a.id);
+          }).join('');
+          det += (x.E.length ? '<div class="sfh">الغياب بعذر</div>' : '') + x.E.map(function (a) { return row(arFull(a.date), esc(a.excuse || ''), '', btns('abs', a), '', ''); }).join('');
+          det += (x.T.length ? '<div class="sfh">التأخير الصباحي</div>' : '') + x.T.slice().sort(function (p, q) { return p.date < q.date ? 1 : -1; }).map(function (t) {
+            var c = tardyCase[t.id];
+            return row(arFull(t.date), 'المرة ' + t.n, c ? stChip(c) : '', btns('tardy', t, 'case', c), c ? caseCard(c, myTurn(c)) : '', c ? 'case:' + c.id : '');
+          }).join('');
+        } else {
+          det += x.C.slice().sort(function (p, q) { return p.date < q.date ? 1 : -1; }).map(function (c) {
+            return row(esc(c.short), arFull(c.date) + ' • التكرار ' + c.rep, stChip(c), btns('case', c, 'case', c), caseCard(c, myTurn(c)), 'case:' + c.id);
+          }).join('');
+        }
+      }
+      return '<div class="card sfs"><button type="button" class="sfhd" data-sfs="' + esc(k) + '" aria-expanded="' + !!op + '"><span class="sfnm">' + esc(nm3(x.name)) + '</span><span class="sub">' + esc(gradeLabel(x.sec)) + ' • ' + esc(x.sec) + '</span><span class="sfsum">' + sum + '</span><span class="sfar">' + (op ? '▴' : '▾') + '</span></button>' + (op ? '<div class="sfd">' + det + '</div>' : '') + '</div>';
+    }).join('');
+    el.innerHTML = '<div><h2 class="pt">ملف الطالبات</h2><p class="sub">حالة كل طالبة في شعبكِ: الغياب والتأخير، والمخالفات السلوكية. افتحي اسم الطالبة لترَي كل سجل وبجانبه التعديل والإجراء المتبع.</p></div>' +
+      '<div class="opts modesw" style="margin:8px 0"><button type="button" class="opt" data-sft="att" aria-pressed="' + (F.tab === 'att') + '">الغياب والتأخير</button><button type="button" class="opt" data-sft="beh" aria-pressed="' + (F.tab === 'beh') + '">المخالفات السلوكية</button></div>' +
+      '<div class="card grid g2"><div class="field"><label class="lbl">الشعبة</label><select class="inp" id="sfsec"><option value="">كل شعبي</option>' + secs.map(function (x) { return '<option' + (F.sec === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label class="lbl">بحث</label><input class="inp" id="sfq" value="' + esc(F.q) + '" placeholder="اسم الطالبة"></div></div>' +
+      '<div class="sub" style="margin:6px 2px">' + list.length + ' طالبة</div>' +
+      (body || '<div class="empty card"><span class="tg">' + T3 + '</span>لا توجد سجلات</div>');
+    var re = function () { vStudFile(el); };
+    $$('[data-sft]', el).forEach(function (x) { x.onclick = function () { F.tab = x.dataset.sft; re(); }; });
+    $('#sfsec').onchange = function () { F.sec = this.value; re(); };
+    $('#sfq').oninput = function () { F.q = this.value; clearTimeout(F.t); F.t = setTimeout(function () { re(); var q = $('#sfq'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }, 350); };
+    $$('[data-sfs]', el).forEach(function (x) { x.onclick = function () { var k = 'S:' + x.dataset.sfs; F.open[k] = !F.open[k]; re(); }; });
+    $$('[data-sfx]', el).forEach(function (x) { x.onclick = function () { var k = x.dataset.sfx; F.open[k] = !F.open[k]; re(); }; });
+    bindCaseForms(el, re);
+    bindAbsForms(el, re);
+    if (typeof bindCopy === 'function') bindCopy(el, absR);
   }
 
   /* ---------- طباعة إجراءاتي: كل ما طُلب من الموظفة وما نفّذته ---------- */

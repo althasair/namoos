@@ -385,3 +385,17 @@ td.sgn,td.sgn2,.nf-sig td,.nf-appr,.report .sig>div,.mylog .mlme{position:relati
 #qd-modal .sg-dlg{max-height:90vh;overflow:auto}
 .qdl{max-height:40vh;overflow:auto;border:1px solid #E6E9EC;border-radius:10px}
 .qdr{padding:8px 10px;border-bottom:1px solid #EEF0F2;font-size:14px;line-height:1.7}.qdr:last-child{border-bottom:none}
+
+/* ===== ملف الطالبات ===== */
+.sfs{padding:0;overflow:hidden;margin-bottom:8px}
+.sfhd{all:unset;box-sizing:border-box;width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:12px 14px;cursor:pointer}
+.sfhd:focus-visible{outline:2px solid var(--tq)}
+.sfnm{font-weight:700;white-space:nowrap}.sfsum{display:flex;flex-wrap:wrap;gap:6px;margin-inline-start:auto}.sfar{color:var(--mut)}
+.sfn{font-size:12px;background:#EEF0F2;border-radius:10px;padding:2px 8px;white-space:nowrap}.sfn b{font-size:13px}
+.sfn.bad{background:#FBEDEC}.sfn.warn{background:#FBF3E6}
+.sfd{border-top:1px solid #E6E9EC;padding:6px 12px 10px}
+.sfh{font-weight:700;color:var(--tq-d);margin:10px 0 4px;font-size:14px}
+.sfr{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dashed #E6E9EC}
+.sfl{font-size:14px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sfb{display:flex;flex-wrap:wrap;gap:6px}
+.sfcard{margin:6px 0 10px}
