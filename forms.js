@@ -218,7 +218,7 @@
       '<table class="nf"><tr><th colspan="3">الإجراءات الوقائية التي تم اتخاذها مع الطالب</th></tr>' +
       [0, 1, 2].map(function (i) { return '<tr><td colspan="3">' + (i + 1) + '- ' + (pre[i] ? '<span class="v">' + e(pre[i]) + '</span>' : ed('', '')) + '</td></tr>'; }).join('') +
       '<tr><td class="l">توقيع الطالب</td><td class="l">رقم جوال ولي الأمر</td><td class="l">توقيع المشرف الإداري</td></tr>' +
-      '<tr><td class="sgn">&nbsp;</td><td class="v" dir="ltr" style="text-align:center">' + e(o.phone || '') + '</td><td class="v" style="text-align:center">' + e(sup) + '</td></tr>' +
+      '<tr><td class="sgn">&nbsp;</td><td class="v" dir="ltr" style="text-align:center">' + e(o.phone || '') + '</td><td class="v sgn2" style="text-align:center">' + e(sup) + '</td></tr>' +
       '<tr><td class="l">منسق شؤون الطلاب</td><td class="v" colspan="2">' + e(P.coord) + '</td></tr>' +
       '<tr><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v" colspan="2">' + e(P.vp) + '</td></tr></table>' +
       '<div class="nf-note">❖ يتم توقيع الطالب في حال وصول المخالفات لعدد 3 مخالفات وبعدها يتم تحويل الطالب مع الاستمارة واستمارة التحويل لتوقيعها من قبل منسق شؤون الطلبة لاتخاذ الإجراء حسب السياسة ومن ثم للاختصاصي الاجتماعي لدراستها سواء سلوكية أو غياب.</div>' + gFoot();
@@ -250,7 +250,7 @@
       '<table class="nf">' + stuRows(o, true) + '<tr><td class="l">تاريخ الفصل</td><td colspan="3">' + ed('', '') + (n ? ' <span class="v">(' + (n === 1 ? 'يوم واحد' : n === 2 ? 'يومان' : n + ' أيام') + ' حسب السياسة)</span>' : '') + '</td></tr></table>' +
       pledge3(o) +
       '<table class="nf"><tr><td class="l">ملاحظـــــة:</td><td>- لا يتم فصل الطالب إلا بعد إشعار ولي الأمر<br>- توفير وجبة صحية للطالب<br>- تحديد شخص مسؤول عن الطالب مع توفير المادة التعليمية خلال فترة الفصل</td></tr>' +
-      '<tr><td class="l">توقيع الطالب</td><td class="l">توقيع منسق شؤون الطلاب</td></tr><tr><td class="sgn">&nbsp;</td><td class="v" style="text-align:center">' + e(P.coord) + '</td></tr>' +
+      '<tr><td class="l">توقيع الطالب</td><td class="l">توقيع منسق شؤون الطلاب</td></tr><tr><td class="sgn">&nbsp;</td><td class="v sgn2" style="text-align:center">' + e(P.coord) + '</td></tr>' +
       '<tr><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v">' + e(P.vp) + '</td></tr><tr><td class="l">يعتمد / مدير المدرسة</td><td class="v">' + e(P.pr) + '</td></tr></table>' +
       '<div class="nf-note">❖ يؤدي الطالب خلال الفصل الداخلي خدمة مجتمعية أو تعليمية</div>' + gFoot();
   }
@@ -262,7 +262,7 @@
       '<table class="nf"><tr><td class="l" rowspan="3">عدد أيام فصل الطالب</td><td rowspan="3" class="v" style="text-align:center">' + (n || ed('', '')) + '</td><td class="l" rowspan="3">تاريخ الفصل</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr><tr><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr><tr><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr></table>' +
       pledge3(o) +
       '<table class="nf"><tr><td class="l">ملاحظـــــة:</td><td>لا يتم فصل الطالب إلا بعد إشعار ولي الامر</td></tr>' +
-      '<tr><td class="l">توقيع الطالب</td><td class="l">توقيع منسق شؤون الطلاب</td></tr><tr><td class="sgn">&nbsp;</td><td class="v" style="text-align:center">' + e(P.coord) + '</td></tr>' +
+      '<tr><td class="l">توقيع الطالب</td><td class="l">توقيع منسق شؤون الطلاب</td></tr><tr><td class="sgn">&nbsp;</td><td class="v sgn2" style="text-align:center">' + e(P.coord) + '</td></tr>' +
       '<tr><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v">' + e(P.vp) + '</td></tr><tr><td class="l">يعتمد / مدير المدرسة</td><td class="v">' + e(P.pr) + '</td></tr></table>' + gFoot();
   }
   /* نموذج (5) تقرير نهائي عن حالة طالب */
@@ -276,7 +276,7 @@
       '<tr><td class="l">عرض المشكلة<br><small>(مرفق نموذج بحث حالة)</small></td><td style="height:6em;vertical-align:top">' + ed(vName(o) + ' — ' + (isAbs(o) ? 'الغياب بدون عذر رقم ' + o.n : 'للمرة ' + ord(o.rep)) + (d.notes && !/^سجل سابق/.test(d.notes) ? '. ' + d.notes : ''), '') + '</td></tr>' +
       '<tr><td class="l">الإجراءات العلاجية<br><small>(مرفق)</small></td><td style="height:6em;vertical-align:top">' + ed([d.action, d2.date && !/^سجل سابق/.test(d2.notes || '') ? d2.action + (d2.notes ? ': ' + d2.notes : '') : ''].filter(Boolean).join(' • '), '') + '</td></tr>' +
       '<tr><td class="l">التوصيات لفريق إدارة سلوك الطلبة</td><td style="height:6em;vertical-align:top">' + ed('', '') + '</td></tr></table>' +
-      '<table class="nf"><tr><td class="l">اسم الاختصاصي النفسي / الاجتماعي</td><td class="l">التوقيع</td></tr><tr><td class="v" style="text-align:center">' + e(who) + '</td><td class="sgn">&nbsp;</td></tr></table>' +
+      '<table class="nf"><tr><td class="l">اسم الاختصاصي النفسي / الاجتماعي</td><td class="l">التوقيع</td></tr><tr><td class="v sgn2" style="text-align:center">' + e(who) + '</td><td class="sgn">&nbsp;</td></tr></table>' +
       '<div class="nf-note">❖ يتم طلب هذا التقرير من قبل فريق إدارة سلوك الطلبة</div>' + gFoot();
   }
   /* نموذج (6) مقابلة ولي أمر مع فريق إدارة سلوك الطلبة */
@@ -459,6 +459,7 @@
     m.hidden = false; document.body.classList.add('nf-open');
     var paper = document.getElementById('nf-paper');
     fit(paper);
+    if (window.NamoosSig) NamoosSig.decorate(paper, 'td.sgn, td.sgn2, .nf-sig td, .nf-appr', function () { fit(paper); });
     paper.addEventListener('click', function (ev) {
       var cb = ev.target.closest('.nf-cb'); if (!cb) return;
       var on = !cb.classList.contains('on'); cb.classList.toggle('on', on); cb.textContent = on ? '☑' : '☐'; cb.setAttribute('aria-checked', on);
@@ -482,7 +483,7 @@
   function toPdf(paper) {
     return loadLibs().then(function () {
       paper.classList.add('nf-snap');
-      return window.html2canvas(paper, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      return window.html2canvas(paper, { scale: 2, backgroundColor: '#ffffff', useCORS: true, ignoreElements: function (el) { return el.classList && el.classList.contains('nf-noprint'); } });
     }).then(function (cv) {
       paper.classList.remove('nf-snap');
       var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });

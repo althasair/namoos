@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.8.1';
+var VERSION = '2.9.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -82,7 +82,7 @@ function out_(o) {
 }
 
 var PUBLIC = { login: 1, ping: 1 };
-var WRITES = { sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+var WRITES = { saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
   recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
   recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
@@ -697,6 +697,38 @@ API.staffLog = function (me, req) {
   try { abs = absFor_(u, list).filter(function (a) { return inR(a.date); }).map(absPublic_); } catch (e) {}
   return { who: who, cases: casesFor_(u, data.cases).filter(function (c) { return inR(c.date); }).map(casePublic_),
     abs: abs, tardy: u.role === 'supervisor' ? tardyFor_(u).filter(function (t) { return inR(t.date); }) : [] };
+};
+
+/* ===== توقيعي: كل موظفة تضيف توقيعها وتتحكم فيه وحدها — لا يُرسل توقيع أحد لغيره ===== */
+var SIG_SHEET = 'التواقيع';
+function sigSheet_() {
+  var sh = ss_().getSheetByName(SIG_SHEET);
+  if (!sh) { sh = ss_().insertSheet(SIG_SHEET); sh.getRange(1, 1, 1, 4).setValues([['الاسم', 'الصفة', 'التوقيع', 'وقت الحفظ']]); sh.hideSheet(); }
+  return sh;
+}
+function sigRow_(me) {
+  var sh = sigSheet_(), n = sh.getLastRow();
+  if (n < 2) return 0;
+  var v = sh.getRange(2, 1, n - 1, 2).getValues();
+  for (var i = 0; i < v.length; i++) if (str_(v[i][0]) === me.name && str_(v[i][1]) === me.role) return i + 2;
+  return 0;
+}
+API.mySignature = function (me) {
+  var r = sigRow_(me);
+  return { data: r ? str_(sigSheet_().getRange(r, 3).getValue()) : '' };
+};
+API.saveSignature = function (me, req) {
+  var d = str_(req.data);
+  if (!/^data:image\/png;base64,[A-Za-z0-9+\/=]+$/.test(d)) throw new Error('صيغة التوقيع غير صحيحة');
+  if (d.length > 48000) throw new Error('صورة التوقيع كبيرة — جرّبي توقيعًا أبسط أو صورة أصغر');
+  var sh = sigSheet_(), r = sigRow_(me), row = [me.name, me.role, d, now_()];
+  if (r) sh.getRange(r, 1, 1, 4).setValues([row]); else sh.appendRow(row);
+  return { ok: true };
+};
+API.deleteSignature = function (me) {
+  var r = sigRow_(me);
+  if (r) sigSheet_().deleteRow(r);
+  return { ok: true };
 };
 
 function lists_() {

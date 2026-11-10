@@ -56,6 +56,7 @@
       });
   }
   if (window.NamoosForms) setTimeout(function () { NamoosForms.init({ S: S, api: api, toast: toast, esc: esc, ar: ar, arFull: arFull }); }, 0);
+  if (window.NamoosSig) setTimeout(function () { NamoosSig.init({ S: S, api: api, toast: toast }); }, 0);
   function toast(msg, kind, ms) {
     var t = $('#toast'); if (t) t.remove();
     t = document.createElement('div'); t.id = 'toast'; t.className = 'toast ' + (kind || ''); t.setAttribute('role', 'status');
@@ -160,6 +161,7 @@
     setTimeout(function () { var p = $('#pin'); if (p) p.focus(); }, 50);
   }
   function logout(silent) {
+    if (window.NamoosSig) NamoosSig.reset();
     S.token = ''; S.me = null; S.boot = null; store('namoos_token', null); clearInterval(pollTimer);
     renderLogin(silent ? 'انتهت الجلسة، سجّلي الدخول مرة أخرى' : '');
   }
@@ -212,6 +214,7 @@
     app.innerHTML =
       '<header class="top"><div style="display:flex;align-items:center;gap:16px"><span class="logo"><img src="icons/logo-bar.png" alt="نوماس"></span><span class="tv verse">' + VERSE + '</span></div>' +
       '<div class="right"><div class="who"><b>أ. ' + esc(me.name) + '</b><span>' + esc(me.roleLabel) + '</span></div>' +
+      '<button class="iconbtn sigbtn" id="sigb" aria-label="توقيعي" title="إضافة توقيعي">✍<span>توقيعي</span></button>' +
       '<button class="iconbtn" id="bell" aria-label="الرسائل">' + ICON.bell + '<span class="badge hidden" id="bellBadge">0</span></button>' +
       '<button class="iconbtn" id="lo" aria-label="تسجيل الخروج">' + ICON.out + '</button></div></header>' +
       '<div class="shell"><nav class="nav" aria-label="أقسام المنصة">' +
@@ -219,6 +222,8 @@
       '</nav><main class="main" id="main"></main></div>';
     $$('.nav button').forEach(function (b) { b.onclick = function () { S.focus = ''; view(b.dataset.v); }; });
     $('#bell').onclick = function () { view('messages'); };
+    $('#sigb').onclick = function () { if (window.NamoosSig) NamoosSig.open(); };
+    if (window.NamoosSig && window.MutationObserver) new MutationObserver(function () { NamoosSig.decorate($('#main'), '.report .sig > div, .mylog .mlme'); }).observe($('#main'), { childList: true, subtree: true });
     $('#lo').onclick = function () { if (confirm('تسجيل الخروج من نوماس؟')) logout(); };
     view(S.view);
   }
