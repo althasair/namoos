@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.9.1';
+var VERSION = '2.10.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -697,6 +697,30 @@ API.staffLog = function (me, req) {
   try { abs = absFor_(u, list).filter(function (a) { return inR(a.date); }).map(absPublic_); } catch (e) {}
   return { who: who, cases: casesFor_(u, data.cases).filter(function (c) { return inR(c.date); }).map(casePublic_),
     abs: abs, tardy: u.role === 'supervisor' ? tardyFor_(u).filter(function (t) { return inR(t.date); }) : [] };
+};
+
+/* ===== ملف الطالبات (المنسقة والإدارة): ملخص كل الطالبات، وتفاصيل طالبة عند فتحها ===== */
+function studFileAllowed_(me) { if (['supervisor', 'coordinator', 'admin'].indexOf(me.role) < 0) throw new Error('هذه الصفحة للمشرفات والمنسقة والإدارة'); }
+API.studSummary = function (me) {
+  studFileAllowed_(me);
+  var secs = sectionsFor_(me), inS = {}; secs.forEach(function (x) { inS[x] = 1; });
+  var m = {}, get = function (n, s) { var k = s + '|' + n; return m[k] || (m[k] = { name: n, sec: s, U: 0, E: 0, T: 0, C: {} }); };
+  try { absData_().forEach(function (a) { if (!inS[a.section]) return; if (a.kind === 'U') get(a.student, a.section).U++; else if (a.kind === 'E') get(a.student, a.section).E++; }); } catch (e) {}
+  tardyFor_(me).forEach(function (t) { if (inS[t.section]) get(t.student, t.section).T++; });
+  allData_().cases.forEach(function (c) {
+    if (!inS[c.section] || c.violation === TARDY_V) return;
+    var x = get(c.student, c.section); x.C[c.short] = Math.max(x.C[c.short] || 0, c.rep);
+  });
+  return { sections: secs, list: Object.keys(m).map(function (k) { var x = m[k]; x.C = Object.keys(x.C).map(function (v) { return { k: v, n: x.C[v] }; }); return x; }) };
+};
+API.studFileOne = function (me, req) {
+  studFileAllowed_(me);
+  var n = str_(req.student), sec = str_(req.section);
+  if (sectionsFor_(me).indexOf(sec) < 0) throw new Error('الشعبة لا تخصكِ');
+  var abs = [];
+  try { abs = absData_().filter(function (a) { return a.student === n && a.section === sec; }).map(absPublic_); } catch (e) {}
+  return { abs: abs, tardy: tardyFor_(me).filter(function (t) { return t.student === n && t.section === sec; }),
+    cases: allData_().cases.filter(function (c) { return c.student === n && c.section === sec; }).map(casePublic_) };
 };
 
 /* ===== توقيعي: كل موظفة تضيف توقيعها وتتحكم فيه وحدها — لا يُرسل توقيع أحد لغيره ===== */
