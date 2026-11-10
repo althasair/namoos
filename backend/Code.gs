@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.9.0';
+var VERSION = '2.9.1';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -1559,7 +1559,7 @@ API.recordAbsence = function (me, req) {
       notify_(sups, 'غياب الشعبة ' + section + ' — ' + arDate_(d) + ' (' + added.length + ')', body, '', 'غياب', 'abs');
     });
   }
-  return { added: rowsAdd.length, skipped: skipped, abs: absBoot_(me) };
+  return { added: rowsAdd.length, skipped: skipped, ids: rowsAdd.map(function (o) { return o['المعرف']; }), abs: absBoot_(me) };
 };
 
 /** معلمة الحصة الثانية: الطالبة حضرت متأخرة (لا يُحتسب) أو التراجع عن ذلك */

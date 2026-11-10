@@ -506,13 +506,54 @@
       (gaps.length ? '<div class="hgap">⚠ لا يوجد توثيق فعلي لإجراء ' + gaps.map(function (x) { return STG[x.st]; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join('، ') + ' في تكرارات سابقة. تأكدي منها قبل التنفيذ.</div>' : '<div class="hok">✔ جميع الإجراءات السابقة مكتملة وموثّقة.</div>') +
       '<div class="hnext"><b>الخطوة القادمة (دوركِ):</b> ' + esc(c.text[st] || '') + '<br><b>بعد توثيقكِ:</b> ' + (after.length ? 'تنتقل الحالة إلى ' + after.map(function (k) { return STAGE[k]; }).join(' ثم ') + '.' : 'تكتمل إجراءات الحالة.') + '</div></details>';
   }
+  /* لماذا وصلت المهمة؟ — تمييز ما هو مطلوب منكِ عمّا هو بانتظار غيركِ */
+  function whyTask(o, st, isAbs) {
+    var me = S.me.name, chain = ['supervisor', 'coordinator', 'social', 'psych', 'admin'];
+    var step = isAbs ? 'اليوم ' + o.n + ' بدون عذر' : 'التكرار ' + o.rep;
+    var t = (o.text && o.text[st]) || '';
+    if (/^استكمال ما لم يُوثَّق/.test(t)) return 'استكمال إجراء: في تكرارات سابقة سُجّلت المخالفة دون توثيق فعلي لإجراء ' + STAGE[st] + '، والسياسة تتطلبه قبل انتقال الحالة للجهة التالية.';
+    var prev = null;
+    chain.slice(0, chain.indexOf(st)).forEach(function (k) { var x = o.stages && o.stages[k]; if (x && x.need && x.documented) prev = k; });
+    if (st === 'supervisor') {
+      if (o.by === me) return 'لأنكِ سجّلتِ ' + (isAbs ? 'غياب الطالبة' : /التأخر عن الطابور/.test(o.violation || '') ? 'تأخر الطالبة' : 'المخالفة') + ' — والتسجيل خطوة أولى فقط؛ السياسة في ' + step + ' تطلب منكِ بعده الإجراء المكتوب أدناه.';
+      if (isAbs) return 'سجّلت أ. ' + (o.by || 'المعلمة') + ' غياب الطالبة وتقرر بدون عذر — والسياسة في ' + step + ' تطلب منكِ الإجراء أدناه.';
+      return 'حوّلت أ. ' + (o.by || 'المعلمة') + ' الحالة إليكِ — والسياسة في ' + step + ' تطلب منكِ الإجراء أدناه.';
+    }
+    if (prev) { var d = o.doc && o.doc[prev] || {}; return 'وصلتكِ بعد أن وثّقت ' + STAGE[prev] + ' إجراءها' + (d.date ? ' يوم ' + ar(d.date) : '') + ' — والسياسة في ' + step + ' تطلب منكِ الإجراء أدناه.'; }
+    return 'السياسة في ' + step + ' تطلب منكِ الإجراء أدناه.';
+  }
+  function whoAt(o, st) {
+    if (st === 'supervisor') return (o.supervisors || []).join('، ');
+    if (st === 'social') return o.social || '';
+    var u = (S.boot.staff || []).filter(function (x) { return x.role === st; });
+    return st === 'admin' ? 'الإدارة' : (u[0] || {}).name || '';
+  }
+  // حالات تخصّني (سجّلتها أو وثّقت دوري فيها) وهي الآن بانتظار جهة أخرى — للاطلاع فقط
+  function waitingOthers(list, isAbs) {
+    var st = myStage(), me = S.me.name;
+    var rows = list.filter(function (o) {
+      if (isAbs && o.kind !== 'U') return false;
+      if (!o.next || o.next === st || (o.status && o.status.code === 'done')) return false;
+      var mine = o.by === me || (o.stages && o.stages[st] && o.stages[st].documented && !/^سجل سابق/.test((o.doc && o.doc[st] && o.doc[st].notes) || ''));
+      return mine;
+    }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    if (!rows.length) return '';
+    return '<details class="card waitbox"><summary><b>⏳ بانتظار غيركِ — للاطلاع فقط (' + rows.length + ')</b><span class="sub"> حالات سجّلتِها أو أنهيتِ دوركِ فيها، والإجراء الآن على جهة أخرى. ليست مطلوبة منكِ.</span></summary>' +
+      '<div class="tw"><table class="t"><thead><tr><th>الطالبة</th><th>الشعبة</th><th>البند</th><th>بانتظار</th><th>آخر موعد</th></tr></thead><tbody>' +
+      rows.slice(0, 80).map(function (o) {
+        var s = o.stages[o.next] || {};
+        return '<tr><td class="nw">' + esc(nm3(o.student)) + '</td><td>' + esc(o.section) + '</td><td>' + esc(isAbs ? 'غياب بدون عذر — اليوم ' + o.n : (o.short || o.violation) + ' — التكرار ' + o.rep) + '</td><td class="nw"><b>' + STAGE[o.next] + '</b>' + (whoAt(o, o.next) ? '<div class="sub">' + esc(whoAt(o, o.next)) + '</div>' : '') + '</td><td class="nw">' + (s.compliance === 5 ? 'لم يحن دورها' : s.late ? '<span class="chip red">متأخر</span>' : s.due ? ar(s.due) : '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div></details>';
+  }
+  var TASK_INTRO = '<div class="taskintro"><b>ما المهام؟</b> كل مهمة هنا إجراء تطلبه السياسة <u>منكِ أنتِ</u>. تسجيل المخالفة أو الغياب خطوة أولى، وتوثيق ما نفّذتِه (التواصل مع ولي الأمر، التعهد…) خطوة ثانية تظهر هنا. ما ينتظر غيركِ تجدينه في «بانتظار غيركِ» أسفل الصفحة للاطلاع فقط، ولا يُحسب عليكِ.</div>';
+
   function caseCard(c, withForm) {
     var st = myStage(), s = c.stages[st] || {};
     var txt = c.text[st];
     return '<article class="item' + (s.late ? ' late' : '') + (S.focus === c.id ? ' focus' : '') + '" id="it-' + esc(c.id) + '">' + caseHead(c) +
       (c.teacherDid ? '<div class="row">ما قامت به المعلمة (' + esc(c.teacherAlert) + '): ' + esc(c.teacherDid) + '</div>' : '') +
       (c.guardian && (st !== 'supervisor' || c.req.guardian) ? '<div class="row">' + ICON.phone + ' ولي الأمر: ' + esc(c.guardian.split('☎')[0]) + ' • ' + tel((c.guardian.split('☎')[1] || '').trim()) + '</div>' : '') +
-      (withForm ? histPanel(c, st) : '') +
+      (withForm ? '<div class="why">📌 <b>لماذا وصلتكِ؟</b> ' + esc(whyTask(c, st, false)) + '</div>' + histPanel(c, st) : '') +
       (txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
       (st === 'supervisor' && c.req.pledge && c.req.coordinator ? '<div class="note">📎 بعد أخذ التعهد الخطي سلّميه للمنسقة، فهي الجهة التالية في هذه الحالة.</div>' : '') +
       stageChips(c) + (window.NamoosForms ? NamoosForms.buttons('case', c) : '') + fixBar('case', c) +
@@ -546,9 +587,10 @@
   }
   function vTasks(el) {
     var list = myOpenCases();
-    el.innerHTML = '<div><h2 class="pt">' + (S.me.role === 'supervisor' ? 'الوارد' : 'المهام') + '</h2><p class="sub">الحالات التي جاء دوركِ فيها حسب السياسة، والمتأخرة أولًا. بعد الحفظ تنتقل الحالة تلقائيًا للجهة التالية.</p></div>' +
+    el.innerHTML = '<div><h2 class="pt">' + (S.me.role === 'supervisor' ? 'الوارد' : 'المهام') + '</h2></div>' + TASK_INTRO +
+      '<h3 class="mysec">✋ مطلوب منكِ أنتِ (' + list.length + ')</h3>' +
       '<div class="items">' + (list.length ? list.map(function (c) { return caseCard(c, true); }).join('') :
-        '<div class="empty card"><span class="tg">' + T3 + '</span>لا توجد مهام بانتظاركِ الآن</div>') + '</div>';
+        '<div class="empty card"><span class="tg">' + T3 + '</span>لا توجد مهام مطلوبة منكِ الآن</div>') + '</div>' + waitingOthers(S.boot.cases || [], false);
     bindCaseForms(el, function () { S.focus = (myOpenCases()[0] || {}).id || ''; vTasks(el); if (S.focus) { var n = document.getElementById('it-' + S.focus); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); } });
     if (S.focus) { var fe = document.getElementById('it-' + S.focus); if (fe) setTimeout(function () { fe.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); }
   }
@@ -865,7 +907,7 @@
         if (isA) S.boot.abs = Object.assign(S.boot.abs, r.abs); else S.boot.tardy = r.tardy;
         Rr.dates = {};
         toast(savedMsg(r, isA), 'ok', 9000);
-        vRetro(el, kind); refresh(true);
+        vRetro(el, kind); refresh(true); afterSave(r, isA);
       }).catch(function (e) { sv.disabled = false; fail(e); });
     };
   }
@@ -876,6 +918,42 @@
     if (need.length) m += '\n📌 ' + need.map(function (c) { return c.student.split(' ')[0] + ' — التكرار ' + c.rep + ' (' + ar(c.date) + ')'; }).join(' • ') + '\nالإجراء المطلوب حسب السياسة ظاهر في «الوارد».';
     else if (r.cases && r.cases.length) m += '\nلا يتطلب التكرار الحالي إجراءً حسب السياسة.';
     return m;
+  }
+  /* بعد الحفظ: ما ترتّب على الإدخال من إجراءات عليكِ — وثّقيها في خطوة واحدة */
+  function quickDoc(items, isA) {
+    var st = myStage();
+    items = items.filter(function (o) { var s = o.stages && o.stages[st]; return s && s.need && s.open && !s.documented; });
+    if (!items.length || st !== 'supervisor') return;
+    var tt = $('#toast'); if (tt) tt.remove();
+    var m = document.createElement('div'); m.id = 'qd-modal';
+    var t = S.boot.today;
+    var needG = items.some(function (o) { return o.req && o.req.guardian; });
+    m.innerHTML = '<div class="nf-back"></div><div class="sg-dlg" role="dialog" aria-modal="true" aria-label="إجراءات مترتبة"><div class="sg-head"><b>✔ تم الحفظ — ترتّب عليه إجراء منكِ (' + items.length + ')</b><button class="btn sec" id="qd-x" type="button">لاحقًا</button></div>' +
+      '<p class="sub">السياسة تطلب منكِ بعد التسجيل الإجراء التالي. إن نفّذتِه الآن وثّقيه هنا دفعة واحدة، أو اضغطي «لاحقًا» وستجدينه في ' + (isA ? '«وارد الغياب»' : '«الوارد»') + '.</p>' +
+      '<div class="qdl">' + items.map(function (o) { return '<div class="qdr"><b>' + esc(nm3(o.student)) + '</b> <span class="sub">' + esc(o.section) + ' • ' + (isA ? 'اليوم ' + o.n + ' بدون عذر' : 'التكرار ' + o.rep) + '</span><div class="sub">' + esc((o.text && o.text[st]) || '') + '</div></div>'; }).join('') + '</div>' +
+      '<div class="grid g2" style="margin-top:10px">' + (needG ? '<div class="field"><label class="lbl">التواصل مع ولي الأمر</label><select class="inp" id="qd-c">' + listOptions('تواصل المشرفة', '') + '</select></div>' : '') +
+      '<div class="field"><label class="lbl">ملاحظات (اختياري)</label><input class="inp" id="qd-n" placeholder="مثل: أُخذ التعهد الخطي"></div></div>' +
+      '<button class="btn wide" id="qd-ok" type="button" style="margin-top:10px">نفّذتُه — وثّقي الكل بتاريخ اليوم</button></div>';
+    document.body.appendChild(m);
+    var close = function () { m.remove(); };
+    $('#qd-x').onclick = close; $('.nf-back', m).onclick = close;
+    $('#qd-ok').onclick = function () {
+      var c = $('#qd-c') ? $('#qd-c').value : '', n = $('#qd-n').value, b = this;
+      if (needG && !c) { toast('اختاري طريقة التواصل مع ولي الأمر', 'bad'); return; }
+      b.disabled = true; b.textContent = 'جارٍ التوثيق…';
+      var run = items.reduce(function (p, o) { return p.then(function () { return api(isA ? 'documentAbsence' : 'documentCase', { id: o.id, date: t, contact: c, notes: n }); }); }, Promise.resolve());
+      run.then(function () { toast('✔ تم توثيق ' + items.length + ' إجراء'); close(); refresh(true); }).catch(function (e) { b.disabled = false; b.textContent = 'نفّذتُه — وثّقي الكل بتاريخ اليوم'; fail(e); });
+    };
+  }
+  function afterSave(r, isA) {
+    var ids = isA ? (r.ids || []) : (r.cases || []).map(function (c) { return c.id; });
+    if (!ids.length || S.me.role !== 'supervisor') return;
+    setTimeout(function () {
+      api('bootstrap', {}, true).then(function (b) {
+        var src = isA ? ((b.abs && b.abs.records) || []) : (b.cases || []);
+        quickDoc(src.filter(function (o) { return ids.indexOf(o.id) >= 0; }), isA);
+      }).catch(function () {});
+    }, 300);
   }
   function bindMode(x) {
     x.onclick = function () { var p = x.dataset.mode.split(':'); S.modes = S.modes || {}; S.modes[p[0]] = p[1]; view(S.view, true); };
@@ -916,7 +994,7 @@
         btn.disabled = true; btn.textContent = 'جارٍ الحفظ… انتظري لحظة';
         api('recordTardy', { section: T.section, date: T.date || $('#tdd').value, students: list }).then(function (r) {
           b.tardy = r.tardy; T.sel = {}; if (r.added) { T.fresh = {}; (r.ids || []).forEach(function (id) { T.fresh[id] = 1; }); }
-          toast(savedMsg(r, false), r.added ? 'ok' : 'bad', 9000); vTardy(el); refresh(true);
+          toast(savedMsg(r, false), r.added ? 'ok' : 'bad', 9000); vTardy(el); refresh(true); afterSave(r, false);
         }).catch(function (e) { btn.disabled = false; btn.textContent = 'تسجيل التأخير (' + list.length + ')'; fail(e); });
       };
     }
@@ -1270,7 +1348,7 @@
     return '<article class="item' + (s.late ? ' late' : '') + (S.focus === a.id ? ' focus' : '') + '" id="it-' + esc(a.id) + '">' + absHead(a) +
       (a.flag ? '<div class="note">' + esc(a.flag) + '</div>' : '') +
       (a.decision ? '<div class="row">قرار المشرفة: ' + esc(a.decision) + (a.excuse ? ' — ' + esc(a.excuse) : '') + (a.decBy ? ' • أ. ' + esc(a.decBy) : '') + '</div>' : '') +
-      g + (withForm && txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
+      g + (withForm ? '<div class="why">📌 <b>لماذا وصلتكِ؟</b> ' + esc(whyTask(a, st, true)) + '</div>' : '') + (withForm && txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
       (a.elig ? '<div class="note" style="background:var(--red-l);color:var(--red)">⛔ ' + esc(a.elig) + '</div>' : '') +
       (withForm && st === 'supervisor' ? '<details><summary class="btn sm sec" style="width:max-content">💬 رسالة ولي الأمر جاهزة</summary>' + smsTools(a) + '</details>' : '') +
       absStageChips(a) + (window.NamoosForms ? NamoosForms.buttons('abs', a) : '') + fixBar('abs', a) +
@@ -1399,7 +1477,7 @@
     und.forEach(function (a) { var g = a.section + '|' + a.date; (groups[g] = groups[g] || []).push(a); });
     var gkeys = Object.keys(groups).sort(function (x, y) { return x.split('|')[1] < y.split('|')[1] ? -1 : 1; });
     var open = absOpen();
-    el.innerHTML = '<div><h2 class="pt">' + (isSup ? 'وارد الغياب' : 'مهام الغياب') + '</h2><p class="sub">' + (isSup ? 'أولًا: حددي قرار كل غياب وأخطري ولي الأمر. ثانيًا: نفّذي إجراء السياسة حسب رقم اليوم بدون عذر.' : 'حالات الغياب بدون عذر التي جاء دوركِ فيها حسب السياسة، والمتأخرة أولًا.') + '</p></div>' +
+    el.innerHTML = '<div><h2 class="pt">' + (isSup ? 'وارد الغياب' : 'مهام الغياب') + '</h2><p class="sub">' + (isSup ? 'أولًا: حددي قرار كل غياب وأخطري ولي الأمر. ثانيًا: نفّذي إجراء السياسة حسب رقم اليوم بدون عذر.' : 'حالات الغياب بدون عذر التي جاء دوركِ فيها حسب السياسة، والمتأخرة أولًا.') + '</p></div>' + TASK_INTRO +
       (gkeys.length ? '<h3 style="margin:4px 0">① قرارات الغياب (' + und.length + ')</h3>' + gkeys.map(function (g) {
         var arr = groups[g], late = arr.some(function (a) { return a.decLate; });
         return '<form class="card dec" data-g="' + esc(g) + '" style="gap:10px;display:flex;flex-direction:column' + (late ? ';border-color:#EDB1AC' : '') + '"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><b>الشعبة ' + esc(arr[0].section) + ' — ' + arFull(arr[0].date) + '</b>' +
@@ -1414,7 +1492,7 @@
       }).join('') : '') +
       (isSup ? '<h3 style="margin:10px 0 4px">② إجراءات السياسة (' + open.length + ')</h3>' : '') +
       '<div class="items">' + (open.length ? open.map(function (a) { return absCard(a, true); }).join('') :
-        (gkeys.length ? '' : '<div class="empty card"><span class="tg">' + T3 + '</span>لا توجد مهام غياب بانتظاركِ الآن</div>')) + '</div>';
+        (gkeys.length ? '' : '<div class="empty card"><span class="tg">' + T3 + '</span>لا توجد مهام غياب مطلوبة منكِ الآن</div>')) + '</div>' + waitingOthers(A.records || [], true);
     bindCopy(el, A.records);
     $$('.decrow select[name=d]', el).forEach(function (s) { s.onchange = function () { $('select[name=e]', s.parentNode).classList.toggle('hidden', s.value !== 'بعذر'); }; });
     $$('[data-allu]', el).forEach(function (b) { b.onclick = function () { $$('select[name=d]', b.closest('form')).forEach(function (s) { s.value = 'بدون عذر'; s.onchange(); }); }; });

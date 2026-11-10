@@ -375,3 +375,13 @@ td.sgn,td.sgn2,.nf-sig td,.nf-appr,.report .sig>div,.mylog .mlme{position:relati
 .report .sig .sgw .sgimg,.mylog .mlme .sgw .sgimg{height:70px}
 .sgw .sgx{pointer-events:auto;position:absolute;top:-8px;left:-8px;width:20px;height:20px;border-radius:50%;border:none;background:#B3261E;color:#fff;font-size:13px;line-height:20px;cursor:pointer;padding:0}
 @media print{.sgadd,.sgx,.nf-noprint{display:none!important}.sgw .sgimg{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+
+/* ===== وضوح المهام ===== */
+.taskintro{background:#F4F8F8;border:1px solid #D6E6E6;border-radius:12px;padding:10px 14px;font-size:14px;line-height:1.9;margin:8px 0 12px}
+.mysec{margin:6px 0 8px;font-size:17px}
+.why{background:#FFF8E1;border-right:4px solid #E0A800;border-radius:8px;padding:8px 10px;font-size:14px;line-height:1.8;margin:6px 0}
+.waitbox{margin-top:16px}.waitbox summary{cursor:pointer;line-height:1.8}.waitbox td.nw{white-space:nowrap}
+#qd-modal{position:fixed;inset:0;z-index:1300;display:grid;place-items:center}
+#qd-modal .sg-dlg{max-height:90vh;overflow:auto}
+.qdl{max-height:40vh;overflow:auto;border:1px solid #E6E9EC;border-radius:10px}
+.qdr{padding:8px 10px;border-bottom:1px solid #EEF0F2;font-size:14px;line-height:1.7}.qdr:last-child{border-bottom:none}
