@@ -316,6 +316,19 @@
     listEl.innerHTML = html;
     $$('button', listEl).forEach(function (b) { b.onclick = function () { onPick(b.dataset.v); }; });
   }
+  // رصيد الطالبة: المتبقي للإنذار ولعدم الأهلية (الغياب)، والمتبقي حتى التأخير السابع (يُصفَّر كل فصل)
+  function balChip(sec, name, kind) {
+    var B = (S.boot && S.boot.balance || {})[sec + '|' + name]; if (!B) return '';
+    if (kind === 'tardy') {
+      var c = B.tl <= 0 ? 'bad' : B.tl <= 2 ? 'warn' : '';
+      return '<span class="bal ' + c + '">تأخير هذا الفصل ' + B.t + (B.tl > 0 ? ' • متبقٍ ' + B.tl + ' حتى السابع (يُحتسب يوم غياب)' : ' • تجاوزت السابع: كل تأخير يُحتسب يوم غياب') + '</span>';
+    }
+    var parts = ['بدون عذر ' + B.u];
+    if (B.w !== null && B.w !== undefined) parts.push('متبقٍ للإنذار ' + B.w);
+    if (B.el !== null && B.el !== undefined) parts.push(B.el < 0 ? 'غير مؤهلة لـ' + B.ex : 'متبقٍ لعدم الأهلية ' + (B.el + 1) + ' (' + B.ex.replace(/^اختبار\s*/, '') + ')');
+    var cl = B.el !== null && B.el < 0 ? 'bad' : (B.el !== null && B.el <= 1) || B.w === 1 ? 'warn' : '';
+    return '<span class="bal ' + cl + '">' + parts.join(' • ') + '</span>';
+  }
   function studentList(listEl, names, selected, q, onPick) {
     var qn = norm(q);
     var f = names.filter(function (n) { return !qn || norm(n).indexOf(qn) >= 0; });
@@ -1205,7 +1218,7 @@
       var draw = function () {
         var qn = norm($('#rr-q').value);
         $('#rr-l').innerHTML = studentsOf(Rr.section).filter(function (x) { return !qn || norm(x).indexOf(qn) >= 0; }).map(function (x) {
-          return '<button type="button" data-rs="' + esc(x) + '" aria-pressed="' + (Rr.student === x) + '"><span>' + esc(x) + '</span><span>' + (Rr.student === x ? '✔' : '') + '</span></button>';
+          return '<button type="button" data-rs="' + esc(x) + '" aria-pressed="' + (Rr.student === x) + '"><span>' + esc(x) + balChip(Rr.section, x, isA ? 'abs' : 'tardy') + '</span><span>' + (Rr.student === x ? '✔' : '') + '</span></button>';
         }).join('');
         $$('[data-rs]', $('#rr-l')).forEach(function (x) { x.onclick = function () { Rr.student = x.dataset.rs; Rr.dates = {}; vRetro(el, kind); }; });
       };
@@ -1300,7 +1313,7 @@
       var draw = function () {
         var qn = norm($('#tq').value);
         $('#tl').innerHTML = (b.students[T.section] || []).filter(function (n) { return !qn || norm(n).indexOf(qn) >= 0; }).map(function (n) {
-          return '<button type="button" data-t="' + esc(n) + '" aria-pressed="' + !!T.sel[n] + '"><span>' + esc(n) + '</span><span>' + (T.sel[n] ? '✔' : '') + '</span></button>';
+          return '<button type="button" data-t="' + esc(n) + '" aria-pressed="' + !!T.sel[n] + '"><span>' + esc(n) + balChip(T.section, n, 'tardy') + '</span><span>' + (T.sel[n] ? '✔' : '') + '</span></button>';
         }).join('');
         $$('[data-t]', $('#tl')).forEach(function (x) { x.onclick = function () { var n = x.dataset.t; if (T.sel[n]) delete T.sel[n]; else T.sel[n] = 1; draw(); $('#tsave').textContent = 'تسجيل التأخير (' + Object.keys(T.sel).length + ')'; }; });
       };
@@ -1764,7 +1777,7 @@
         var qn = norm($('#arq').value);
         $('#arl').innerHTML = (A.students[R.section] || []).filter(function (n) { return !qn || norm(n).indexOf(qn) >= 0; }).map(function (n) {
           if (already[n]) return '<button type="button" disabled><span>' + esc(n) + '</span><span class="chip">مسجّلة</span></button>';
-          return '<button type="button" data-t="' + esc(n) + '" aria-pressed="' + !!R.sel[n] + '"><span>' + esc(n) + '</span><span>' + (R.sel[n] ? '✔' : '') + '</span></button>';
+          return '<button type="button" data-t="' + esc(n) + '" aria-pressed="' + !!R.sel[n] + '"><span>' + esc(n) + balChip(R.section, n, 'abs') + '</span><span>' + (R.sel[n] ? '✔' : '') + '</span></button>';
         }).join('');
         $$('[data-t]', $('#arl')).forEach(function (x) { x.onclick = function () { var n = x.dataset.t; if (R.sel[n]) delete R.sel[n]; else R.sel[n] = 1; draw(); var sv = $('#arsave'); sv.textContent = 'تسجيل الغياب (' + Object.keys(R.sel).length + ')'; sv.disabled = !Object.keys(R.sel).length; }; });
       };

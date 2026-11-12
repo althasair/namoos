@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.13.0';
+var VERSION = '2.14.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -287,6 +287,19 @@ function days_() {
   return d;
 }
 function isSchoolDay_(d) { return days_().indexOf(d) >= 0; }
+/** بداية الفصل الدراسي الثاني: من الإعدادات «بداية الفصل الثاني»، وإلا أول يوم دراسي بعد أطول عطلة بين ديسمبر وفبراير */
+function sem2Start_() {
+  if (_cache._sem2) return _cache._sem2;
+  var s = iso_(setting_('بداية الفصل الثاني', ''));
+  if (!s) {
+    var d = days_().filter(function (x) { return x >= '2026-12-01' && x <= '2027-02-28'; }), best = 0;
+    for (var i = 1; i < d.length; i++) { var gap = (new Date(d[i]) - new Date(d[i - 1])) / 864e5; if (gap > best) { best = gap; s = d[i]; } }
+    if (best < 7) s = '2027-01-03';
+  }
+  _cache._sem2 = s;
+  return s;
+}
+function semOf_(d) { return d && d >= sem2Start_() ? 2 : 1; }
 /** عدد الأيام الدراسية بعد التاريخ حتى اليوم */
 function schoolDaysSince_(d) {
   var t = today_();
@@ -429,7 +442,7 @@ function enrichCases_(all, teacherIndex) {
       });
     }
     // التكرار: من تنبيه المعلمة في التحويل الصفي، وإلا بعدد مرات المخالفة نفسها للطالبة
-    var k = [c.student, c.section, c.violation].join('|');
+    var k = [c.student, c.section, c.violation].join('|') + (isTardyV_(c.violation) ? '|ف' + semOf_(c.date) : ''); // التأخير الصباحي يُصفَّر كل فصل
     count[k] = (count[k] || 0) + 1;
     var t = c.transferNo ? tIdx[c.transferNo] : null;
     c.rep = (t && t.cat === 1 && Number(t.alert)) ? Number(t.alert) : count[k];
@@ -667,6 +680,7 @@ API.bootstrap = function (me) {
     res.violations = P.offList.map(function (v) { return { label: v.name, short: v.short, degree: v.degree, code: v.code }; });
     res.cases = casesFor_(me, data.cases).map(casePublic_);
     if (me.role === 'supervisor' || me.role === 'admin') res.tardy = tardyFor_(me).slice(-300).reverse();
+    if (me.role === 'supervisor' || me.role === 'admin') { try { res.balance = balance_(res.sections); } catch (eb) { res.balance = {}; } }
   }
   res.tasks = tasks_(me, data);
   try { res.abs = absBoot_(me); } catch (err) { res.abs = null; res.absError = String(err && err.message || err); }
@@ -677,6 +691,33 @@ API.bootstrap = function (me) {
   res.unread = unread_(me);
   return res;
 };
+
+/** رصيد كل طالبة: المتبقي للإنذار وعدم الأهلية (الغياب بدون عذر — تراكمي طوال العام)، والمتبقي حتى التأخير السابع (يُصفَّر كل فصل) */
+function balance_(secs) {
+  var AP = absPolicy_(), t = today_(), out = {};
+  // أيام الإنذار من نص السياسة نفسه: «بالعلم بعدم أهلية» أو «إنذار نهائي» أو «في حال تجاوز غيابه»
+  var warn = { G1011: [], G12: [] };
+  Object.keys(AP.texts).forEach(function (k) {
+    var p = k.split('|'), x = AP.texts[k], n = Number(p[1]);
+    if (!n || !warn[p[0]]) return;
+    if (/بالعلم بعدم أهلية|إنذار نهائي|في حال تجاوز غيابه/.test([x.coordinator, x.admin].join(' '))) warn[p[0]].push(n);
+  });
+  Object.keys(warn).forEach(function (g) { warn[g].sort(function (a, b) { return a - b; }); });
+  var stu = absStudents_(absData_(), secs);
+  var U = {}; stu.forEach(function (o) { U[o.section + '|' + o.student] = o; });
+  var sem = semOf_(t), T = {};
+  tardyRows_().forEach(function (r) { var d = iso_(r['التاريخ']); if (semOf_(d) !== sem) return; var k = str_(r['الشعبة']) + '|' + str_(r['الطالبة']); T[k] = (T[k] || 0) + 1; });
+  students_().forEach(function (s) {
+    if (secs.indexOf(s.section) < 0) return;
+    var k = s.section + '|' + s.name, o = U[k] || { U: 0, next: null }, g = s.section.split('-')[0] === '12' ? 'G12' : 'G1011';
+    var w = warn[g].filter(function (n) { return n > o.U; })[0];
+    var tn = T[k] || 0;
+    out[k] = { u: o.U, w: w ? w - o.U : null, wd: w || null,
+      el: o.next ? o.next.left : null, ex: o.next ? o.next.name : '', lim: o.next ? o.next.limit : null,
+      t: tn, tl: tn < 7 ? 7 - tn : 0, sem: sem };
+  });
+  return out;
+}
 
 /** الإدارة: إجراءات كل الموظفات (كل الأدوار) — المنسقة: إجراءات المشرفات */
 function staffAllowed_(me, u) {
@@ -1168,7 +1209,7 @@ function tardyFor_(me) {
   var cnt = {};
   return tardyRows_().slice().sort(function (a, b) { return orderKey_(a, 'التاريخ', 'وقت الإدخال') < orderKey_(b, 'التاريخ', 'وقت الإدخال') ? -1 : 1; })
     .map(function (r) {
-      var k = str_(r['الطالبة']) + '|' + str_(r['الشعبة']);
+      var k = str_(r['الطالبة']) + '|' + str_(r['الشعبة']) + '|' + semOf_(iso_(r['التاريخ']));
       cnt[k] = (cnt[k] || 0) + 1;
       return { id: str_(r['المعرف']), date: iso_(r['التاريخ']), section: str_(r['الشعبة']), student: str_(r['الطالبة']), by: str_(r['سجّلتها']),
         notes: str_(r['ملاحظات']), n: cnt[k], created: str_(r['وقت الإدخال']) };
