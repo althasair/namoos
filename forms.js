@@ -171,6 +171,12 @@
   function isAbs(o) { return o && o.n !== undefined && o.violation === undefined; }
   function vName(o) { return isAbs(o) ? 'الغياب بدون عذر' : o.violation; }
   // مخالفات الطالبة حتى تاريخ هذه الحالة (الأحدث أولًا)
+  // مخالفات البند نفسه فقط (كل بند في السياسة ورقة منفصلة)، من الأقدم إلى الأحدث
+  function sameList(o, max) {
+    var v = vName(o);
+    var L = priorList(o, 999).filter(function (x) { return x.v === v; });
+    L = L.slice(0, max); L.reverse(); return L;
+  }
   function priorList(o, max) {
     var b = N.S.boot, out = [];
     (b.cases || []).forEach(function (c) { if (c.student === o.student && c.section === o.section && c.date <= o.date) out.push({ date: c.date, v: c.violation, deg: deg(c.degree), rep: c.rep, act: actDone(c) }); });
@@ -207,7 +213,7 @@
   /* نموذج (1) تعهد طالب (المشرف الإداري) */
   function g1(o) {
     var P = people(), sup = realWho(o.doc && o.doc.supervisor && o.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (o.supervisors || [])[0] || '');
-    var L = priorList(o, 3); while (L.length < 3) L.push(null);
+    var L = sameList(o, 3); while (L.length < 3) L.push(null);
     // الإجراءات الوقائية المعتمدة في المدرسة (كما في الاستمارة الورقية) — قابلة للتعديل
     var pre = ['توعية أولياء الأمور بسياسة إدارة السلوك', 'توعية وإرشاد بسياسة إدارة سلوك الطلبة ونشرها في الأقسام', 'المتابعة المستمرة بالمرور على الصفوف وملاحظة الطلبة'];
     return gHead(1, 'تعهـــد طــــالب (المشرف الإداري)') +
@@ -239,7 +245,7 @@
       sigs([['منسق شؤون الطلاب', P.coord], ['نائب المدير للشؤون الإدارية وشؤون الطلاب', P.vp], ['يعتمد / مدير المدرسة', P.pr]]) + gFoot();
   }
   function pledge3(o) {
-    var L = priorList(o, 3);
+    var L = sameList(o, 3);
     return '<div class="nf-box" style="text-align:right">أتعهد أنا الطالب/ <span class="v">' + e(o.student) + '</span> بالصف/ <span class="v">' + grade(o.section) + ' (' + e(o.section) + ')</span><br>بالالتزام الكامل بلوائح ونظم المدرسة وعدم تكرار المخالفات التي سبق وقمت بها والمتمثلة في الآتي:<br>' +
       [0, 1, 2].map(function (i) { return (i + 1) + '. ' + (L[i] ? '<span class="v">' + e(L[i].v) + ' (' + dmy(L[i].date) + ')</span>' : ed('', '')); }).join('<br>') +
       '<br>وفي حالة تكرار ذلك سوف تقوم إدارة المدرسة باتخاذ الإجراءات المتبعة حسب اللوائح والقوانين الخاصة بسياسة إدارة سلوك الطلبة 2026 بوزارة التربية والتعليم والتعليم العالي.</div>';
