@@ -157,7 +157,7 @@
    *  نصوص النماذج كما وردت في الدليل دون تعديل — التنسيق فقط
    * ========================================================= */
   function gHead(no, title) {
-    return '<div class="nf-top"><span class="nf-tag">نموذج رقم (' + no + ')</span><span class="nf-sub">إدارة شؤون المدارس والطلبة — قسم حماية ورعاية الطلبة</span></div><div class="nf-title">' + title + '</div>';
+    return '<span class="nf-gd" hidden></span><div class="nf-top"><span class="nf-tag">نموذج رقم (' + no + ')</span><span class="nf-sub">إدارة شؤون المدارس والطلبة — قسم حماية ورعاية الطلبة</span></div><div class="nf-title">' + title + '</div>';
   }
   function gFoot() { return '<div class="nf-foot">دليل فريق إدارة سلوك الطلبة 2026</div>'; }
   function dayRow(d) { return '<table class="nf"><tr><td class="l">اليوم</td><td class="v">' + wd(d) + '</td><td class="l">التاريخ</td><td class="v">' + dmy(d) + '</td></tr></table>'; }
@@ -353,7 +353,7 @@
     var cnt = Math.max(recs.length, Number(o.n) || 0);
     var soc = o.social || '';
     var title = I.warn ? 'إشعار ولي الأمر بالعلم بعدم أهلية الطالب لدخول الاختبار' : 'قرار عدم أهلية الطالب لدخول الاختبار وإخطار ولي الأمر';
-    return '<div class="nf-top"><span class="nf-tag">سياسة الغياب 2026</span><span class="nf-sub">فريق إدارة سلوك الطلبة — مدرسة الشيماء الثانوية للبنات</span></div><div class="nf-title">' + title + '</div>' +
+    return '<span class="nf-gd" hidden></span><div class="nf-top"><span class="nf-tag">سياسة الغياب 2026</span><span class="nf-sub">فريق إدارة سلوك الطلبة — مدرسة الشيماء الثانوية للبنات</span></div><div class="nf-title">' + title + '</div>' +
       dayRow(today()) + '<table class="nf">' + stuRows(o, true) + '</table>' +
       '<table class="nf"><tr><th colspan="4">بيان الغياب بدون عذر رسمي</th></tr>' +
       '<tr><td class="l">عدد أيام الغياب بدون عذر</td><td class="v">' + cnt + '</td><td class="l">الاختبار</td><td class="v">' + e(I.exam || '') + '</td></tr>' +

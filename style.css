@@ -434,3 +434,6 @@ td.sgn,td.sgn2,.nf-sig td,.nf-appr,.report .sig>div,.mylog .mlme{position:relati
 .pft td.pfx{min-width:150px}.pft td.pfx .sfb{flex-direction:column;align-items:stretch}.pft td.pfx .qdec{flex-direction:column;align-items:stretch}
 @media print{.pft td.pfx,.pft th.noprint{display:none!important}}
 .bal{display:block;font-size:11.5px;font-weight:500;color:#55636A;margin-top:3px;white-space:normal;line-height:1.5}.bal.warn{color:#9A5B00}.bal.bad{color:#B42318}
+/* نماذج دليل فريق إدارة سلوك الطلبة 2026: بالأبيض والأسود والرمادي الفاتح كما في الدليل (العنابي لاستمارات العمل الاجتماعي فقط) */
+.nf-paper:has(.nf-gd) table.nf th{background:#F2F2F2;color:#111}
+.nf-paper:has(.nf-gd) .nf-tag{color:#111}
