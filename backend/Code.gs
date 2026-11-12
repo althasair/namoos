@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.11.0';
+var VERSION = '2.12.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -419,6 +419,15 @@ function enrichCases_(all, teacherIndex) {
         action: str_(r[p + ': الإجراء المتخذ'] || ''), contact: str_(r[p + ': التواصل مع ولي الأمر'] || ''),
         notes: str_(r[p + ': ملاحظات']), who: str_(r[p + ': من وثّقت'] || '') };
     });
+    // الحالات المنقولة من نظام Excel القديم: تُحسب في التكرار فقط ولا تُنشئ مهام.
+    // ما لم يُوثَّق فيها يُعدّ «سجل سابق»، فيُستكمل عند المخالفة الحية التالية حسب السياسة.
+    if (/^نُقلت من نظام/.test(c.by)) {
+      CHAIN.forEach(function (st) {
+        var d = c.doc[st];
+        if (!d.date) { d.date = c.date; d.notes = 'سجل سابق — نُقلت من نظام Excel'; d.who = 'سجل سابق'; }
+        else if (st === 'supervisor' && !d.contact) d.contact = 'لم يُسجَّل في Excel';
+      });
+    }
     // التكرار: من تنبيه المعلمة في التحويل الصفي، وإلا بعدد مرات المخالفة نفسها للطالبة
     var k = [c.student, c.section, c.violation].join('|');
     count[k] = (count[k] || 0) + 1;
