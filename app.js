@@ -841,9 +841,9 @@
       });
       return r;
     };
+    var priorOf = function (o) { return !!(o && o.doc && ['supervisor', 'coordinator', 'social', 'psych', 'admin'].some(function (st) { return o.doc[st] && o.doc[st].date && isPrior(o.doc[st]); })); };
     var rows = [];
     x.C.forEach(function (c) { rows.push({ prior: priorOf(c), date: c.date, g: 'مخالفة سلوكية', item: c.violation, rep: 'التكرار ' + c.rep + (c.degree ? ' • ' + c.degree : ''), acts: actsOf(c), st: c.status ? c.status.text : '', card: H.btns('case', c, 'case', c) }); });
-    var priorOf = function (o) { return !!(o && o.doc && ['supervisor', 'coordinator', 'social', 'psych', 'admin'].some(function (st) { return o.doc[st] && o.doc[st].date && isPrior(o.doc[st]); })); };
     x.T.forEach(function (t) { var c = H.tardyCase[t.id]; rows.push({ prior: priorOf(c), date: t.date, g: 'تأخير صباحي', item: 'التأخير الصباحي', rep: 'المرة ' + t.n, acts: c ? actsOf(c) : [], st: c && c.status ? c.status.text : '', card: H.btns('tardy', t, 'case', c) }); });
     x.U.forEach(function (a) { rows.push({ date: a.date, g: 'غياب بدون عذر', item: 'غياب بدون عذر', rep: 'اليوم ' + a.n, acts: actsOf(a), st: a.status ? a.status.text : '', card: H.btns('abs', a, 'abs', a) + quickDec(a) }); });
     x.E.forEach(function (a) { rows.push({ date: a.date, g: 'غياب بعذر', item: 'غياب بعذر', rep: a.excuse || '', acts: actsOf(a), st: '', card: H.btns('abs', a) + quickDec(a) }); });
