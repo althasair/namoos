@@ -54,8 +54,8 @@
 
   /* ---------- نموذج 10: تحويل حالة سلوكية ---------- */
   function f10(c) {
-    var sup = (c.doc && c.doc.supervisor && c.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (c.supervisors || [])[0] || '');
-    var coord = (c.doc && c.doc.coordinator && c.doc.coordinator.who) || (F().coordinators || [])[0] || '';
+    var sup = realWho(c.doc && c.doc.supervisor && c.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (c.supervisors || [])[0] || '');
+    var coord = realWho(c.doc && c.doc.coordinator && c.doc.coordinator.who) || (F().coordinators || [])[0] || '';
     var t = today();
     return head(10, 'استمارة تحويل حالة سلوكية من المشرف الإداري الى الاختصاصي الاجتماعي', 'الاختصاصي الاجتماعي') +
       '<table class="nf"><tr><td class="l">اليوم</td><td class="v">' + wd(t) + '</td><td class="l">التاريخ</td><td class="v">' + dmy(t) + '</td></tr></table>' +
@@ -94,8 +94,8 @@
       var dd = (x.doc && x.doc.supervisor && x.doc.supervisor.date) || x.date;
       acts(x.text && x.text.supervisor).forEach(function (t) { if (!seenA[t]) { seenA[t] = 1; supActs.push(t + ' — ' + dm(dd)); } });
     });
-    var sup = (a.doc && a.doc.supervisor && a.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (a.supervisors || [])[0] || '');
-    var coord = (a.doc && a.doc.coordinator && a.doc.coordinator.who) || (F().coordinators || [])[0] || '';
+    var sup = realWho(a.doc && a.doc.supervisor && a.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (a.supervisors || [])[0] || '');
+    var coord = realWho(a.doc && a.doc.coordinator && a.doc.coordinator.who) || (F().coordinators || [])[0] || '';
     var t = today();
     return head(9, 'تحويل حالة غياب من المشرف الإداري الى الاختصاصي الاجتماعي', 'الاختصاصي الاجتماعي') +
       '<table class="nf"><tr><td class="l">اليوم</td><td class="v">' + wd(t) + '</td><td class="l">التاريخ</td><td class="v">' + dmy(t) + '</td></tr></table>' +
@@ -206,7 +206,7 @@
 
   /* نموذج (1) تعهد طالب (المشرف الإداري) */
   function g1(o) {
-    var P = people(), sup = (o.doc && o.doc.supervisor && o.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (o.supervisors || [])[0] || '');
+    var P = people(), sup = realWho(o.doc && o.doc.supervisor && o.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (o.supervisors || [])[0] || '');
     var L = priorList(o, 3); while (L.length < 3) L.push(null);
     var pre = acts(o.text && o.text.supervisor);
     return gHead(1, 'تعهـــد طــــالب (المشرف الإداري)') +
@@ -364,6 +364,8 @@
   }
 
   /* متى يُفتح كل نموذج: عند بلوغ الحالة خطوة السياسة الخاصة به (لا قبلها) */
+  // الأسماء الحقيقية فقط: «نُقلت من نظام Excel» و«سجل سابق» ليست أسماء موظفات
+  function realWho(w) { w = String(w || '').trim(); return /^(نُقلت|نقلت|سجل سابق)/.test(w) ? '' : w; }
   function isPriorDoc(d) { return !!d && (/^سجل سابق/.test(d.notes || '') || d.action === 'سجل سابق' || d.who === 'سجل سابق'); }
   function reached(o, st) { var s = o.stages && o.stages[st]; return !!(s && s.need && (s.open || s.documented) && !(s.documented && isPriorDoc(o.doc && o.doc[st]))); }
   function myTurn(o, st) { var s = o.stages && o.stages[st]; return !!(s && s.need && s.open && !s.documented); }
