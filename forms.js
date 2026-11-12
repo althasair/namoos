@@ -378,7 +378,7 @@
   function myTurn(o, st) { var s = o.stages && o.stages[st]; return !!(s && s.need && s.open && !s.documented); }
   function txt(o, st) { return String(o.text && o.text[st] || ''); }
   var GUIDE = {
-    g1: { title: 'تعهد طالب', no: 'رقم 1', st: 'supervisor', roles: ['supervisor'], when: function (o) { return reached(o, 'supervisor') && /تعهد\s*(خطي\s*(\(\d\)\s*)?للطالب|الطالب\s*خطيا)|تنبيه خطي للطالب/.test(txt(o, 'supervisor')); }, build: g1 },
+    g1: { title: 'تعهد طالب', no: 'رقم 1', st: 'supervisor', roles: ['supervisor'], when: function (o) { return reached(o, 'supervisor') && (/^(التأخير الصباحي|التأخر عن الطابور)/.test(o.violation || '') || /تعهد\s*(خطي\s*(\(\d\)\s*)?للطالب|الطالب\s*خطيا)|تنبيه خطي للطالب/.test(txt(o, 'supervisor'))); }, build: g1 },
     g2: { title: 'إثبات واقعة', no: 'رقم 2', st: 'coordinator', roles: ['coordinator'], when: function (o) { return reached(o, 'coordinator') && !isAbs(o); }, build: g2 },
     g3: { title: 'فصل داخلي مع تعهد', no: 'رقم 3', st: 'coordinator', roles: ['coordinator'], when: function (o) { return reached(o, 'coordinator') && /فصل داخلي/.test(txt(o, 'coordinator') + txt(o, 'admin')); }, build: g3 },
     g4: { title: 'فصل خارجي مع تعهد', no: 'رقم 4', st: 'coordinator', roles: ['coordinator'], when: function (o) { return reached(o, 'coordinator') && /فصل خارجي|من الحافلة|فصل الطالب من الدوام/.test(txt(o, 'coordinator') + txt(o, 'admin')); }, build: g4 },
