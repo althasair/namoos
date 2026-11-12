@@ -251,7 +251,7 @@ body.nf-open{overflow:hidden}
 .nf-sig{width:100%;margin-top:14px;border-collapse:collapse}
 .nf-sig td{text-align:center;vertical-align:top;padding:4px}
 .nf-sig .nm{color:#0B3D91;font-weight:700;min-height:1.4em}
-.nf-sig .ln{color:#555;margin-top:6px}
+.nf-sig .ln{min-height:2.2em}
 .nf-foot{border-top:1px solid #C9A46E;margin-top:12px;padding-top:4px;font-size:.8em;color:#555;text-align:left}
 .nf-snap .nf-ed{border-bottom-color:transparent}
 @page{size:A4;margin:10mm}

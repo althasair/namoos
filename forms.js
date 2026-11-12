@@ -149,7 +149,7 @@
   }
 
   function sigs(list) {
-    return '<table class="nf-sig"><tr>' + list.map(function (p) { return '<td><b>' + p[0] + '</b><div class="nm">' + (p[1] ? e(p[1]) : '&nbsp;') + '</div><div class="ln">التوقيع: ............................</div></td>'; }).join('') + '</tr></table>';
+    return '<table class="nf-sig"><tr>' + list.map(function (p) { return '<td><b>' + p[0] + '</b><div class="nm">' + (p[1] ? e(p[1]) : '&nbsp;') + '</div><div class="ln">&nbsp;</div></td>'; }).join('') + '</tr></table>';
   }
 
   /* =========================================================
