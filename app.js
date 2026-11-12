@@ -764,6 +764,8 @@
       return '<div class="sfr"><div class="sfl"><b>' + label + '</b>' + (sub ? ' <span class="sub">' + sub + '</span>' : '') + ' ' + chip + '</div>' + actions + '</div>' +
         (cid && F.open[cid] ? '<div class="sfcard">' + cardHtml + '</div>' : '');
     };
+    // ملف الطالبة الكامل (بروفايل) + تقرير للطباعة
+    if (F.prof && stu[F.prof] && (stu[F.prof].loaded || !remote)) return studProfile(el, stu[F.prof], { tardyCase: tardyCase, stChip: stChip, btns: btns, myTurn: myTurn, back: function () { F.prof = ''; vStudFile(el); }, reload: function () { if (!remote) return vStudFile(el); var k = F.prof; F.sum = null; api('studFileOne', { student: stu[k].name, section: stu[k].sec }, true).then(function (r) { F.one[k] = r; vStudFile(el); }).catch(fail); } });
     var body = list.map(function (x) {
       var k = key(x.name, x.sec), op = F.open['S:' + k];
       var det = '';
@@ -790,7 +792,7 @@
           }).join('');
         }
       }
-      return '<div class="card sfs"><button type="button" class="sfhd" data-sfs="' + esc(k) + '" aria-expanded="' + !!op + '"><span class="sfnm">' + esc(nm3(x.name)) + '</span><span class="sub">' + esc(gradeLabel(x.sec)) + ' • ' + esc(x.sec) + '</span><span class="sfsum">' + sum + '</span><span class="sfar">' + (op ? '▴' : '▾') + '</span></button>' + (op ? '<div class="sfd">' + det + '</div>' : '') + '</div>';
+      return '<div class="card sfs"><button type="button" class="sfhd" data-sfs="' + esc(k) + '" aria-expanded="' + !!op + '"><span class="sfnm">' + esc(nm3(x.name)) + '</span><span class="sub">' + esc(gradeLabel(x.sec)) + ' • ' + esc(x.sec) + '</span><span class="sfsum">' + sum + '</span><span class="sfar">' + (op ? '▴' : '▾') + '</span></button>' + (op ? '<div class="sfd"><button type="button" class="btn sm" data-prof="' + esc(k) + '" style="margin:6px 0">👤 ملف الطالبة الكامل وطباعة التقرير</button>' + det + '</div>' : '') + '</div>';
     }).join('');
     el.innerHTML = '<div><h2 class="pt">ملف الطالبات</h2><p class="sub">حالة كل طالبة في شعبكِ: الغياب والتأخير، والمخالفات السلوكية. افتحي اسم الطالبة لترَي كل سجل وبجانبه التعديل والإجراء المتبع.</p></div>' +
       '<div class="opts modesw" style="margin:8px 0"><button type="button" class="opt" data-sft="att" aria-pressed="' + (F.tab === 'att') + '">الغياب والتأخير</button><button type="button" class="opt" data-sft="beh" aria-pressed="' + (F.tab === 'beh') + '">المخالفات السلوكية</button></div>' +
@@ -817,9 +819,72 @@
       if (remote && F.open[k] && !F.one[k0]) { re(); loadOne(k0).then(re).catch(fail); } else re();
     }; });
     $$('[data-sfx]', el).forEach(function (x) { x.onclick = function () { var k = x.dataset.sfx; F.open[k] = !F.open[k]; re(); }; });
+    $$('[data-prof]', el).forEach(function (x) { x.onclick = function () { F.prof = x.dataset.prof; re(); window.scrollTo(0, 0); }; });
     bindCaseForms(el, reAfter);
     bindAbsForms(el, reAfter);
     if (typeof bindCopy === 'function') bindCopy(el, absR);
+  }
+
+  /* ---------- ملف الطالبة الكامل: كل مخالفاتها وتأخيرها وغيابها والإجراءات المتخذة + تقرير للطباعة ---------- */
+  function studProfile(el, x, H) {
+    var P = S.prof || (S.prof = { to: 'ولي أمر الطالبة', from: '', till: '' });
+    var isPrior = function (d) { return /^سجل سابق/.test(d.notes || '') || d.action === 'سجل سابق' || d.who === 'سجل سابق'; };
+    var actsOf = function (o) {
+      var r = [];
+      if (o && o.teacherDid) r.push({ w: 'المعلمة', d: o.date, t: o.teacherDid });
+      if (o && o.decision) r.push({ w: 'قرار المشرفة', d: o.decTime ? String(o.decTime).slice(0, 10) : '', t: o.decision + (o.excuse ? ' — ' + o.excuse : '') });
+      ['supervisor', 'coordinator', 'social', 'psych', 'admin'].forEach(function (st) {
+        var d = o && o.doc && o.doc[st]; if (!d || !d.date || isPrior(d)) return;
+        var c = d.contact && d.contact !== 'لم يُسجَّل في Excel' ? 'التواصل مع ولي الأمر: ' + d.contact : '';
+        var t = [c, d.action, d.notes].filter(Boolean).join(' • ');
+        r.push({ w: STAGE[st], d: d.date, t: t || 'تم', who: d.who && !/^(نُقلت|سجل سابق)/.test(d.who) ? d.who : '' });
+      });
+      return r;
+    };
+    var rows = [];
+    x.C.forEach(function (c) { rows.push({ prior: priorOf(c), date: c.date, g: 'مخالفة سلوكية', item: c.violation, rep: 'التكرار ' + c.rep + (c.degree ? ' • ' + c.degree : ''), acts: actsOf(c), st: c.status ? c.status.text : '', card: H.btns('case', c, 'case', c) }); });
+    var priorOf = function (o) { return !!(o && o.doc && ['supervisor', 'coordinator', 'social', 'psych', 'admin'].some(function (st) { return o.doc[st] && o.doc[st].date && isPrior(o.doc[st]); })); };
+    x.T.forEach(function (t) { var c = H.tardyCase[t.id]; rows.push({ prior: priorOf(c), date: t.date, g: 'تأخير صباحي', item: 'التأخير الصباحي', rep: 'المرة ' + t.n, acts: c ? actsOf(c) : [], st: c && c.status ? c.status.text : '', card: H.btns('tardy', t, 'case', c) }); });
+    x.U.forEach(function (a) { rows.push({ date: a.date, g: 'غياب بدون عذر', item: 'غياب بدون عذر', rep: 'اليوم ' + a.n, acts: actsOf(a), st: a.status ? a.status.text : '', card: H.btns('abs', a, 'abs', a) + quickDec(a) }); });
+    x.E.forEach(function (a) { rows.push({ date: a.date, g: 'غياب بعذر', item: 'غياب بعذر', rep: a.excuse || '', acts: actsOf(a), st: '', card: H.btns('abs', a) + quickDec(a) }); });
+    (x.D || []).forEach(function (a) { rows.push({ date: a.date, g: 'غياب بانتظار القرار', item: 'غياب', rep: a.kind === 'P' ? 'عذر قيد الاستلام' : 'لم يُحدَّد القرار', acts: [], st: '', card: H.btns('abs', a) + quickDec(a) }); });
+    var inR = function (d) { return (!P.from || d >= P.from) && (!P.till || d <= P.till); };
+    rows = rows.filter(function (r) { return inR(r.date); }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    var cnt = function (g) { return rows.filter(function (r) { return r.g === g; }).length; };
+    var byV = {}; rows.forEach(function (r) { if (r.g === 'مخالفة سلوكية') byV[r.item] = (byV[r.item] || 0) + 1; });
+    var nDone = 0; rows.forEach(function (r) { nDone += r.acts.length; });
+    var td = S.boot.today || '';
+    var period = P.from || P.till ? 'من ' + (P.from ? ar(P.from) + ' ' + P.from.slice(0, 4) : 'بداية العام الدراسي') + ' إلى ' + (P.till ? ar(P.till) + ' ' + P.till.slice(0, 4) : ar(td) + ' ' + td.slice(0, 4)) : 'منذ بداية العام الدراسي حتى ' + ar(td) + ' ' + td.slice(0, 4);
+    var vList = Object.keys(byV).map(function (v) { return v + ' (' + byV[v] + ')'; }).join('، ');
+    var summary = 'تم خلال الفترة ' + period + ' رصد ' + cnt('غياب بدون عذر') + ' يوم غياب بدون عذر، و' + cnt('غياب بعذر') + ' يوم غياب بعذر، و' + cnt('تأخير صباحي') + ' حالة تأخير صباحي، و' + cnt('مخالفة سلوكية') + ' مخالفة سلوكية' + (vList ? ' تمثلت في: ' + vList : '') +
+      '. وتم اتخاذ ' + nDone + ' إجراءً تربويًا وفق سياسة إدارة سلوك الطلبة 2026، والمبيّنة تفاصيلها في الجدول أدناه.';
+    var canAdd = S.me.role === 'supervisor' || S.me.role === 'admin';
+    var TO = ['ولي أمر الطالبة', 'الأخصائية الاجتماعية', 'الأخصائية النفسية', 'منسقة شؤون الطالبات', 'مديرة المدرسة', 'النائبة الإدارية', 'فريق إدارة سلوك الطلبة'];
+    el.innerHTML = '<div class="noprint"><button class="btn sec sm" id="pf-back" type="button">→ رجوع لقائمة الطالبات</button><h2 class="pt" style="margin-top:8px">ملف الطالبة: ' + esc(x.name) + '</h2>' +
+      '<p class="sub">كل مخالفاتها وتأخيرها وغيابها، والإجراءات التي تمت مع كل واحدة. يمكنكِ التعديل والحذف من عمود «تعديل»، وطباعة التقرير للجهة التي تختارينها.</p>' +
+      '<div class="card mlf"><div class="field"><label class="lbl" for="pf-to">التقرير موجّه إلى</label><select class="inp" id="pf-to">' + TO.map(function (t) { return '<option' + (P.to === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label class="lbl" for="pf-f">من</label><input class="inp" type="date" id="pf-f" value="' + (P.from || '') + '"></div><div class="field"><label class="lbl" for="pf-t">إلى</label><input class="inp" type="date" id="pf-t" value="' + (P.till || '') + '"></div>' +
+      '<button class="btn" id="pf-print" type="button">🖨 طباعة التقرير</button>' + (canAdd ? '<button class="btn sec" id="pf-add" type="button">➕ إضافة مخالفة</button>' : '') + '</div></div>' +
+      '<article class="report mylog">' +
+      '<h1>مدرسة الشيماء الثانوية للبنات</h1><div style="text-align:center;font-weight:700;margin-top:6px">تقرير متابعة الطالبة — السلوك والحضور</div>' +
+      '<div class="mlhead"><span><b>الطالبة:</b> ' + esc(x.name) + '</span><span><b>الصف:</b> ' + esc(gradeLabel(x.sec)) + ' (' + esc(x.sec) + ')</span><span><b>إلى:</b> ' + esc(P.to) + '</span><span><b>الفترة:</b> ' + esc(period) + '</span></div>' +
+      '<div class="mltiles"><div class="bad"><b>' + cnt('غياب بدون عذر') + '</b>غياب بدون عذر</div><div class="ok"><b>' + cnt('غياب بعذر') + '</b>غياب بعذر</div><div class="late"><b>' + cnt('تأخير صباحي') + '</b>تأخير صباحي</div><div><b>' + cnt('مخالفة سلوكية') + '</b>مخالفة سلوكية</div><div><b>' + nDone + '</b>إجراء متخذ</div></div>' +
+      '<p style="text-align:justify">' + esc(summary) + '</p>' +
+      (rows.length ? '<div class="tw"><table class="t mlt pft"><thead><tr><th>م</th><th>التاريخ</th><th>النوع</th><th>البند</th><th>الإجراءات المتخذة</th><th>الحالة</th><th class="noprint">تعديل</th></tr></thead><tbody>' +
+        rows.map(function (r, i) {
+          return '<tr><td>' + (i + 1) + '</td><td class="nw">' + ar(r.date) + '</td><td class="nw">' + esc(r.g) + '</td><td>' + esc(r.item) + '<div class="sm">' + esc(r.rep) + '</div></td><td>' +
+            (r.acts.length ? r.acts.map(function (a) { return '<div><b>' + esc(a.w) + (a.d ? ' (' + ar(a.d) + ')' : '') + ':</b> ' + esc(a.t) + (a.who ? ' — أ. ' + esc(nm3(a.who)) : '') + '</div>'; }).join('') : '<span class="sm">' + (r.prior ? 'سجل سابق — قبل تفعيل المنصة' : 'لم يُوثَّق إجراء بعد') + '</span>') +
+            '</td><td class="sm">' + esc(r.st) + '</td><td class="noprint pfx">' + r.card + '</td></tr>';
+        }).join('') + '</tbody></table></div>' : '<div class="empty">لا توجد سجلات في هذه الفترة.</div>') +
+      '<div class="mlme"><b>' + esc(S.me.roleLabel) + ':</b> أ. ' + esc(nm3(S.me.name)) + '<span>التوقيع: ..............................</span></div>' +
+      '<div class="sig"><div><b>النائبة الإدارية</b>أ. وداد الكربي</div><div><b>نائب المديرة للشؤون الأكاديمية</b>أ. آسيا الذبياني</div><div><b>مديرة المدرسة</b>أ. شيخة الرميحي</div></div>' +
+      '</article>';
+    var upd = function () { P.to = $('#pf-to').value; P.from = $('#pf-f').value; P.till = $('#pf-t').value; studProfile(el, x, H); };
+    ['#pf-to', '#pf-f', '#pf-t'].forEach(function (k) { $(k).onchange = upd; });
+    $('#pf-back').onclick = H.back;
+    $('#pf-print').onclick = function () { window.print(); };
+    var ad = $('#pf-add'); if (ad) ad.onclick = function () { S.out = S.out || {}; S.out.section = x.sec; S.out.student = x.name; S.out.violation = ''; S.out.multi = false; view('outside'); };
+    bindCaseForms(el, H.reload); bindAbsForms(el, H.reload);
   }
 
   /* ---------- طباعة إجراءاتي: كل ما طُلب من الموظفة وما نفّذته ---------- */
