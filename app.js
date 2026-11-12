@@ -725,16 +725,16 @@
     var absR = (b.abs && b.abs.records) || [];
     var stu = {};
     var key = function (n, sec) { return sec + '|' + n; };
-    var add = function (n, sec) { var k = key(n, sec); return stu[k] || (stu[k] = { name: n, sec: sec, U: [], E: [], T: [], C: [] }); };
+    var add = function (n, sec) { var k = key(n, sec); return stu[k] || (stu[k] = { name: n, sec: sec, U: [], E: [], D: [], T: [], C: [] }); };
     var fill = function (abs, tardy, cases) {
-      abs.forEach(function (a) { if (a.kind === 'U') add(a.student, a.section).U.push(a); else if (a.kind === 'E') add(a.student, a.section).E.push(a); });
+      abs.forEach(function (a) { if (a.kind === 'U') add(a.student, a.section).U.push(a); else if (a.kind === 'E') add(a.student, a.section).E.push(a); else if (a.kind === 'undecided' || a.kind === 'P') add(a.student, a.section).D.push(a); });
       tardy.forEach(function (t) { add(t.student, t.section).T.push(t); });
       cases.forEach(function (c) { if (!isTardyCase(c)) add(c.student, c.section).C.push(c); });
     };
     if (!remote) fill(absR, b.tardy || [], b.cases || []);
     else {
       F.sum.list.forEach(function (x) { var o = add(x.name, x.sec); o.nU = x.U; o.nE = x.E; o.nT = x.T; o.sumC = x.C; });
-      Object.keys(F.one).forEach(function (k) { var d = F.one[k]; var o = stu[k]; if (o) { o.U = []; o.E = []; o.T = []; o.C = []; o.loaded = 1; } fill(d.abs, d.tardy, d.cases); });
+      Object.keys(F.one).forEach(function (k) { var d = F.one[k]; var o = stu[k]; if (o) { o.U = []; o.E = []; o.D = []; o.T = []; o.C = []; o.loaded = 1; } fill(d.abs, d.tardy, d.cases); });
     }
     var cU = function (x) { return x.loaded || !remote ? x.U.length : x.nU || 0; }, cE = function (x) { return x.loaded || !remote ? x.E.length : x.nE || 0; },
       cT = function (x) { return x.loaded || !remote ? x.T.length : x.nT || 0; }, cC = function (x) { return x.loaded || !remote ? x.C.length : (x.sumC || []).length; };
@@ -742,7 +742,7 @@
     var list = Object.keys(stu).map(function (k) { return stu[k]; }).filter(function (x) {
       if (F.sec && x.sec !== F.sec) return false;
       if (qn && norm(x.name).indexOf(qn) < 0) return false;
-      return F.tab === 'att' ? (cU(x) + cE(x) + cT(x)) : cC(x);
+      return F.tab === 'att' ? (cU(x) + cE(x) + cT(x) + (x.D || []).length) : cC(x);
     }).sort(function (a, b2) {
       var va = F.tab === 'att' ? cU(a) + cT(a) : cC(a), vb = F.tab === 'att' ? cU(b2) + cT(b2) : cC(b2);
       return vb - va || (a.name < b2.name ? -1 : 1);
@@ -776,9 +776,10 @@
       if (op && (x.loaded || !remote)) {
         if (F.tab === 'att') {
           det += (x.U.length ? '<div class="sfh">الغياب بدون عذر</div>' : '') + x.U.slice().sort(function (p, q) { return p.date < q.date ? 1 : -1; }).map(function (a) {
-            return row(arFull(a.date), 'اليوم ' + a.n, stChip(a), btns('abs', a, 'abs', a), absCard(a, myTurn(a)), 'abs:' + a.id);
+            return row(arFull(a.date), 'اليوم ' + a.n, stChip(a), btns('abs', a, 'abs', a) + quickDec(a), absCard(a, myTurn(a)), 'abs:' + a.id);
           }).join('');
-          det += (x.E.length ? '<div class="sfh">الغياب بعذر</div>' : '') + x.E.map(function (a) { return row(arFull(a.date), esc(a.excuse || ''), '', btns('abs', a), '', ''); }).join('');
+          det += (x.D.length ? '<div class="sfh">غياب بانتظار القرار</div>' : '') + x.D.map(function (a) { return row(arFull(a.date), a.kind === 'P' ? 'عذر قيد الاستلام' : 'لم يُحدَّد القرار', '', btns('abs', a) + quickDec(a), '', ''); }).join('');
+          det += (x.E.length ? '<div class="sfh">الغياب بعذر</div>' : '') + x.E.map(function (a) { return row(arFull(a.date), esc(a.excuse || ''), '', btns('abs', a) + quickDec(a), '', ''); }).join('');
           det += (x.T.length ? '<div class="sfh">التأخير الصباحي</div>' : '') + x.T.slice().sort(function (p, q) { return p.date < q.date ? 1 : -1; }).map(function (t) {
             var c = tardyCase[t.id];
             return row(arFull(t.date), 'المرة ' + t.n, c ? stChip(c) : '', btns('tardy', t, 'case', c), c ? caseCard(c, myTurn(c)) : '', c ? 'case:' + c.id : '');
@@ -955,21 +956,47 @@
   /* =====================================================
    *  المشرفة: مخالفة خارج الصف
    * ===================================================== */
+  function outDays() {
+    var b = S.boot, O = S.out, sel = O.dates || {};
+    var days = (b.dates || []).filter(function (d) { return d <= b.today; }).slice().reverse().slice(0, 40);
+    var months = {}; days.forEach(function (d) { var k = d.slice(0, 7); (months[k] = months[k] || []).push(d); });
+    return '<div class="sub">أشّري على كل الأيام التي خالفت فيها الطالبة نفس المخالفة، وتُسجَّل كل واحدة حالة مستقلة بتكرارها.</div>' + Object.keys(months).map(function (m) {
+      return '<div class="rr-m"><b>' + MONTHS[Number(m.slice(5, 7)) - 1] + '</b><div class="rr-days">' + months[m].map(function (d) {
+        var x = new Date(d + 'T12:00:00');
+        return '<button type="button" class="rr-day" data-od="' + d + '" aria-pressed="' + !!sel[d] + '">' + WD[x.getDay()] + ' ' + Number(d.slice(8)) + '</button>';
+      }).join('') + '</div></div>';
+    }).join('');
+  }
   function vOutside(el) {
     var b = S.boot, O = S.out;
     if (!O.date) O.date = b.dates.indexOf(b.today) >= 0 ? b.today : b.dates[b.dates.length - 1];
     if (!O.section && b.sections.length === 1) O.section = b.sections[0];
     el.innerHTML = '<div><h2 class="pt">' + (S.me.role === 'admin' ? 'تسجيل مخالفة' : 'مخالفة خارج الصف') + '</h2><p class="sub">الطابور، الممرات، الحافلة، الهروب… تُسجَّل هنا ويظهر الإجراء حسب السياسة فورًا.</p></div>' +
       step(1, 'الشعبة', '<div class="opts">' + b.sections.map(function (s) { return '<button class="opt" data-s="' + s + '" aria-pressed="' + (O.section === s) + '">' + s + '</button>'; }).join('') + '</div>', O.section ? 'done' : '') +
-      step(2, 'التاريخ', '<select class="inp" id="od">' + datesOptions(O.date) + '</select>', O.section ? 'done' : 'locked') +
+      '<div class="opts modesw" style="margin:6px 0"><button type="button" class="opt" data-om="0" aria-pressed="' + !O.multi + '">يوم واحد</button><button type="button" class="opt" data-om="1" aria-pressed="' + !!O.multi + '">بأثر رجعي: عدة أيام</button></div>' +
+      step(2, O.multi ? 'الأيام (' + Object.keys(O.dates || {}).length + ')' : 'التاريخ', O.multi ? outDays() : '<select class="inp" id="od">' + datesOptions(O.date) + '</select>', O.section ? 'done' : 'locked') +
       step(3, 'الطالبة', searchList('osq', 'ابحثي باسم الطالبة') + '<div class="list" id="osl"></div>', !O.section ? 'locked' : O.student ? 'done' : '') +
       step(4, 'المخالفة حسب السياسة', searchList('ovq', 'ابحثي عن المخالفة: هروب، مظهر، هاتف، حافلة…') + '<div class="list" id="ovl"></div>', !O.student ? 'locked' : O.violation ? 'done' : '') +
-      '<button class="btn wide" id="osave" ' + (O.section && O.student && O.violation ? '' : 'disabled') + '>تسجيل المخالفة</button><div id="ores"></div>';
+      '<button class="btn wide" id="osave" ' + (O.section && O.student && O.violation && (!O.multi || Object.keys(O.dates || {}).length) ? '' : 'disabled') + '>' + (O.multi ? 'تسجيل المخالفة في ' + Object.keys(O.dates || {}).length + ' أيام' : 'تسجيل المخالفة') + '</button><div id="ores"></div>';
     $$('[data-s]', el).forEach(function (x) { x.onclick = function () { O.section = x.dataset.s; O.student = ''; vOutside(el); $('#osq').focus(); }; });
-    $('#od').onchange = function () { O.date = this.value; };
+    if ($('#od')) $('#od').onchange = function () { O.date = this.value; };
+    $$('[data-om]', el).forEach(function (x) { x.onclick = function () { O.multi = x.dataset.om === '1'; O.dates = {}; vOutside(el); }; });
+    $$('[data-od]', el).forEach(function (x) { x.onclick = function () { var d = x.dataset.od; O.dates = O.dates || {}; if (O.dates[d]) delete O.dates[d]; else O.dates[d] = 1; vOutside(el); }; });
     if (O.section) { var ds = function () { studentList($('#osl'), b.students[O.section] || [], O.student, $('#osq').value, function (n) { O.student = n; vOutside(el); $('#ovq').focus(); }); }; $('#osq').oninput = ds; ds(); }
     if (O.student) { var dv = function () { violationList($('#ovl'), b.violations, O.violation, $('#ovq').value, function (v) { O.violation = v; vOutside(el); $('#osave').scrollIntoView({ block: 'center', behavior: 'smooth' }); }); }; $('#ovq').oninput = dv; dv(); }
     $('#osave').onclick = function () {
+      if (O.multi) {
+        var ds = Object.keys(O.dates || {}).sort(), bt = this, made = [];
+        bt.disabled = true; bt.textContent = 'جارٍ الحفظ…';
+        ds.reduce(function (p, d) { return p.then(function () { return api('createCase', { section: O.section, date: d, student: O.student, violation: O.violation }).then(function (r) { S.boot.cases.push(r.case); made.push(r.case); }); }); }, Promise.resolve())
+          .then(function () {
+            O.student = ''; O.violation = ''; O.dates = {};
+            el.innerHTML = '<div><h2 class="pt">✔ تم تسجيل ' + made.length + ' مخالفات بأثر رجعي</h2><p class="sub">تبدأ مهلة الإجراءات من اليوم، لا من تاريخ المخالفة.</p></div><div class="items">' + made.map(function (c) { return caseCard(c, false); }).join('') + '</div><button class="btn sec wide" id="onew">تسجيل مخالفة أخرى</button>';
+            $('#onew').onclick = function () { vOutside(el); };
+            refresh(true);
+          }).catch(function (e) { fail(e); refresh(true); vOutside(el); });
+        return;
+      }
       api('createCase', { section: O.section, date: O.date, student: O.student, violation: O.violation }).then(function (r) {
         var c = r.case; S.boot.cases.push(c);
         O.student = ''; O.violation = '';
@@ -1567,6 +1594,34 @@
       '<div class="meta">' + absChip(a) + '<span class="chip">' + esc(a.id) + '</span></div></div>';
   }
   function absStageChips(a) { return a.kind === 'U' ? stageChips(a) : ''; }
+  // قرار الغياب السريع (المشرفة/الإدارة): بدون عذر أو بعذر — يمكن تغييره في أي وقت
+  function quickDec(a) {
+    var r = S.me.role;
+    if ((r !== 'supervisor' && r !== 'admin') || a.kind === 'late' || a.kind === 'dup') return '';
+    var cur = a.decision || '';
+    return '<div class="qdec noprint" data-qd="' + esc(a.id) + '"><span class="sub">قرار الغياب:</span>' +
+      '<button type="button" class="opt" data-qdv="بدون عذر" aria-pressed="' + (cur === 'بدون عذر') + '">بدون عذر</button>' +
+      '<button type="button" class="opt" data-qdv="بعذر" aria-pressed="' + (cur === 'بعذر') + '">بعذر</button>' +
+      '<select class="inp qde"' + (cur === 'بعذر' ? '' : ' hidden') + ' aria-label="نوع العذر"><option value="">— نوع العذر —</option>' + (AB().excuses || []).map(function (x) { return '<option' + (x === a.excuse ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div>';
+  }
+  function bindQuickDec(root, after) {
+    $$('[data-qd]', root).forEach(function (box) {
+      var id = box.dataset.qd, sel = box.querySelector('.qde');
+      var save = function (d, ex) {
+        api('decideAbsence', { items: [{ id: id, decision: d, excuse: ex || '' }] }).then(function (r) {
+          S.boot.abs = Object.assign(S.boot.abs, r.abs); toast('✔ تم حفظ القرار: ' + d + (ex ? ' — ' + ex : ''), 'ok');
+          if (after) after(); else view(S.view, true); refresh(true);
+        }).catch(fail);
+      };
+      $$('[data-qdv]', box).forEach(function (b) {
+        b.onclick = function () {
+          if (b.dataset.qdv === 'بدون عذر') return save('بدون عذر');
+          sel.hidden = false; sel.focus(); toast('اختاري نوع العذر', 'ok');
+        };
+      });
+      sel.onchange = function () { if (sel.value) save('بعذر', sel.value); };
+    });
+  }
   function absCard(a, withForm) {
     var st = myStage(), s = (a.stages || {})[st] || {};
     var txt = a.text ? a.text[st] : '';
@@ -1577,7 +1632,7 @@
       g + (withForm ? '<div class="why">📌 <b>لماذا وصلتكِ؟</b> ' + esc(whyTask(a, st, true)) + '</div>' : '') + (withForm && txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
       (a.elig ? '<div class="note" style="background:var(--red-l);color:var(--red)">⛔ ' + esc(a.elig) + '</div>' : '') +
       (withForm && st === 'supervisor' ? '<details><summary class="btn sm sec" style="width:max-content">💬 رسالة ولي الأمر جاهزة</summary>' + smsTools(a) + '</details>' : '') +
-      absStageChips(a) + (window.NamoosForms ? NamoosForms.buttons('abs', a) : '') + fixBar('abs', a) +
+      quickDec(a) + absStageChips(a) + (window.NamoosForms ? NamoosForms.buttons('abs', a) : '') + fixBar('abs', a) +
       (withForm ? '<div>' + (s.late ? '<span class="chip red">⛔ متأخر — آخر موعد كان ' + ar(s.due) + '</span>' : '<span class="chip ap">آخر موعد: ' + arFull(s.due) + '</span>') + '</div>' + absForm(a, st)
         : '<div class="row">' + esc(a.status.text) + '</div>') +
       '</article>';
@@ -1595,6 +1650,7 @@
     return f;
   }
   function bindAbsForms(el, after) {
+    bindQuickDec(el, after);
     $$('form.af', el).forEach(function (f) {
       f.onsubmit = function (e) {
         e.preventDefault();
