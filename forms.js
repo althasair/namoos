@@ -123,7 +123,7 @@
 
   /* ---------- نموذج 5: جلسة فردية / إرشاد فردي ---------- */
   function f5(x, isAbs) {
-    var tardy = !isAbs && /^التأخر عن الطابور/.test(x.violation || '');
+    var tardy = !isAbs && /^(التأخير الصباحي|التأخر عن الطابور)/.test(x.violation || '');
     var beh = !isAbs && !tardy;
     var soc = me().role === 'social' ? me().name : (x.social || '');
     var t = today();

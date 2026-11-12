@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.12.0';
+var VERSION = '2.13.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -717,7 +717,7 @@ API.studSummary = function (me) {
   try { absData_().forEach(function (a) { if (!inS[a.section]) return; if (a.kind === 'U') get(a.student, a.section).U++; else if (a.kind === 'E') get(a.student, a.section).E++; }); } catch (e) {}
   tardyFor_(me).forEach(function (t) { if (inS[t.section]) get(t.student, t.section).T++; });
   allData_().cases.forEach(function (c) {
-    if (!inS[c.section] || c.violation === TARDY_V) return;
+    if (!inS[c.section] || isTardyV_(c.violation)) return;
     var x = get(c.student, c.section); x.C[c.short] = Math.max(x.C[c.short] || 0, c.rep);
   });
   return { sections: secs, list: Object.keys(m).map(function (k) { var x = m[k]; x.C = Object.keys(x.C).map(function (v) { return { k: v, n: x.C[v] }; }); return x; }) };
@@ -1174,7 +1174,9 @@ function tardyFor_(me) {
         notes: str_(r['ملاحظات']), n: cnt[k], created: str_(r['وقت الإدخال']) };
     }).filter(function (r) { return secs.indexOf(r.section) >= 0; });
 }
-var TARDY_V = 'التأخر عن الطابور الصباحي / عدم المشاركة فيه';
+var TARDY_V = 'التأخير الصباحي';
+var TARDY_OLD = 'التأخر عن الطابور الصباحي / عدم المشاركة فيه'; // الاسم القديم قبل الفصل — يُحسب مع التأخير لمنع التكرار
+function isTardyV_(v) { v = str_(v); return v === TARDY_V || v === TARDY_OLD; }
 /** كل تأخير صباحي = مخالفة «التأخر عن الطابور الصباحي» (الدرجة الأولى) بحالة مرتبطة به، فيُحسب التكرار والإجراء حسب السياسة.
  *  التأخيرات المسجّلة قبل هذه الميزة تُضاف حالاتها موثّقة (سجل سابق) لتدخل في التكرار فقط دون مهام. */
 function syncTardyCases_() {
@@ -1182,7 +1184,7 @@ function syncTardyCases_() {
   var linked = {}, byDay = {};
   cases.forEach(function (c) {
     if (str_(c['رقم التحويل'])) linked[str_(c['رقم التحويل'])] = 1;
-    if (str_(c['المخالفة']) === TARDY_V) byDay[str_(c['الطالبة']) + '|' + str_(c['الشعبة']) + '|' + iso_(c['التاريخ'])] = 1;
+    if (isTardyV_(c['المخالفة'])) byDay[str_(c['الطالبة']) + '|' + str_(c['الشعبة']) + '|' + iso_(c['التاريخ'])] = 1;
   });
   var base = nextNo_(rows_(SH.cases).map(function (x) { return str_(x['رقم الحالة']); })), add = [];
   tardyRows_().forEach(function (r) {
@@ -1214,7 +1216,7 @@ API.recordTardy = function (me, req) {
   syncTardyCases_(); flush_();
   var exists = {}, caseDay = {};
   tardyRows_().forEach(function (r) { exists[str_(r['الطالبة']) + '|' + str_(r['الشعبة']) + '|' + iso_(r['التاريخ'])] = 1; });
-  caseRows_().forEach(function (c) { if (str_(c['المخالفة']) === TARDY_V) caseDay[str_(c['الطالبة']) + '|' + str_(c['الشعبة']) + '|' + iso_(c['التاريخ'])] = 1; });
+  caseRows_().forEach(function (c) { if (isTardyV_(c['المخالفة'])) caseDay[str_(c['الطالبة']) + '|' + str_(c['الشعبة']) + '|' + iso_(c['التاريخ'])] = 1; });
   var tRows = [], cRows = [], skipped = [], ids = [];
   var base = nextNo_(rows_(SH.cases).map(function (x) { return str_(x['رقم الحالة']); }));
   entries.sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (e) {

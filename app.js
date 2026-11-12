@@ -516,7 +516,7 @@
     var prev = null;
     chain.slice(0, chain.indexOf(st)).forEach(function (k) { var x = o.stages && o.stages[k]; if (x && x.need && x.documented) prev = k; });
     if (st === 'supervisor') {
-      if (o.by === me) return 'لأنكِ سجّلتِ ' + (isAbs ? 'غياب الطالبة' : /التأخر عن الطابور/.test(o.violation || '') ? 'تأخر الطالبة' : 'المخالفة') + ' — والتسجيل خطوة أولى فقط؛ السياسة في ' + step + ' تطلب منكِ بعده الإجراء المكتوب أدناه.';
+      if (o.by === me) return 'لأنكِ سجّلتِ ' + (isAbs ? 'غياب الطالبة' : /التأخير الصباحي|التأخر عن الطابور/.test(o.violation || '') ? 'تأخر الطالبة' : 'المخالفة') + ' — والتسجيل خطوة أولى فقط؛ السياسة في ' + step + ' تطلب منكِ بعده الإجراء المكتوب أدناه.';
       if (isAbs) return 'سجّلت أ. ' + (o.by || 'المعلمة') + ' غياب الطالبة وتقرر بدون عذر — والسياسة في ' + step + ' تطلب منكِ الإجراء أدناه.';
       return (/^نُقلت/.test(o.by || '') ? 'حالة سابقة من سجل المدرسة' : 'حوّلت أ. ' + (o.by || 'المعلمة') + ' الحالة إليكِ') + ' — والسياسة في ' + step + ' تطلب منكِ الإجراء أدناه.';
     }
@@ -673,7 +673,7 @@
   function vBoard(el) {
     var st = myStage(), t = S.boot.today || '', F = S.bd || (S.bd = { k: 'all', open: {} });
     var items = [];
-    myOpenCases().forEach(function (c) { var tr = /التأخر عن الطابور/.test(c.violation || ''); items.push({ k: tr ? 'tardy' : 'beh', o: c, isA: false, s: c.stages[st] }); });
+    myOpenCases().forEach(function (c) { var tr = /التأخير الصباحي|التأخر عن الطابور/.test(c.violation || ''); items.push({ k: tr ? 'tardy' : 'beh', o: c, isA: false, s: c.stages[st] }); });
     absOpen().forEach(function (a) { items.push({ k: 'abs', o: a, isA: true, s: a.stages[st] }); });
     var A = AB(), und = st === 'supervisor' ? A.records.filter(function (a) { return a.kind === 'undecided'; }) : [];
     var dg = {}; und.forEach(function (a) { var g = a.section + '|' + a.date; (dg[g] = dg[g] || []).push(a); });
@@ -721,7 +721,7 @@
     var remote = S.me.role !== 'supervisor';
     if (remote && !F.sum) { el.innerHTML = '<div class="empty card">جارٍ تحميل ملف الطالبات…</div>'; api('studSummary').then(function (r) { F.sum = r; vStudFile(el); }).catch(fail); return; }
     var secs = remote ? F.sum.sections : (b.sections || []);
-    var isTardyCase = function (c) { return /التأخر عن الطابور/.test(c.violation || ''); };
+    var isTardyCase = function (c) { return /التأخير الصباحي|التأخر عن الطابور/.test(c.violation || ''); };
     var absR = (b.abs && b.abs.records) || [];
     var stu = {};
     var key = function (n, sec) { return sec + '|' + n; };
@@ -983,7 +983,7 @@
     $$('[data-om]', el).forEach(function (x) { x.onclick = function () { O.multi = x.dataset.om === '1'; O.dates = {}; vOutside(el); }; });
     $$('[data-od]', el).forEach(function (x) { x.onclick = function () { var d = x.dataset.od; O.dates = O.dates || {}; if (O.dates[d]) delete O.dates[d]; else O.dates[d] = 1; vOutside(el); }; });
     if (O.section) { var ds = function () { studentList($('#osl'), b.students[O.section] || [], O.student, $('#osq').value, function (n) { O.student = n; vOutside(el); $('#ovq').focus(); }); }; $('#osq').oninput = ds; ds(); }
-    if (O.student) { var dv = function () { violationList($('#ovl'), b.violations, O.violation, $('#ovq').value, function (v) { O.violation = v; vOutside(el); $('#osave').scrollIntoView({ block: 'center', behavior: 'smooth' }); }); }; $('#ovq').oninput = dv; dv(); }
+    if (O.student) { var dv = function () { violationList($('#ovl'), (b.violations || []).filter(function (v) { return (v.label || v) !== 'التأخير الصباحي'; }), O.violation, $('#ovq').value, function (v) { O.violation = v; vOutside(el); $('#osave').scrollIntoView({ block: 'center', behavior: 'smooth' }); }); }; $('#ovq').oninput = dv; dv(); }
     $('#osave').onclick = function () {
       if (O.multi) {
         var ds = Object.keys(O.dates || {}).sort(), bt = this, made = [];
