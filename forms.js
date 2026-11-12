@@ -208,7 +208,8 @@
   function g1(o) {
     var P = people(), sup = realWho(o.doc && o.doc.supervisor && o.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (o.supervisors || [])[0] || '');
     var L = priorList(o, 3); while (L.length < 3) L.push(null);
-    var pre = acts(o.text && o.text.supervisor);
+    // الإجراءات الوقائية المعتمدة في المدرسة (كما في الاستمارة الورقية) — قابلة للتعديل
+    var pre = ['توعية أولياء الأمور بسياسة إدارة السلوك', 'توعية وإرشاد بسياسة إدارة سلوك الطلبة ونشرها في الأقسام', 'المتابعة المستمرة بالمرور على الصفوف وملاحظة الطلبة'];
     return gHead(1, 'تعهـــد طــــالب (المشرف الإداري)') +
       '<table class="nf"><tr><th colspan="8">بيانات المخالفة</th></tr>' + L.map(function (x) {
         return '<tr><td class="l">نوع المخالفة</td><td class="v">' + (x ? e(x.v) : '') + '</td><td class="l">درجة المخالفة</td><td class="v">' + (x ? e(x.deg) : '') + '</td><td class="l">المخالفة للمرة</td><td class="v">( ' + (x ? ord(x.rep) : '&nbsp;&nbsp;&nbsp;') + ' )</td><td class="l">تاريخ المخالفة</td><td class="v">' + (x ? dmy(x.date) : '') + '</td></tr>';
@@ -216,7 +217,7 @@
       '<div class="nf-box"><b>أتعهد أنا الطالب: <span class="v">' + e(o.student) + '</span></b><br>بالالتزام الكامل بلوائح ونظم المدرسة وعدم تكرار المخالفات التي سبق وقمت بها.<br>وفي حالة تكرار ذلك سوف تقوم إدارة المدرسة باتخاذ الإجراءات المتبعة حسب اللوائح والقوانين الخاصة بسياسة إدارة سلوك الطلبة 2026 بوزارة التربية والتعليم والتعليم العالي.</div>' +
       dayRow(today()) + '<table class="nf">' + stuRows(o, false) + '</table>' +
       '<table class="nf"><tr><th colspan="3">الإجراءات الوقائية التي تم اتخاذها مع الطالب</th></tr>' +
-      [0, 1, 2].map(function (i) { return '<tr><td colspan="3">' + (i + 1) + '- ' + (pre[i] ? '<span class="v">' + e(pre[i]) + '</span>' : ed('', '')) + '</td></tr>'; }).join('') +
+      [0, 1, 2].map(function (i) { return '<tr><td colspan="3">' + (i + 1) + '- ' + ed(pre[i] || '', '') + '</td></tr>'; }).join('') +
       '<tr><td class="l">توقيع الطالب</td><td class="l">رقم جوال ولي الأمر</td><td class="l">توقيع المشرف الإداري</td></tr>' +
       '<tr><td class="sgn">&nbsp;</td><td class="v" dir="ltr" style="text-align:center">' + e(o.phone || '') + '</td><td class="v sgn2" style="text-align:center">' + e(sup) + '</td></tr>' +
       '<tr><td class="l">منسق شؤون الطلاب</td><td class="v" colspan="2">' + e(P.coord) + '</td></tr>' +
