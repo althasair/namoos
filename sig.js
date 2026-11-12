@@ -109,5 +109,31 @@
     });
   }
 
-  window.NamoosSig = { init: function (ctx) { N = ctx; }, open: function () { pad(); }, decorate: decorate, reset: function () { CACHE = null; } };
+  // توقيعي تلقائيًا في الخانة التي تحمل اسمي (تستطيع إزالته بـ ×)
+  function autoMine(root, name, after) {
+    if (!root || !name || !N) return;
+    var n = String(name).trim();
+    get().then(function (s) {
+      if (!s) return;
+      root.querySelectorAll('td.sgn2, .nf-sig td, .nf-appr, .report .sig > div, .mylog .mlme').forEach(function (cell) {
+        if (cell.querySelector('.sgw') || cell.getAttribute('data-as')) return;
+        var t = (cell.textContent || '').replace('✍ أضيفي توقيعي', '');
+        if (t.indexOf(n) >= 0) { cell.setAttribute('data-as', '1'); place(cell, s); }
+      });
+      if (after) after();
+    }).catch(function () {});
+  }
+  // أول دخول: اطلبي التوقيع مرة واحدة إن لم يكن محفوظًا
+  function askOnce(user) {
+    var k = 'nm_sigask_' + user;
+    try { if (localStorage.getItem(k)) return; } catch (e) {}
+    get().then(function (s) {
+      if (s) return;
+      try { localStorage.setItem(k, '1'); } catch (e) {}
+      pad();
+      var m = document.getElementById('sg-modal'); if (!m) return;
+      var h = m.querySelector('.sub'); if (h) h.insertAdjacentHTML('beforebegin', '<div class="why" style="margin:6px 0">مرحبًا بكِ 🌿 أضيفي توقيعكِ مرة واحدة، وسيظهر تلقائيًا في خانة توقيعكِ بكل النماذج والتقارير. يمكنكِ تغييره لاحقًا من أيقونة ✍ في الأعلى.</div>');
+    }).catch(function () {});
+  }
+  window.NamoosSig = { init: function (ctx) { N = ctx; }, open: function () { pad(); }, decorate: decorate, autoMine: autoMine, askOnce: askOnce, reset: function () { CACHE = null; } };
 })();

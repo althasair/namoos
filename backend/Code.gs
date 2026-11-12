@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.10.0';
+var VERSION = '2.11.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -589,7 +589,7 @@ function email_(toName, subject, body) {
       esc_(body).replace(/\n/g, '<br>') +
       (site ? '<br><br><a href="' + site + '">فتح منصة نوماس</a>' : '') +
       '<br><br><span style="color:#777;font-size:12px">حيث يُصان السَّنع، ويُبنى النوماس — مدرسة الشيماء الثانوية للبنات</span></div>';
-    MailApp.sendEmail({ to: u.email, subject: subject, body: body + (site ? '\n\n' + site : ''), htmlBody: html, name: 'منصة نوماس' });
+    sendMail_({ to: u.email, subject: subject, body: body + (site ? '\n\n' + site : ''), htmlBody: html, name: 'منصة نوماس' });
   } catch (err) { res = 'تعذّر: ' + err; }
   append_(SH.mailLog, COLS.mailLog, { 'الوقت': now_(), 'إلى': u.email, 'الموضوع': subject, 'النتيجة': res });
 }
@@ -722,6 +722,26 @@ API.studFileOne = function (me, req) {
   return { abs: abs, tardy: tardyFor_(me).filter(function (t) { return t.student === n && t.section === sec; }),
     cases: allData_().cases.filter(function (c) { return c.student === n && c.section === sec; }).map(casePublic_) };
 };
+
+/* ===== الإرسال من بريد المدرسة =====
+ * «بريد المرسل» في الإعدادات: عنوان مضاف في Gmail صاحب السكربت (Settings → Accounts → Send mail as).
+ * إن لم يُضبط أو لم يُفعَّل بعد، يُرسل كالمعتاد من حساب صاحب السكربت مع اسم العرض. */
+function sendMail_(o) {
+  var from = str_(setting_('بريد المرسل', '')).trim();
+  if (!o.replyTo) delete o.replyTo;
+  if (from) {
+    try {
+      var al = GmailApp.getAliases();
+      if (al.indexOf(from) >= 0) {
+        var opt = { from: from, name: o.name, htmlBody: o.htmlBody };
+        if (o.cc) opt.cc = o.cc; if (o.attachments) opt.attachments = o.attachments; if (o.replyTo) opt.replyTo = o.replyTo;
+        GmailApp.sendEmail(o.to, o.subject, o.body, opt);
+        return;
+      }
+    } catch (e) {}
+  }
+  MailApp.sendEmail(o);
+}
 
 /* ===== توقيعي: كل موظفة تضيف توقيعها وتتحكم فيه وحدها — لا يُرسل توقيع أحد لغيره ===== */
 var SIG_SHEET = 'التواقيع';
@@ -922,7 +942,7 @@ API.sendForm = function (me, req) {
   var html = '<div dir="rtl" style="font-family:Tahoma,Arial;font-size:15px;line-height:1.9;text-align:right">' + esc_(body).replace(/\n/g, '<br>') + '</div>';
   var res = 'تم';
   try {
-    MailApp.sendEmail({ to: to.email, cc: cc.join(','), subject: subject, body: body, htmlBody: html, attachments: [blob], name: 'منصة نوماس — ' + me.name });
+    sendMail_({ to: to.email, cc: cc.join(','), subject: subject, body: body, htmlBody: html, attachments: [blob], name: 'منصة نوماس — ' + me.name, replyTo: me.email || '' });
   } catch (err) { res = 'تعذّر: ' + err; }
   append_(SH.mailLog, COLS.mailLog, { 'الوقت': now_(), 'إلى': to.email + (cc.length ? ' • نسخة: ' + cc.join('، ') : ''), 'الموضوع': subject, 'النتيجة': res });
   if (res !== 'تم') throw new Error('تعذّر الإرسال، حاولي مرة أخرى');

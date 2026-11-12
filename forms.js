@@ -459,7 +459,7 @@
     m.hidden = false; document.body.classList.add('nf-open');
     var paper = document.getElementById('nf-paper');
     fit(paper);
-    if (window.NamoosSig) NamoosSig.decorate(paper, 'td.sgn, td.sgn2, .nf-sig td, .nf-appr', function () { fit(paper); });
+    if (window.NamoosSig) { NamoosSig.decorate(paper, 'td.sgn, td.sgn2, .nf-sig td, .nf-appr', function () { fit(paper); }); NamoosSig.autoMine(paper, me().name, function () { fit(paper); }); }
     paper.addEventListener('click', function (ev) {
       var cb = ev.target.closest('.nf-cb'); if (!cb) return;
       var on = !cb.classList.contains('on'); cb.classList.toggle('on', on); cb.textContent = on ? '☑' : '☐'; cb.setAttribute('aria-checked', on);
@@ -517,5 +517,23 @@
     open(b.dataset.nform, b.dataset.nk, b.dataset.nid);
   });
 
-  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, _build: function (id, o) { return DEF[id].build(o); } };
+  // شرائح النماذج لصفحة «تنظيم مهامي»: المطلوب الآن أصفر (معبّأ وجاهز)، وغير المطلوب في هذه المرحلة رمادي
+  function chips(kind, o) {
+    var r = me().role, req = available(kind, o).concat(guideFor(kind, o)), all = [];
+    var staff = ['supervisor', 'coordinator', 'social', 'admin'].indexOf(r) >= 0;
+    if (staff) all.push(kind === 'case' ? 'f10' : 'f9');
+    Object.keys(GUIDE).forEach(function (id) {
+      var g = GUIDE[id]; if (g.roles.indexOf(r) < 0) return;
+      if (kind === 'abs' && id === 'g2') return; if (kind !== 'abs' && g.absOnly) return;
+      all.push(id);
+    });
+    req.forEach(function (id) { if (all.indexOf(id) < 0) all.push(id); });
+    var seen = {};
+    return all.filter(function (id) { var t = DEF[id].title; if (seen[t]) return false; seen[t] = 1; return true; }).map(function (id) {
+      var on = req.indexOf(id) >= 0;
+      return on ? '<button type="button" class="fchip on" data-nform="' + id + '" data-nk="' + kind + '" data-nid="' + e(o.id) + '" title="مطلوب الآن — معبّأ وجاهز للطباعة">🖨 ' + DEF[id].title + '</button>' :
+        '<span class="fchip off" title="غير مطلوب في هذه المرحلة">' + DEF[id].title + '</span>';
+    }).join('');
+  }
+  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, chips: chips, _build: function (id, o) { return DEF[id].build(o); } };
 })();
