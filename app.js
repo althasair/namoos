@@ -790,17 +790,17 @@
       if (op && remote && !x.loaded) { det = '<div class="sub" style="padding:8px">جارٍ التحميل…</div>'; }
       if (op && (x.loaded || !remote)) {
         if (F.tab === 'att') {
-          det += (x.U.length ? '<div class="sfh">الغياب بدون عذر</div>' : '') + x.U.slice().sort(function (p, q) { return p.date < q.date ? 1 : -1; }).map(function (a) {
+          det += (x.U.length ? '<div class="sfh">الغياب بدون عذر</div>' : '') + x.U.slice().sort(function (p, q) { return p.date < q.date ? -1 : 1; }).map(function (a) {
             return row(arFull(a.date), 'اليوم ' + a.n, stChip(a), btns('abs', a, 'abs', a) + quickDec(a), absCard(a, myTurn(a)), 'abs:' + a.id);
           }).join('');
-          det += (x.D.length ? '<div class="sfh">غياب بانتظار القرار</div>' : '') + x.D.map(function (a) { return row(arFull(a.date), a.kind === 'P' ? 'عذر قيد الاستلام' : 'لم يُحدَّد القرار', '', btns('abs', a) + quickDec(a), '', ''); }).join('');
-          det += (x.E.length ? '<div class="sfh">الغياب بعذر</div>' : '') + x.E.map(function (a) { return row(arFull(a.date), esc(a.excuse || ''), '', btns('abs', a) + quickDec(a), '', ''); }).join('');
-          det += (x.T.length ? '<div class="sfh">التأخير الصباحي</div>' : '') + x.T.slice().sort(function (p, q) { return p.date < q.date ? 1 : -1; }).map(function (t) {
+          det += (x.D.length ? '<div class="sfh">غياب بانتظار القرار</div>' : '') + x.D.slice().sort(function (p, q) { return p.date < q.date ? -1 : 1; }).map(function (a) { return row(arFull(a.date), a.kind === 'P' ? 'عذر قيد الاستلام' : 'لم يُحدَّد القرار', '', btns('abs', a) + quickDec(a), '', ''); }).join('');
+          det += (x.E.length ? '<div class="sfh">الغياب بعذر</div>' : '') + x.E.slice().sort(function (p, q) { return p.date < q.date ? -1 : 1; }).map(function (a) { return row(arFull(a.date), esc(a.excuse || ''), '', btns('abs', a) + quickDec(a), '', ''); }).join('');
+          det += (x.T.length ? '<div class="sfh">التأخير الصباحي</div>' : '') + x.T.slice().sort(function (p, q) { return p.date < q.date ? -1 : 1; }).map(function (t) {
             var c = tardyCase[t.id];
             return row(arFull(t.date), 'المرة ' + t.n, c ? stChip(c) : '', btns('tardy', t, 'case', c), c ? caseCard(c, myTurn(c)) : '', c ? 'case:' + c.id : '');
           }).join('');
         } else {
-          det += x.C.slice().sort(function (p, q) { return p.date < q.date ? 1 : -1; }).map(function (c) {
+          det += x.C.slice().sort(function (p, q) { return p.date < q.date ? -1 : 1; }).map(function (c) {
             return row(esc(c.short), arFull(c.date) + ' • التكرار ' + c.rep, stChip(c), btns('case', c, 'case', c), caseCard(c, myTurn(c)), 'case:' + c.id);
           }).join('');
         }
