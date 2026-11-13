@@ -370,8 +370,8 @@ body.nf-open{overflow:hidden}
 .sgadd{font:inherit;font-size:11px;font-weight:700;border:1px dashed #C9A227;background:#FFF8DC;color:#7A5B00;border-radius:8px;padding:2px 8px;cursor:pointer;margin:2px 4px;white-space:nowrap}
 .sg-has .sgadd{display:none}
 td.sgn,td.sgn2,.nf-sig td,.nf-appr,.report .sig>div,.mylog .mlme{position:relative}
-.sgw{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:2;line-height:0}
-.sgw .sgimg{height:3.6em;max-width:none;opacity:.78}
+.sgw{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:2;line-height:0;max-width:96%}
+.sgw .sgimg{height:3.6em;max-width:100%;object-fit:contain;opacity:.78}
 .report .sig .sgw .sgimg,.mylog .mlme .sgw .sgimg{height:70px}
 .sgw .sgx{pointer-events:auto;position:absolute;top:-8px;left:-8px;width:20px;height:20px;border-radius:50%;border:none;background:#B3261E;color:#fff;font-size:13px;line-height:20px;cursor:pointer;padding:0}
 @media print{.sgadd,.sgx,.nf-noprint{display:none!important}.sgw .sgimg{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
