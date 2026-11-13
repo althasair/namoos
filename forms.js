@@ -451,8 +451,15 @@
     var d = DEF[id];
     CUR = { id: id, o: o, d: d, kind: kind };
     var staff = (N.S.boot.staff || []).filter(function (u) { return u.name !== me().name && u.role !== 'teacher' && u.role !== 'daily'; });
-    var defTo = (F().coordinators || [])[0] || '';
-    if (me().role === 'coordinator') defTo = o.social || '';
+    // «إلى» حسب السياسة: الجهة التي تُحال إليها الحالة في نص إجراء الموظفة نفسها (ويمكن تغييرها)
+    var byRole = function (r) { var u = staff.filter(function (x) { return x.role === r; })[0]; return u ? u.name : ''; };
+    var ST = { supervisor: 'supervisor', coordinator: 'coordinator', social: 'social', psych: 'psych', admin: 'admin' }[me().role] || 'supervisor';
+    var pt = txt(o, ST);
+    var defTo = '';
+    if (/الأخصائي النفسي|الاختصاصي النفسي/.test(pt) && !/الاجتماعي/.test(pt)) defTo = o.psych || byRole('psych');
+    else if (/الأخصائي الاجتماعي|الاختصاصي الاجتماعي/.test(pt)) defTo = o.social || byRole('social');
+    else if (/منسق شؤون الطلبة|فريق إدارة سلوك/.test(pt)) defTo = (F().coordinators || [])[0] || byRole('coordinator');
+    if (!defTo) defTo = me().role === 'coordinator' ? (o.social || byRole('social')) : ((F().coordinators || [])[0] || byRole('coordinator'));
     var m = document.getElementById('nf-modal');
     if (!m) { m = document.createElement('div'); m.id = 'nf-modal'; document.body.appendChild(m); }
     m.innerHTML = '<div class="nf-back"></div><div class="nf-dlg" role="dialog" aria-modal="true" aria-label="معاينة الاستمارة">' +
