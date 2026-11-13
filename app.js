@@ -1998,6 +1998,24 @@
 
   /* ---------------- البدء ---------------- */
   if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); }); }
+  // تنبيه التحديث: الصفحة المفتوحة طوال اليوم لا ترى التعديلات الجديدة — نفحص كل 5 دقائق ونعرض زر «تحديث»
+  (function () {
+    var cur = null;
+    var ver = function () { return fetch('sw.js?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { var m = t.match(/namoos-v\d+/); return m ? m[0] : ''; }); };
+    var show = function () {
+      if (document.getElementById('upd-bar')) return;
+      var b = document.createElement('div'); b.id = 'upd-bar'; b.className = 'upd-bar noprint'; b.setAttribute('role', 'status');
+      b.innerHTML = '<span>يوجد تحديث جديد للمنصة</span><button type="button">تحديث الآن</button>';
+      b.querySelector('button').onclick = function () {
+        var go = function () { location.reload(); };
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(function (r) { return r && r.update(); }).then(go, go); else go();
+      };
+      document.body.appendChild(b);
+    };
+    var check = function () { ver().then(function (v) { if (!v) return; if (cur === null) cur = v; else if (v !== cur) show(); }).catch(function () {}); };
+    check(); setInterval(check, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+  })();
   S.token = store('namoos_token') || '';
   if (!API) {
     renderLogin('المنصة قيد التهيئة — سيتم تفعيلها قريبًا');

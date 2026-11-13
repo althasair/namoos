@@ -218,7 +218,7 @@
     var pre = ['توعية أولياء الأمور بسياسة إدارة السلوك', 'توعية وإرشاد بسياسة إدارة سلوك الطلبة ونشرها في الأقسام', 'المتابعة المستمرة بالمرور على الصفوف وملاحظة الطلبة'];
     return gHead(1, 'تعهـــد طــــالب (المشرف الإداري)') +
       '<table class="nf"><tr><th colspan="8">بيانات المخالفة</th></tr>' + L.map(function (x) {
-        return '<tr><td class="l">نوع المخالفة</td><td class="v">' + (x ? e(x.v) : '') + '</td><td class="l">درجة المخالفة</td><td class="v">' + (x ? e(x.deg) : '') + '</td><td class="l">المخالفة للمرة</td><td class="v">( ' + (x ? ord(x.rep) : '&nbsp;&nbsp;&nbsp;') + ' )</td><td class="l">تاريخ المخالفة</td><td class="v">' + (x ? dmy(x.date) : '') + '</td></tr>';
+        return '<tr><td class="l">نوع المخالفة</td><td class="v">' + (x ? e(x.v) : '') + '</td><td class="l">درجة المخالفة</td><td class="v">' + (x ? e(x.deg) : '') + '</td><td class="l">المخالفة للمرة</td><td class="v nw">( ' + (x ? ord(x.rep) : '&nbsp;&nbsp;&nbsp;') + ' )</td><td class="l">تاريخ المخالفة</td><td class="v nw">' + (x ? dmy(x.date) : '') + '</td></tr>';
       }).join('') + '</table>' +
       '<div class="nf-box"><b>أتعهد أنا الطالب: <span class="v">' + e(o.student) + '</span></b><br>بالالتزام الكامل بلوائح ونظم المدرسة وعدم تكرار المخالفات التي سبق وقمت بها.<br>وفي حالة تكرار ذلك سوف تقوم إدارة المدرسة باتخاذ الإجراءات المتبعة حسب اللوائح والقوانين الخاصة بسياسة إدارة سلوك الطلبة 2026 بوزارة التربية والتعليم والتعليم العالي.</div>' +
       dayRow(today()) + '<table class="nf">' + stuRows(o, false) + '</table>' +
@@ -464,7 +464,7 @@
       '<div class="field"><label class="lbl" for="nf-note">ملاحظة (اختياري)</label><input class="inp" id="nf-note"></div>' +
       '<button class="btn" id="nf-send" type="button">إرسال</button></div>' +
       '<p class="nf-hint">الخانات الزرقاء تعبّأت تلقائيًا. يمكنكِ الكتابة في الخانات المنقطة والتأشير على المربعات قبل الطباعة.</p>' +
-      '<div class="nf-stage"><article class="nf-paper" id="nf-paper">' + d.build(o) + '</article></div></div>';
+      '<div class="nf-stage"><article class="nf-paper' + (/^g/.test(id) ? ' nf-gdoc' : '') + '" id="nf-paper">' + d.build(o) + '</article></div></div>';
     m.hidden = false; document.body.classList.add('nf-open');
     var paper = document.getElementById('nf-paper');
     fit(paper);

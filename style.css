@@ -435,5 +435,7 @@ td.sgn,td.sgn2,.nf-sig td,.nf-appr,.report .sig>div,.mylog .mlme{position:relati
 @media print{.pft td.pfx,.pft th.noprint{display:none!important}}
 .bal{display:block;font-size:11.5px;font-weight:500;color:#55636A;margin-top:3px;white-space:normal;line-height:1.5}.bal.warn{color:#9A5B00}.bal.bad{color:#B42318}
 /* نماذج دليل فريق إدارة سلوك الطلبة 2026: بالأبيض والأسود والرمادي الفاتح كما في الدليل (العنابي لاستمارات العمل الاجتماعي فقط) */
-.nf-paper:has(.nf-gd) table.nf th{background:#F2F2F2;color:#111}
-.nf-paper:has(.nf-gd) .nf-tag{color:#111}
+.nf-paper.nf-gdoc table.nf th{background:#F2F2F2!important;color:#111!important}
+.nf-paper.nf-gdoc .nf-tag{color:#111}
+.nf-paper .nw{white-space:nowrap}
+.upd-bar{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:9999;background:#13235B;color:#fff;border-radius:14px;padding:10px 14px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.25);font-size:14px}.upd-bar button{font-family:inherit;font-weight:700;border:none;border-radius:10px;padding:6px 12px;background:#FFD60A;color:#2B2300;cursor:pointer}
