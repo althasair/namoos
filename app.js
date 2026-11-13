@@ -669,7 +669,7 @@
   }
   function explainTask(o, isA) {
     var st = myStage(), s = o.stages[st] || {}, items = policyItems(o.text && o.text[st]);
-    var step = isA ? 'اليوم ' + o.n + ' من الغياب بدون عذر' : 'التكرار ' + o.rep + ' من «' + (o.short || o.violation) + '» (' + (o.degree || '') + ')';
+    var step = isA ? 'اليوم ' + o.n + ' من الغياب بدون عذر' : 'التكرار ' + o.rep + ' من «' + (o.short || o.violation) + '»' + (o.degree ? ' (' + o.degree + ')' : '');
     var form = function (t) {
       if (/تعهد خطي \(\d\) للطالب|تعهد الطالب خطيا/.test(t)) return 'اطبعي «تعهد طالب» من الزر الأصفر — معبّأ ببيانات الطالبة، وتوقّعه الطالبة.';
       if (/هاتفي|إشعار ولي الأمر|إخطار ولي الأمر/.test(t)) return 'اتصلي بولي الأمر (الرقم في البطاقة)، ثم اختاري طريقة التواصل عند التوثيق. رسالة نصية جاهزة متاحة من زر «رسالة ولي الأمر».';
