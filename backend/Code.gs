@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.14.0';
+var VERSION = '2.15.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -335,7 +335,11 @@ function teaches_(r, name) {
 }
 function students_() {
   return rows_(SH.students).map(function (r) {
-    return { name: str_(r['الاسم']), section: str_(r['الشعبة']), guardian: str_(r['ولي الأمر']), phone: str_(r['هاتف ولي الأمر']), qid: str_(r['الرقم الشخصي']), nat: str_(r['الجنسية']) };
+    // «أرقام التواصل»: «الأم: 5… | الأب: 5… | رقم آخر: 7…» — رقم الأم أولًا إن كان مسجّلًا، وإلا رقم الأب
+    var phones = str_(r['أرقام التواصل']).split('|').map(function (x) { var m = str_(x).match(/^(.*?):\s*([\d+ ]+)$/); return m ? { label: str_(m[1]), num: str_(m[2]).replace(/\s/g, '') } : null; }).filter(Boolean);
+    var ph = str_(r['هاتف ولي الأمر']);
+    if (!phones.length && ph) phones = [{ label: /\(أم\)/.test(str_(r['ولي الأمر'])) ? 'الأم' : 'ولي الأمر', num: ph }];
+    return { name: str_(r['الاسم']), section: str_(r['الشعبة']), guardian: str_(r['ولي الأمر']), phone: phones.length ? phones[0].num : ph, phones: phones, qid: str_(r['الرقم الشخصي']), nat: str_(r['الجنسية']) };
   }).filter(function (s) { return s.name && s.section; });
 }
 function student_(name, section) {
@@ -456,7 +460,7 @@ function enrichCases_(all, teacherIndex) {
     c.supervisors = info.supervisors; c.social = info.social;
     var stu = student_(c.student, c.section) || {};
     c.guardian = stu.guardian ? stu.guardian + (stu.phone ? ' ☎ ' + stu.phone : '') : '';
-    c.qid = stu.qid || ''; c.nat = stu.nat || ''; c.phone = stu.phone || ''; c.gName = stu.guardian || ''; c.subject = t ? (t.subject || '') : '';
+    c.qid = stu.qid || ''; c.nat = stu.nat || ''; c.phone = stu.phone || ''; c.phones = stu.phones || []; c.gName = stu.guardian || ''; c.subject = t ? (t.subject || '') : '';
     // لا يبدأ دور جهة قبل أن تُستكمل فعليًا إجراءات الجهات السابقة: إن كانت دراسة الحالة أو التدخل أو اجتماع الفريق
     // في تكرارات سابقة مسجّلة «سجل سابق» فقط (دون توثيق فعلي)، تُضاف تلك الجهات إلى هذه الحالة قبل الجهة التالية
     c.extra = {};
@@ -865,7 +869,7 @@ function casePublic_(c) {
     student: c.student, violation: c.violation, short: c.short, degree: c.degree, rep: c.rep, key: c.key, req: c.req, text: c.text,
     doc: c.doc, stages: c.stages, status: c.status, next: c.next, teacherDid: c.teacherDid, teacherAlert: c.teacherAlert,
     guardian: c.guardian, supervisors: c.supervisors, social: c.social, by: c.by,
-    qid: c.qid, nat: c.nat, phone: c.phone, gName: c.gName, subject: c.subject, history: c.history || [], current: c.current || [] };
+    qid: c.qid, nat: c.nat, phone: c.phone, phones: c.phones || [], gName: c.gName, subject: c.subject, history: c.history || [], current: c.current || [] };
 }
 
 /** الحالات التي تخص المستخدمة */
@@ -923,7 +927,7 @@ API.dailyReport = function (me, req) {
   students_().forEach(function (s) { stIdx[s.name + '|' + s.section] = s; });
   var row = function (name, section, n) {
     var s = stIdx[name + '|' + section] || {};
-    return { qid: s.qid || '', student: name, section: section, grade: section.split('-')[0], n: n, phone: s.phone || '', guardian: s.guardian || '' };
+    return { qid: s.qid || '', student: name, section: section, grade: section.split('-')[0], n: n, phone: s.phone || '', phones: s.phones || [], guardian: s.guardian || '' };
   };
   var sortFn = function (a, b) { return a.section === b.section ? (a.student < b.student ? -1 : 1) : (secKey_(a.section) < secKey_(b.section) ? -1 : 1); };
   // التأخير: من «التأخير الصباحي» + مخالفات التأخر المسجّلة «خارج الصف» — عدد المرات حتى التاريخ المختار
@@ -1018,7 +1022,7 @@ API.recordTeacher = function (me, req) {
   flush_();
   var rec = allData_().teacher.filter(function (r) { return r.id === id; })[0];
   var stu = student_(student, section);
-  return { record: teacherPublic_(rec), guardian: rec.guardianRequired ? { name: stu.guardian, phone: stu.phone } : null };
+  return { record: teacherPublic_(rec), guardian: rec.guardianRequired ? { name: stu.guardian, phone: stu.phone, phones: stu.phones || [] } : null };
 };
 
 /** توثيق المعلمة: التنفيذ والتواصل والملاحظات، ثم التحويل التلقائي للمشرفة إن طلبته السياسة */
@@ -1073,7 +1077,7 @@ API.guardianFor = function (me, req) {
   if (!rec) throw new Error('السجل غير موجود');
   if (!rec.guardianRequired) return { guardian: null };
   var stu = student_(rec.student, rec.section) || {};
-  return { guardian: { name: stu.guardian, phone: stu.phone } };
+  return { guardian: { name: stu.guardian, phone: stu.phone, phones: stu.phones || [] } };
 };
 
 API.deleteTeacher = function (me, req) {
@@ -1519,7 +1523,7 @@ function absPublic_(a) {
   return { id: a.id, date: a.date, section: a.section, student: a.student, period: a.period, by: a.by, kind: a.kind, flag: a.flag,
     decision: a.decision, excuse: a.excuse, decNotes: a.decNotes, decBy: a.decBy, excuseDue: a.excuseDue || '', decDue: a.decDue || '', decLate: !!a.decLate,
     n: a.n, key: a.key, req: a.req, text: a.text, elig: a.elig || '', doc: a.doc, stages: a.stages, status: a.status, next: a.next || '',
-    guardian: stu.guardian || '', phone: stu.phone || '', qid: stu.qid || '', nat: stu.nat || '', lateArrival: a.lateArrival, confirmedBy: a.confirmedBy, supervisors: a.supervisors, social: a.social };
+    guardian: stu.guardian || '', phone: stu.phone || '', phones: stu.phones || [], qid: stu.qid || '', nat: stu.nat || '', lateArrival: a.lateArrival, confirmedBy: a.confirmedBy, supervisors: a.supervisors, social: a.social };
 }
 
 /** من يرى السجل */

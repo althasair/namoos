@@ -339,6 +339,12 @@
     return '<option value="">— اختاري —</option>' + (S.boot.lists[key] || []).map(function (x) { return '<option' + (x === sel ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('');
   }
   function tel(phone) { return phone ? '<a href="tel:' + esc(phone.replace(/\s/g, '')) + '">' + esc(phone) + '</a>' : ''; }
+  // أرقام التواصل: رقم الأم أولًا إن كان مسجّلًا ثم رقم الأب ثم الأرقام الأخرى — كل رقم بمسمّاه، والمشرفة تختار
+  function telAll(phones, phone) {
+    phones = (phones || []).filter(function (p) { return p && p.num; });
+    if (!phones.length) return tel(phone || '');
+    return phones.map(function (p) { return '<span class="ph"><b>' + esc(p.label) + ':</b> ' + tel(p.num) + '</span>'; }).join(' ');
+  }
 
   /* =====================================================
    *  المعلمة: تسجيل مخالفة صفية — خطوات متتالية
@@ -390,7 +396,7 @@
       (rec.cat === 1 ? '<span class="chip dark">التنبيه ' + rec.alert + '</span>' : '<span class="chip red">بلاغ فوري</span>') + '</div></div>' +
       '<div class="act">' + esc(rec.action) + '</div>' +
       '<div class="sub">' + esc(rec.student) + ' • ' + esc(rec.section) + ' • ' + esc(subj(rec.subject)) + ' • ' + arFull(rec.date) + '</div>' +
-      (needG && guardian ? '<div class="tel">' + ICON.phone + '<span>ولي الأمر: ' + esc(guardian.name) + ' • ' + tel(guardian.phone) + '</span></div>' : '') +
+      (needG && guardian ? '<div class="tel">' + ICON.phone + '<span>ولي الأمر: ' + esc(guardian.name) + ' • ' + telAll(guardian.phones, guardian.phone) + '</span></div>' : '') +
       (rec.transferRequired ? '<div class="note" style="background:#fff">بعد التوثيق تُحوَّل الحالة تلقائيًا إلى المشرفة الإدارية، وتصلها رسالة وتنبيه.</div>' : '') +
       '</div>' +
       '<form class="card grid g3" id="tdf" style="margin-top:14px">' +
@@ -566,7 +572,7 @@
     var txt = c.text[st];
     return '<article class="item' + (s.late ? ' late' : '') + (S.focus === c.id ? ' focus' : '') + '" id="it-' + esc(c.id) + '">' + caseHead(c) +
       (c.teacherDid ? '<div class="row">ما قامت به المعلمة (' + esc(c.teacherAlert) + '): ' + esc(c.teacherDid) + '</div>' : '') +
-      (c.guardian && (st !== 'supervisor' || c.req.guardian) ? '<div class="row">' + ICON.phone + ' ولي الأمر: ' + esc(c.guardian.split('☎')[0]) + ' • ' + tel((c.guardian.split('☎')[1] || '').trim()) + '</div>' : '') +
+      (c.guardian && (st !== 'supervisor' || c.req.guardian) ? '<div class="row">' + ICON.phone + ' ولي الأمر: ' + esc(c.guardian.split('☎')[0]) + ' • ' + telAll(c.phones, (c.guardian.split('☎')[1] || '').trim()) + '</div>' : '') +
       (withForm ? '<div class="why">📌 <b>لماذا وصلتكِ؟</b> ' + esc(whyTask(c, st, false)) + '</div>' + histPanel(c, st) : '') +
       (txt ? '<div class="req"><b>المطلوب منكِ حسب السياسة: </b>' + esc(txt) + '</div>' : '') +
       (st === 'supervisor' && c.req.pledge && c.req.coordinator ? '<div class="note">📎 بعد أخذ التعهد الخطي سلّميه للمنسقة، فهي الجهة التالية في هذه الحالة.</div>' : '') +
@@ -1703,7 +1709,7 @@
   function absCard(a, withForm) {
     var st = myStage(), s = (a.stages || {})[st] || {};
     var txt = a.text ? a.text[st] : '';
-    var g = a.guardian ? '<div class="row">' + ICON.phone + ' ولي الأمر: ' + esc(a.guardian) + (a.phone ? ' • ' + tel(a.phone) : '') + '</div>' : '';
+    var g = a.guardian ? '<div class="row">' + ICON.phone + ' ولي الأمر: ' + esc(a.guardian) + (a.phone ? ' • ' + telAll(a.phones, a.phone) : '') + '</div>' : '';
     return '<article class="item' + (s.late ? ' late' : '') + (S.focus === a.id ? ' focus' : '') + '" id="it-' + esc(a.id) + '">' + absHead(a) +
       (a.flag ? '<div class="note">' + esc(a.flag) + '</div>' : '') +
       (a.decision ? '<div class="row">قرار المشرفة: ' + esc(a.decision) + (a.excuse ? ' — ' + esc(a.excuse) : '') + (a.decBy ? ' • أ. ' + esc(a.decBy) : '') + '</div>' : '') +
@@ -1844,7 +1850,7 @@
           (late ? '<span class="chip red">⛔ متأخر — آخر موعد ' + ar(arr[0].decDue) + '</span>' : '<span class="chip ap">آخر موعد: ' + arFull(arr[0].decDue) + '</span>') +
           '<button type="button" class="btn sm sec" data-allu="' + esc(g) + '">الكل بدون عذر</button></div>' +
           arr.map(function (a) {
-            return '<div class="decrow" data-id="' + esc(a.id) + '"><div><b>' + esc(a.student) + '</b><div class="sub">' + (a.guardian ? esc(a.guardian) + ' • ' : '') + tel(a.phone) + ' • الحصة ' + esc(a.period) + ' • أ. ' + esc(a.by) + '</div></div>' +
+            return '<div class="decrow" data-id="' + esc(a.id) + '"><div><b>' + esc(a.student) + '</b><div class="sub">' + (a.guardian ? esc(a.guardian) + ' • ' : '') + telAll(a.phones, a.phone) + ' • الحصة ' + esc(a.period) + ' • أ. ' + esc(a.by) + '</div></div>' +
               '<select class="inp" name="d"><option value="">— القرار —</option>' + A.decisions.map(function (x) { return '<option>' + x + '</option>'; }).join('') + '</select>' +
               '<select class="inp hidden" name="e"><option value="">— نوع العذر (المادة 3.4.1.4) —</option>' + A.excuses.map(function (x) { return '<option>' + esc(x) + '</option>'; }).join('') + '</select>' +
               '<details><summary class="sub" style="cursor:pointer;color:var(--tq)">💬 رسالة ولي الأمر جاهزة</summary>' + smsTools(a) + '</details></div>';
@@ -1902,7 +1908,7 @@
       $('#dres').innerHTML = '<div class="printhead"><b>' + (isA ? 'حصيلة الغياب' : 'حصيلة التأخير الصباحي') + ' — ' + arFull(r.date) + '</b></div>' +
         '<div class="grid g4" style="margin:12px 0"><div class="tile"><b>' + list.length + '</b><span>' + (isA ? 'غائبة' : 'متأخرة') + '</span></div>' +
         ['10', '11', '12'].map(function (k) { return '<div class="tile"><b>' + (gc[k] || 0) + '</b><span>الصف ' + (k === '10' ? 'العاشر' : k === '11' ? 'الحادي عشر' : 'الثاني عشر') + '</span></div>'; }).join('') + '</div>' +
-        (rows.length ? '<div class="items dcards">' + list.map(function (x, i) { return '<div class="item"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>' + (i + 1) + '. ' + esc(x.student) + '</b><span class="chip ' + (x.n >= 3 ? 'red' : 'ap') + '">' + (isA ? 'الغياب: ' : 'التأخير: ') + x.n + '</span></div><div class="sub">الشعبة ' + esc(x.section) + ' • الرقم الشخصي <bdi dir="ltr">' + esc(x.qid || '—') + '</bdi>' + (isA && x.decision ? ' • ' + esc(x.decision) : '') + (!isA && x.src ? ' • ' + esc(x.src) : '') + '</div><div class="row">' + ICON.phone + ' ولي الأمر: ' + tel(x.phone) + '</div></div>'; }).join('') + '</div>' + '<table class="t dtable"><thead><tr>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        (rows.length ? '<div class="items dcards">' + list.map(function (x, i) { return '<div class="item"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>' + (i + 1) + '. ' + esc(x.student) + '</b><span class="chip ' + (x.n >= 3 ? 'red' : 'ap') + '">' + (isA ? 'الغياب: ' : 'التأخير: ') + x.n + '</span></div><div class="sub">الشعبة ' + esc(x.section) + ' • الرقم الشخصي <bdi dir="ltr">' + esc(x.qid || '—') + '</bdi>' + (isA && x.decision ? ' • ' + esc(x.decision) : '') + (!isA && x.src ? ' • ' + esc(x.src) : '') + '</div><div class="row">' + ICON.phone + ' ولي الأمر: ' + telAll(x.phones, x.phone) + '</div></div>'; }).join('') + '</div>' + '<table class="t dtable"><thead><tr>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' +
           list.map(function (x, i) {
             return '<tr><td>' + (i + 1) + '</td><td dir="ltr" style="text-align:right">' + esc(x.qid || '—') + '</td><td><b>' + esc(x.student) + '</b>' + (isA && x.decision ? '<div class="sub">' + esc(x.decision) + '</div>' : '') + (!isA && x.src ? '<div class="sub">' + esc(x.src) + '</div>' : '') + '</td><td>' + esc(x.section) + '</td><td>' + esc(x.grade) + '</td><td><span class="chip ' + (x.n >= (isA ? 3 : 3) ? 'red' : 'ap') + '">' + x.n + '</span></td><td>' + tel(x.phone) + '</td></tr>';
           }).join('') + '</tbody></table>' : '<div class="empty card"><span class="tg">' + T3 + '</span>' + (isA ? 'لا يوجد غياب مسجّل في هذا اليوم' : 'لا يوجد تأخير مسجّل في هذا اليوم') + (r.last && r.last[kind] && r.last[kind] !== r.date ? '<br><button class="btn sm sec" id="dlast" style="margin-top:10px">اعرضي آخر يوم فيه تسجيل: ' + arFull(r.last[kind]) + '</button>' : '') + '</div>');
