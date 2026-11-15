@@ -214,7 +214,7 @@
   function g1(o) {
     var P = people(), sup = realWho(o.doc && o.doc.supervisor && o.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (o.supervisors || [])[0] || '');
     var L = sameList(o, 3); while (L.length < 3) L.push(null);
-    // الإجراءات الوقائية المعتمدة في المدرسة (كما في الاستمارة الورقية) — قابلة للتعديل
+    // الإجراءات الوقائية المعتمدة في المدرسة (كما في الاستمارة الورقية) — ثابتة غير قابلة للتعديل
     var pre = ['توعية أولياء الأمور بسياسة إدارة السلوك', 'توعية وإرشاد بسياسة إدارة سلوك الطلبة ونشرها في الأقسام', 'المتابعة المستمرة بالمرور على الصفوف وملاحظة الطلبة'];
     return gHead(1, 'تعهـــد طــــالب (المشرف الإداري)') +
       '<table class="nf"><tr><th colspan="8">بيانات المخالفة</th></tr>' + L.map(function (x) {
@@ -223,9 +223,9 @@
       '<div class="nf-box"><b>أتعهد أنا الطالب: <span class="v">' + e(o.student) + '</span></b><br>بالالتزام الكامل بلوائح ونظم المدرسة وعدم تكرار المخالفات التي سبق وقمت بها.<br>وفي حالة تكرار ذلك سوف تقوم إدارة المدرسة باتخاذ الإجراءات المتبعة حسب اللوائح والقوانين الخاصة بسياسة إدارة سلوك الطلبة 2026 بوزارة التربية والتعليم والتعليم العالي.</div>' +
       dayRow(today()) + '<table class="nf">' + stuRows(o, false) + '</table>' +
       '<table class="nf"><tr><th colspan="3">الإجراءات الوقائية التي تم اتخاذها مع الطالب</th></tr>' +
-      [0, 1, 2].map(function (i) { return '<tr><td colspan="3">' + (i + 1) + '- ' + ed(pre[i] || '', '') + '</td></tr>'; }).join('') +
+      [0, 1, 2].map(function (i) { return '<tr><td colspan="3">' + (i + 1) + '- ' + e(pre[i]) + '</td></tr>'; }).join('') +
       '<tr><td class="l">توقيع الطالب</td><td class="l">رقم جوال ولي الأمر</td><td class="l">توقيع المشرف الإداري</td></tr>' +
-      '<tr><td class="sgn">&nbsp;</td><td class="v" dir="ltr" style="text-align:center">' + e(o.phone || '') + '</td><td class="v sgn2" style="text-align:center">' + e(sup) + '</td></tr>' +
+      '<tr><td class="sgn sgs" data-who="' + e(o.student) + '">&nbsp;</td><td class="v" dir="ltr" style="text-align:center">' + e(o.phone || '') + '</td><td class="v sgn2" style="text-align:center">' + e(sup) + '</td></tr>' +
       '<tr><td class="l">منسق شؤون الطلاب</td><td class="v" colspan="2">' + e(P.coord) + '</td></tr>' +
       '<tr><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v" colspan="2">' + e(P.vp) + '</td></tr></table>' +
       '<div class="nf-note">❖ يتم توقيع الطالب في حال وصول المخالفات لعدد 3 مخالفات وبعدها يتم تحويل الطالب مع الاستمارة واستمارة التحويل لتوقيعها من قبل منسق شؤون الطلبة لاتخاذ الإجراء حسب السياسة ومن ثم للاختصاصي الاجتماعي لدراستها سواء سلوكية أو غياب.</div>' + gFoot();
@@ -240,7 +240,7 @@
       '<tr><td class="l">الموضوع</td><td colspan="3" style="height:5em;vertical-align:top">' + ed(isAbs(o) ? 'غياب الطالبة بدون عذر بتاريخ ' + dmy(o.date) : (o.violation + ' بتاريخ ' + dmy(o.date)), '') + '</td></tr>' +
       '<tr><td class="l">الإجراءات الأولية التي تمت</td><td colspan="3" style="height:5em;vertical-align:top">' + (done ? '<span class="v">' + e(done) + '</span>' : numbered(pre)) + '</td></tr>' +
       '<tr><td colspan="4">إخطار ولي الأمر بالواقعة والإجراء التالي لما بعد إثبات الواقعة: ' + bx('تم', !!(o.doc && o.doc.supervisor && o.doc.supervisor.contact)) + ' &nbsp;&nbsp; ' + bx('لم يتم') + '</td></tr>' +
-      '<tr><td class="l" colspan="2">اسم الطالب</td><td class="l" colspan="2">التوقيع</td></tr><tr><td class="v" colspan="2">' + e(o.student) + '</td><td colspan="2" class="sgn">&nbsp;</td></tr></table>' +
+      '<tr><td class="l" colspan="2">اسم الطالب</td><td class="l" colspan="2">التوقيع</td></tr><tr><td class="v" colspan="2">' + e(o.student) + '</td><td colspan="2" class="sgn sgs" data-who="' + e(o.student) + '">&nbsp;</td></tr></table>' +
       '<div class="nf-rec"><b>توصيات إدارة المدرسة</b><div class="ln2">' + ed('', '') + '</div></div>' +
       sigs([['منسق شؤون الطلاب', P.coord], ['نائب المدير للشؤون الإدارية وشؤون الطلاب', P.vp], ['يعتمد / مدير المدرسة', P.pr]]) + gFoot();
   }
@@ -257,7 +257,7 @@
       '<table class="nf">' + stuRows(o, true) + '<tr><td class="l">تاريخ الفصل</td><td colspan="3">' + ed('', '') + (n ? ' <span class="v">(' + (n === 1 ? 'يوم واحد' : n === 2 ? 'يومان' : n + ' أيام') + ' حسب السياسة)</span>' : '') + '</td></tr></table>' +
       pledge3(o) +
       '<table class="nf"><tr><td class="l">ملاحظـــــة:</td><td>- لا يتم فصل الطالب إلا بعد إشعار ولي الأمر<br>- توفير وجبة صحية للطالب<br>- تحديد شخص مسؤول عن الطالب مع توفير المادة التعليمية خلال فترة الفصل</td></tr>' +
-      '<tr><td class="l">توقيع الطالب</td><td class="l">توقيع منسق شؤون الطلاب</td></tr><tr><td class="sgn">&nbsp;</td><td class="v sgn2" style="text-align:center">' + e(P.coord) + '</td></tr>' +
+      '<tr><td class="l">توقيع الطالب</td><td class="l">توقيع منسق شؤون الطلاب</td></tr><tr><td class="sgn sgs" data-who="' + e(o.student) + '">&nbsp;</td><td class="v sgn2" style="text-align:center">' + e(P.coord) + '</td></tr>' +
       '<tr><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v">' + e(P.vp) + '</td></tr><tr><td class="l">يعتمد / مدير المدرسة</td><td class="v">' + e(P.pr) + '</td></tr></table>' +
       '<div class="nf-note">❖ يؤدي الطالب خلال الفصل الداخلي خدمة مجتمعية أو تعليمية</div>' + gFoot();
   }
@@ -269,7 +269,7 @@
       '<table class="nf"><tr><td class="l" rowspan="3">عدد أيام فصل الطالب</td><td rowspan="3" class="v" style="text-align:center">' + (n || ed('', '')) + '</td><td class="l" rowspan="3">تاريخ الفصل</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr><tr><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr><tr><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr></table>' +
       pledge3(o) +
       '<table class="nf"><tr><td class="l">ملاحظـــــة:</td><td>لا يتم فصل الطالب إلا بعد إشعار ولي الامر</td></tr>' +
-      '<tr><td class="l">توقيع الطالب</td><td class="l">توقيع منسق شؤون الطلاب</td></tr><tr><td class="sgn">&nbsp;</td><td class="v sgn2" style="text-align:center">' + e(P.coord) + '</td></tr>' +
+      '<tr><td class="l">توقيع الطالب</td><td class="l">توقيع منسق شؤون الطلاب</td></tr><tr><td class="sgn sgs" data-who="' + e(o.student) + '">&nbsp;</td><td class="v sgn2" style="text-align:center">' + e(P.coord) + '</td></tr>' +
       '<tr><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v">' + e(P.vp) + '</td></tr><tr><td class="l">يعتمد / مدير المدرسة</td><td class="v">' + e(P.pr) + '</td></tr></table>' + gFoot();
   }
   /* نموذج (5) تقرير نهائي عن حالة طالب */
@@ -344,6 +344,32 @@
     var exam = (t.match(/(?:عدم أهلية الطالب|بعدم أهلية الطالب)\s*(?:ل\s*)?لدخول\s*(اختبار[^•]*?)(?:\s*وإخطار|\s*في حال|\s*•|$)/) || [])[1] || el.replace(/^غير مؤهلة لدخول\s*/, '').replace(/\s*وإخطار.*$/, '');
     return { warn: warn, exam: String(exam || '').trim() };
   }
+  /* استمارات سياسة تعزيز انضباط حضور الطلبة: إنذار — غياب بدون عذر لعدد (3 أيام) — النص كما ورد دون تعديل */
+  function w3(o) {
+    var P = people();
+    var recs = ((N.S.boot.abs && N.S.boot.abs.records) || []).filter(function (x) { return x.student === o.student && x.section === o.section && x.kind === 'U' && x.date <= o.date; })
+      .sort(function (x, y) { return x.date < y.date ? -1 : 1; });
+    if (!recs.some(function (x) { return x.id === o.id; })) recs.push(o);
+    recs = recs.slice(0, 3);
+    var gN = String(o.guardian || o.gName || '').replace(/\s*\([^)]*\)\s*$/, '');
+    var dots = function (v) { return v ? '<span class="v">' + e(v) + '</span>' : '..............................'; };
+    return '<div class="nf-w3"><div class="nf-w3h">استمارات سياسة تعزيز انضباط حضور الطلبة:</div>' +
+      '<div class="nf-w3box">إنذار<br>غياب بدون عذر لعدد (3 أيام)</div>' +
+      '<p>التاريخ: <span class="v">' + dmy(today()) + '</span> م</p>' +
+      '<p>الفاضل ولي امر الطالب: ' + dots(o.student) + ' &nbsp; الصف: ' + dots(grade(o.section)) + ' &nbsp; الشعبة: ' + dots(o.section) + '</p>' +
+      '<p>نفيدكم علما بأن عدد أيام غياب ابنكم /ابنتكم عن المدرسة بدون عذر قد وصل مدة (3 أيام) بتاريخ:</p>' +
+      '<table class="nf nf-w3t"><tr><td class="l">م</td><td class="l">اليوم</td><td class="l">التاريخ</td></tr>' +
+      [0, 1, 2].map(function (i) { var x = recs[i]; return '<tr><td>' + (i + 1) + '</td><td class="v">' + (x ? wd(x.date) : '') + '</td><td class="v">' + (x ? dmy(x.date) : '') + '</td></tr>'; }).join('') + '</table>' +
+      '<p style="text-align:justify">وكما تعلمون بأن تكرار الغياب يؤثر سلبا على مستوى التحصيل الأكاديمي للطالب، وفي حال تجاوز المدة المسموح بها بالغياب سيتم تطبيق القرار الوزاري رقم (23) لسنة 2014م والذي يقضي: <u>بعدم دخول الطالب المتغيب بدون عذر اختبار (منتصف الفصل الدراسي الاول) إذا تجاوز مدة غيابه بدون عذر مقبول (خمسة أيام تمدرس).</u></p>' +
+      '<div class="nf-w3s"><u>إقرار وتعهد</u></div>' +
+      '<p>اتعهد أنا ولي أمر الطالب: ' + dots(o.student) + ' &nbsp; الصف: ' + dots(grade(o.section)) + ' &nbsp; الشعبة: ' + dots(o.section) + '</p>' +
+      '<p style="text-align:justify">بعدم تجاوز الطالب أيام الغياب المحددة (خمسة أيام تمدرس) والتي تؤدي الى تطبيق القرار الوزاري رقم (23) لسنة 2014 بعدم تقديم اختبار (منتصف الفصل الدراسي الاول) في حالة الغياب بدون عذر مقبول للأيام المحددة في القرار.</p>' +
+      '<table class="nf"><tr><td class="l">الطالب</td><td class="v" colspan="3">' + e(o.student) + '</td></tr>' +
+      '<tr><td class="l">توقيع ولي الأمر</td><td class="sgn">&nbsp;</td><td>اليوم: ..............</td><td>التاريخ: &nbsp;&nbsp; / &nbsp;&nbsp; /</td></tr>' +
+      '<tr><td class="l">منسق شؤون الطلبة</td><td class="v sgn2">' + e(P.coord) + '</td><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v sgn2">' + e(P.vp) + '</td></tr>' +
+      '<tr><td class="l">مدير المدرسة</td><td class="v sgn2" colspan="3">' + e(P.pr) + '</td></tr></table>' +
+      '<div class="nf-w3n"><b><u>ملاحظة:</u></b> في حال رفض ولي الأمر <u>التوقيع أو الحضور</u> يتم اعتماده من قبل كل من المشرف الإداري ومنسق شؤون الطلبة والنائب الإداري ومدير المدرسة وارسال <u>رسالة نصية لولي الأمر</u> تثبت ذلك.</div></div>';
+  }
   function g9(o) {
     var P = people(), I = eligInfo(o);
     var recs = ((N.S.boot.abs && N.S.boot.abs.records) || []).filter(function (x) { return x.student === o.student && x.section === o.section && x.kind === 'U' && x.date <= o.date; })
@@ -386,6 +412,7 @@
     g5p: { title: 'تقرير نهائي عن حالة طالب', no: 'رقم 5', st: 'psych', roles: ['psych'], when: function (o) { return reached(o, 'psych'); }, build: g5 },
     g6: { title: 'مقابلة ولي أمر مع الفريق', no: 'رقم 6', st: 'admin', roles: ['admin'], when: function (o) { return /فريق إدارة سلوك|فريق إدارة السلوك/.test(txt(o, 'coordinator') + txt(o, 'admin')) && (reached(o, 'coordinator') || reached(o, 'admin')); }, build: g6 },
     g7: { title: 'محضر اجتماع الفريق لمجموعة', no: 'رقم 7', st: 'admin', roles: ['admin'], when: function (o) { return GUIDE.g6.when(o); }, build: g7 },
+    w3: { title: 'إنذار غياب بدون عذر لعدد (3 أيام)', no: 'سياسة الحضور', st: 'supervisor', roles: ['supervisor', 'coordinator', 'admin'], absOnly: true, when: function (o) { return o.kind === 'U' && Number(o.n) === 3; }, build: w3 },
     g9: { title: 'قرار عدم الأهلية لدخول الاختبار', no: 'سياسة الغياب', st: 'admin', roles: ['admin', 'coordinator'], absOnly: true, when: function (o) { var t = txt(o, 'admin') + txt(o, 'coordinator'); return /عدم أهلية|بعدم أهلية|إنذار نهائي/.test(t + (o.elig || '')) && (reached(o, 'admin') || reached(o, 'coordinator')); }, build: g9 },
     g8: { title: 'محضر اجتماع الفريق مع طالب', no: 'رقم 8', st: 'admin', roles: ['admin'], when: function (o) { return GUIDE.g6.when(o); }, build: g8 }
   };
@@ -405,7 +432,7 @@
 
   /* ---------- أي الاستمارات تظهر لكل بطاقة ---------- */
   var DEF = {
-    f10: { title: 'استمارة تحويل حالة سلوكية', no: 10, build: function (o) { return f10(o); } },
+    f10: { title: 'استمارة تحويل حالة سلوكية', btn: 'التحويل السلوكي', no: 10, build: function (o) { return f10(o); } },
     f9: { title: 'استمارة تحويل حالة غياب', no: 9, build: function (o) { return f9(o); } },
     f5c: { title: 'استمارة جلسة فردية', no: 5, build: function (o) { return f5(o, false); } },
     f5a: { title: 'استمارة جلسة فردية', no: 5, build: function (o) { return f5(o, true); } }
@@ -416,7 +443,9 @@
     if (!o || !o.req) return out;
     var staff = ['supervisor', 'coordinator', 'social', 'admin'].indexOf(r) >= 0;
     if (kind === 'case') {
-      if (o.req.social && staff) out.push('f10');
+      // التحويل السلوكي: حين تحيل السياسة الحالة إلى الاختصاصي، أو عند وصول مخالفات البند إلى 3
+      // (ملاحظة نموذج 1 في الدليل: «يتم توقيع الطالب في حال وصول المخالفات لعدد 3 مخالفات وبعدها يتم تحويل الطالب مع الاستمارة واستمارة التحويل»)
+      if (staff && (o.req.social || o.req.psych || Number(o.rep) >= 3) && (r !== 'supervisor' || reached(o, 'supervisor'))) out.push('f10');
       if (o.req.social && (r === 'social' || r === 'admin')) out.push('f5c');
     } else {
       if (o.kind === 'U' && o.req.social && staff) out.push('f9');
@@ -425,11 +454,11 @@
     return out;
   }
   function buttons(kind, o) {
-    var ids = available(kind, o).concat(guideFor(kind, o));
+    var ids = guideFor(kind, o).concat(available(kind, o));
     if (!ids.length) return '';
     return '<div class="nf-btns">' + ids.map(function (id) {
       var stg = DEF[id].st, flash = stg && me().role === stg && (myTurn(o, stg) || (stg === 'admin' && (myTurn(o, 'coordinator') || myTurn(o, 'admin')))) ? ' flash' : '';
-      return '<button type="button" class="nf-pbtn' + flash + '" data-nform="' + id + '" data-nk="' + kind + '" data-nid="' + e(o.id) + '">🖨 ' + DEF[id].title + ' (نموذج ' + DEF[id].no + ')</button>';
+      return '<button type="button" class="nf-pbtn' + flash + '" data-nform="' + id + '" data-nk="' + kind + '" data-nid="' + e(o.id) + '">🖨 ' + (id === 'g1' ? 'التعهد' : DEF[id].btn || DEF[id].title) + ' (نموذج ' + DEF[id].no + ')</button>';
     }).join('') + '</div>';
   }
 
@@ -470,8 +499,8 @@
       '<div class="nf-cc">نسخة تلقائيًا: <b>النائبة الإدارية' + (F().adminVP ? ' (' + e(F().adminVP) + ')' : '') + '</b> و<b>مديرة المدرسة' + (F().principal ? ' (' + e(F().principal) + ')' : '') + '</b> — والاستمارة مرفقة PDF</div>' +
       '<div class="field"><label class="lbl" for="nf-note">ملاحظة (اختياري)</label><input class="inp" id="nf-note"></div>' +
       '<button class="btn" id="nf-send" type="button">إرسال</button></div>' +
-      '<p class="nf-hint">الخانات الزرقاء تعبّأت تلقائيًا. يمكنكِ الكتابة في الخانات المنقطة والتأشير على المربعات قبل الطباعة.</p>' +
-      '<div class="nf-stage"><article class="nf-paper' + (/^g/.test(id) ? ' nf-gdoc' : '') + '" id="nf-paper">' + d.build(o) + '</article></div></div>';
+      '<p class="nf-hint">' + (id === 'g1' ? 'نموذج رقم (1) كما في دليل فريق إدارة سلوك الطلبة 2026، تعبّأت بياناته تلقائيًا ولا يُعدَّل نصه. أضيفي توقيعكِ، ودعي الطالبة توقّع إلكترونيًا.' : 'الخانات الزرقاء تعبّأت تلقائيًا. يمكنكِ الكتابة في الخانات المنقطة والتأشير على المربعات قبل الطباعة.') + '</p>' +
+      '<div class="nf-stage"><article class="nf-paper' + (/^[gw]/.test(id) ? ' nf-gdoc' : '') + '" id="nf-paper">' + d.build(o) + '</article></div></div>';
     m.hidden = false; document.body.classList.add('nf-open');
     var paper = document.getElementById('nf-paper');
     fit(paper);

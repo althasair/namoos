@@ -116,7 +116,8 @@
   function setBadges(unread, tasks) {
     var b = $('#bellBadge'); if (b) { b.textContent = unread; b.classList.toggle('hidden', !unread); }
     var tc = S.taskCounts || { beh: tasks, abs: 0 };
-    [['tasks', tc.beh], ['abstasks', tc.abs], ['board', (tc.beh || 0) + (tc.abs || 0)], ['sec-beh', tc.beh], ['sec-abs', tc.abs]].forEach(function (p) {
+    var sp = srcCounts();
+    [['tasks', tc.beh], ['tasksS', sp.s], ['tasksT', sp.t], ['abstasks', tc.abs], ['board', (tc.beh || 0) + (tc.abs || 0)], ['sec-beh', tc.beh], ['sec-abs', tc.abs]].forEach(function (p) {
       $$('[data-count="' + p[0] + '"]').forEach(function (el) { el.textContent = p[1]; el.classList.toggle('hidden', !p[1]); });
     });
     $$('[data-count="messages"]').forEach(function (el) { el.textContent = unread; el.classList.toggle('hidden', !unread); });
@@ -169,7 +170,7 @@
   /* ---------------- التشغيل ---------------- */
   var NAV = {
     teacher: [['record', 'تسجيل مخالفة'], ['mine', 'حالاتي', 'tasks'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
-    supervisor: [['board', 'تنظيم مهامي', 'board'], ['tasks', 'الوارد', 'tasks'], ['outside', 'مخالفة خارج الصف'], ['tardy', 'التأخير الصباحي'], ['studFile', 'ملف الطالبات'], ['cases', 'كل الحالات'], ['dash', 'لوحة شعبي'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
+    supervisor: [['board', 'تنظيم مهامي', 'board'], ['tasks', 'الوارد: ما سجّلتُه', 'tasksS'], ['tTasks', 'مخالفات المعلمات', 'tasksT'], ['outside', 'مخالفة خارج الصف'], ['tardy', 'التأخير الصباحي'], ['studFile', 'ملف الطالبات'], ['cases', 'كل الحالات'], ['dash', 'لوحة شعبي'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     coordinator: [['board', 'تنظيم مهامي', 'board'], ['tasks', 'المهام', 'tasks'], ['studFile', 'ملف الطالبات'], ['cases', 'كل الحالات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     social: [['board', 'تنظيم مهامي', 'board'], ['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     psych: [['board', 'تنظيم مهامي', 'board'], ['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
@@ -233,7 +234,7 @@
     S.view = v;
     $$('.nav button').forEach(function (b) { if (b.dataset.v === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     var m = $('#main'); if (!m) return;
-    var fn = { record: vRecord, mine: vMine, tasks: vTasks, cases: vCases, outside: vOutside, tardy: vTardy, messages: vMessages, dash: vDash, report: vReport,
+    var fn = { record: vRecord, mine: vMine, tasks: function (e) { vTasks(e); }, tTasks: vTTasks, cases: vCases, outside: vOutside, tardy: vTardy, messages: vMessages, dash: vDash, report: vReport,
       absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily, myLog: vMyLog, staff: vStaff, studFile: vStudFile, board: vBoard }[v];
     m.innerHTML = secSwitch() + welcome() + '<div id="vw"></div>';
     $$('[data-sec]', m).forEach(function (b) { b.onclick = function () { if (b.dataset.sec !== S.sec) setSec(b.dataset.sec); }; });
@@ -600,19 +601,33 @@
       };
     });
   }
-  function myOpenCases() {
+  // مخالفات المعلمات (داخل الصف) منفصلة عن المخالفات التي تسجّلها المشرفة بنفسها (خارج الصف والتأخير)
+  function isT(c) { return c && c.source === 'داخل الصف'; }
+  function srcCounts() {
+    if (!S.boot || !S.boot.cases || !S.me || S.me.role !== 'supervisor') return { s: 0, t: 0 };
+    var l = myOpenCases(); return { t: l.filter(isT).length, s: l.filter(function (c) { return !isT(c); }).length };
+  }
+  function myOpenCases(mode) {
     var st = myStage();
     return S.boot.cases.filter(function (c) { var s = c.stages[st]; return s && s.need && s.open && !s.documented; })
+      .filter(function (c) { return !mode || (mode === 't' ? isT(c) : !isT(c)); })
       .sort(function (a, b) { var la = a.stages[st].late ? 0 : 1, lb = b.stages[st].late ? 0 : 1; return la - lb || (a.date < b.date ? -1 : 1); });
   }
-  function vTasks(el) {
-    var list = myOpenCases();
-    el.innerHTML = '<div><h2 class="pt">' + (S.me.role === 'supervisor' ? 'الوارد' : 'المهام') + '</h2></div>' + TASK_INTRO +
+  function vTTasks(el) { vTasks(el, 't'); }
+  function vTasks(el, mode) {
+    var sup = S.me.role === 'supervisor';
+    if (sup && !mode) mode = 's';
+    var list = myOpenCases(mode);
+    var src = (S.boot.cases || []).filter(function (c) { return !mode || (mode === 't' ? isT(c) : !isT(c)); });
+    var head = !sup ? '<h2 class="pt">المهام</h2>' : mode === 't'
+      ? '<h2 class="pt">مخالفات المعلمات</h2><p class="sub">المخالفات التي سجّلتها المعلمات داخل الصف وحوّلتها إليكِ، مع ما قامت به المعلمة. المخالفات التي تسجّلينها أنتِ بنفسكِ في «الوارد: ما سجّلتُه».</p>'
+      : '<h2 class="pt">الوارد: ما سجّلتُه</h2><p class="sub">المخالفات التي سجّلتِها أنتِ بنفسكِ خارج الصف، والتأخير الصباحي. مخالفات المعلمات في «مخالفات المعلمات».</p>';
+    el.innerHTML = '<div>' + head + '</div>' + TASK_INTRO +
       '<h3 class="mysec">✋ مطلوب منكِ أنتِ (' + list.length + ')</h3>' +
       '<div class="items">' + (list.length ? list.map(function (c) { return caseCard(c, true); }).join('') :
-        '<div class="empty card"><span class="tg">' + T3 + '</span>لا توجد مهام مطلوبة منكِ الآن</div>') + '</div>' + waitingOthers(S.boot.cases || [], false);
+        '<div class="empty card"><span class="tg">' + T3 + '</span>لا توجد مهام مطلوبة منكِ الآن</div>') + '</div>' + waitingOthers(src, false);
     enhanceNotes(el);
-    bindCaseForms(el, function () { S.focus = (myOpenCases()[0] || {}).id || ''; vTasks(el); if (S.focus) { var n = document.getElementById('it-' + S.focus); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); } });
+    bindCaseForms(el, function () { S.focus = (myOpenCases(mode)[0] || {}).id || ''; vTasks(el, mode); setBadges(S.last.unread, S.last.tasks); if (S.focus) { var n = document.getElementById('it-' + S.focus); if (n) n.scrollIntoView({ block: 'start', behavior: 'smooth' }); } });
     if (S.focus) { var fe = document.getElementById('it-' + S.focus); if (fe) setTimeout(function () { fe.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); }
   }
 
@@ -1026,8 +1041,13 @@
     var f = S.filter.cases || 'all', q = S.filter.q || '';
     var all = S.boot.cases.slice().reverse();
     var flt = { all: function () { return true; }, wait: function (c) { return c.status.code === 'wait'; }, late: function (c) { return c.status.code === 'late'; }, done: function (c) { return c.status.code === 'done'; } };
+    var sf = S.filter.src || 'all';
+    all = all.filter(function (c) { return sf === 'all' || (sf === 't' ? isT(c) : !isT(c)); });
     var list = all.filter(flt[f]).filter(function (c) { return !q || norm(c.student + ' ' + c.section + ' ' + c.short + ' ' + c.id).indexOf(norm(q)) >= 0; });
     el.innerHTML = '<div><h2 class="pt">كل الحالات</h2><p class="sub">متابعة مسار كل حالة عند كل جهة.</p></div>' +
+      '<div class="opts">' + [['all', 'كل المصادر'], ['t', 'مخالفات المعلمات'], ['s', 'سجّلتها المشرفة']].map(function (x) {
+        return '<button class="opt" data-sf="' + x[0] + '" aria-pressed="' + (sf === x[0]) + '">' + x[1] + '</button>';
+      }).join('') + '</div>' +
       '<div class="opts">' + [['all', 'الكل'], ['wait', 'بانتظار'], ['late', 'متأخرة'], ['done', 'مكتملة']].map(function (x) {
         return '<button class="opt" data-f="' + x[0] + '" aria-pressed="' + (f === x[0]) + '">' + x[1] + ' (' + all.filter(flt[x[0]]).length + ')</button>';
       }).join('') + '</div>' + searchList('cq', 'ابحثي باسم الطالبة أو الشعبة أو رقم الحالة') +
@@ -1035,6 +1055,7 @@
     var cq = $('#cq'); cq.value = q;
     cq.oninput = function () { S.filter.q = cq.value; var pos = cq.selectionStart; vCases(el); var n = $('#cq'); n.focus(); n.setSelectionRange(pos, pos); };
     $$('[data-f]', el).forEach(function (b) { b.onclick = function () { S.filter.cases = b.dataset.f; vCases(el); }; });
+    $$('[data-sf]', el).forEach(function (b) { b.onclick = function () { S.filter.src = b.dataset.sf; vCases(el); }; });
   }
 
   /* =====================================================

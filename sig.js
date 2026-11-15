@@ -10,17 +10,19 @@
   }
 
   /* ---------- لوحة التوقيع ---------- */
-  function pad(onSaved) {
+  // guest: توقيع شخص آخر على الشاشة (الطالبة) — يوضع في الخانة فقط ولا يُحفظ باسم المستخدمة
+  function pad(onSaved, guest) {
     var m = document.getElementById('sg-modal');
     if (!m) { m = document.createElement('div'); m.id = 'sg-modal'; document.body.appendChild(m); }
-    m.innerHTML = '<div class="nf-back"></div><div class="sg-dlg" role="dialog" aria-modal="true" aria-label="توقيعي">' +
-      '<div class="sg-head"><b>✍ توقيعي</b><button type="button" class="btn sec" id="sg-x">إغلاق</button></div>' +
-      '<p class="sub">وقّعي داخل المربع بإصبعكِ أو بالفأرة، أو ارفعي صورة توقيعكِ. التوقيع خاص بكِ، ولا يظهر في أي ورقة إلا حين تضغطين أنتِ «أضيفي توقيعي».</p>' +
-      '<div class="sg-cur" id="sg-cur"></div>' +
+    var gt = guest ? guest.title || 'توقيع الطالبة' : 'توقيعي';
+    m.innerHTML = '<div class="nf-back"></div><div class="sg-dlg" role="dialog" aria-modal="true" aria-label="' + gt + '">' +
+      '<div class="sg-head"><b>✍ ' + gt + (guest && guest.name ? ': ' + guest.name : '') + '</b><button type="button" class="btn sec" id="sg-x">إغلاق</button></div>' +
+      (guest ? '<p class="sub">بعد قراءة الإجراء وشرحه للطالبة، تُوقّع الطالبة داخل المربع بإصبعها على التابلت أو الجوال، أو بالفأرة على الكمبيوتر، ثم اضغطي «اعتماد التوقيع». يوضع التوقيع في هذه الورقة فقط.</p><div class="sg-cur" id="sg-cur"></div>'
+        : '<p class="sub">وقّعي داخل المربع بإصبعكِ أو بالفأرة، أو ارفعي صورة توقيعكِ. التوقيع خاص بكِ، ولا يظهر في أي ورقة إلا حين تضغطين أنتِ «أضيفي توقيعي».</p><div class="sg-cur" id="sg-cur"></div>') +
       '<canvas id="sg-c" width="900" height="300" aria-label="مربع التوقيع"></canvas>' +
-      '<div class="sg-acts"><button type="button" class="btn sec" id="sg-clear">مسح</button>' +
-      '<label class="btn sec" style="cursor:pointer">📷 رفع صورة توقيع<input type="file" id="sg-file" accept="image/*" hidden></label>' +
-      '<button type="button" class="btn" id="sg-save">حفظ توقيعي</button>' +
+      '<div class="sg-acts"><button type="button" class="btn sec" id="sg-clear">مسح وإعادة التوقيع</button>' +
+      (guest ? '<input type="file" id="sg-file" hidden>' : '<label class="btn sec" style="cursor:pointer">📷 رفع صورة توقيع<input type="file" id="sg-file" accept="image/*" hidden></label>') +
+      '<button type="button" class="btn" id="sg-save">' + (guest ? '✔ اعتماد التوقيع' : 'حفظ توقيعي') + '</button>' +
       '<button type="button" class="btn sec" id="sg-del" hidden>حذف توقيعي</button></div></div>';
     m.hidden = false;
     var c = m.querySelector('#sg-c'), x = c.getContext('2d'), drawn = false, down = false, last = null;
@@ -50,7 +52,7 @@
       };
       rd.readAsDataURL(f);
     };
-    get().then(function (s) {
+    if (!guest) get().then(function (s) {
       if (s) { m.querySelector('#sg-cur').innerHTML = '<span>توقيعكِ المحفوظ:</span><img src="' + s + '" alt="توقيعي">'; m.querySelector('#sg-del').hidden = false; }
     }).catch(function () {});
     m.querySelector('#sg-del').onclick = function () {
@@ -61,6 +63,7 @@
       if (!drawn) { N.toast('وقّعي داخل المربع أولًا', 'bad'); return; }
       var data = trim(c);
       if (!data) { N.toast('المربع فارغ', 'bad'); return; }
+      if (guest) { close(); if (onSaved) onSaved(data); return; }
       var b = this; b.disabled = true;
       api('saveSignature', { data: data }).then(function () {
         CACHE = data; N.toast('تم حفظ توقيعكِ ✔'); close(); if (onSaved) onSaved(data);
@@ -89,15 +92,30 @@
     var old = cell.querySelector('.sgw'); if (old) old.remove();
     var w = document.createElement('span'); w.className = 'sgw';
     w.innerHTML = '<img class="sgimg" src="' + s + '" alt="التوقيع"><button type="button" class="sgx nf-noprint noprint" title="إزالة التوقيع" aria-label="إزالة التوقيع">×</button>';
+    // بعد إضافة التوقيع يختفي كل ما كُتب داخل خانة التوقيع (الأيقونة والنص)، ويعود عند إزالة التوقيع
+    if (cell.matches && cell.matches('td.sgn, td.sgn2')) Array.prototype.slice.call(cell.childNodes).forEach(function (n) {
+      if (n.nodeType === 3 && n.textContent.trim()) { var sp = document.createElement('span'); sp.className = 'sg-txt'; n.parentNode.insertBefore(sp, n); sp.appendChild(n); }
+      else if (n.nodeType === 1 && !n.classList.contains('sgw') && !n.classList.contains('sgadd') && !n.classList.contains('sg-txt')) n.classList.add('sg-txt');
+    });
     cell.classList.add('sg-has'); cell.appendChild(w);
-    w.querySelector('.sgx').onclick = function (ev) { ev.stopPropagation(); w.remove(); cell.classList.remove('sg-has'); };
+    w.querySelector('.sgx').onclick = function (ev) { ev.stopPropagation(); w.remove(); cell.classList.remove('sg-has'); cell.removeAttribute('data-as'); };
   }
   function decorate(root, selectors, after) {
     if (!root || !N) return;
     root.querySelectorAll(selectors).forEach(function (cell) {
       if (cell.querySelector('.sgadd')) return;
       var b = document.createElement('button');
-      b.type = 'button'; b.className = 'sgadd nf-noprint noprint'; b.textContent = '✍ أضيفي توقيعي';
+      b.type = 'button'; b.className = 'sgadd nf-noprint noprint';
+      if (cell.classList.contains('sgs')) {
+        // خانة توقيع الطالبة: توقيع إلكتروني على الشاشة، وليس توقيع المستخدمة
+        b.textContent = '✍ توقيع الطالبة إلكترونيًا';
+        b.onclick = function (ev) {
+          ev.preventDefault(); ev.stopPropagation();
+          pad(function (d) { place(cell, d); if (after) after(); }, { title: 'توقيع الطالبة', name: cell.getAttribute('data-who') || '' });
+        };
+        cell.appendChild(b); return;
+      }
+      b.textContent = '✍ أضيفي توقيعي';
       b.onclick = function (ev) {
         ev.preventDefault(); ev.stopPropagation();
         get().then(function (s) {
@@ -116,8 +134,8 @@
     get().then(function (s) {
       if (!s) return;
       root.querySelectorAll('td.sgn2, .nf-sig td, .nf-appr, .report .sig > div, .mylog .mlme').forEach(function (cell) {
-        if (cell.querySelector('.sgw') || cell.getAttribute('data-as')) return;
-        var t = (cell.textContent || '').replace('✍ أضيفي توقيعي', '');
+        if (cell.querySelector('.sgw') || cell.getAttribute('data-as') || cell.classList.contains('sgs')) return;
+        var t = (cell.textContent || '').replace(/✍ [^✍]*$/, '');
         if (t.indexOf(n) >= 0) { cell.setAttribute('data-as', '1'); place(cell, s); }
       });
       if (after) after();
