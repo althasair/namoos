@@ -945,19 +945,19 @@
     var rows = [];
     if (F.kind !== 'abs') src.cases.forEach(function (c) {
       var s = c.stages[st]; if (!s || !s.need || !inR(c.date)) return;
-      var d = c.doc[st] || {}; if (!F.prior && s.documented && isPrior(d)) return;
-      rows.push({ g: 'سلوك', date: c.date, student: c.student, section: c.section, what: c.short, rep: 'التكرار ' + c.rep, req: c.text[st] || '', did: s.documented ? (isPrior(d) ? '—' : done(d)) : '', on: s.documented && !isPrior(d) ? d.date : '', due: s.due, st: s.documented && isPrior(d) ? ['prior', 'سجل سابق منقول'] : stat(s, d) });
+      var d = (c.doc || {})[st] || {}; if (!F.prior && s.documented && isPrior(d)) return;
+      rows.push({ g: 'سلوك', date: c.date, student: c.student, section: c.section, what: c.short || c.violation, rep: 'التكرار ' + c.rep, req: (c.text || {})[st] || '', did: s.documented ? (isPrior(d) ? '—' : done(d)) : '', on: s.documented && !isPrior(d) ? d.date : '', due: s.due, st: s.documented && isPrior(d) ? ['prior', 'سجل سابق منقول'] : stat(s, d) });
     });
-    var ab = src.abs;
+    var ab = src.abs || [];
     if (F.kind !== 'beh') {
       if (st === 'supervisor') ab.forEach(function (a) {
         if (a.decBy !== me.name || !inR(a.date)) return;
-        rows.push({ g: 'غياب', date: a.date, student: a.student, section: a.section, what: 'قرار الغياب', req: 'تحديد نوع الغياب', did: a.decision + (a.excuse ? ' — ' + a.excuse : ''), on: a.decTime ? a.decTime.slice(0, 10) : '', due: a.decDue, st: a.decLate ? ['late', 'نُفّذ متأخرًا'] : ['ok', 'نُفّذ في الوقت'] });
+        rows.push({ g: 'غياب', date: a.date, student: a.student, section: a.section, what: 'قرار الغياب', req: 'تحديد نوع الغياب', did: (a.decision || '') + (a.excuse ? ' — ' + a.excuse : ''), on: a.decTime ? String(a.decTime).slice(0, 10) : '', due: a.decDue, st: a.decLate ? ['late', 'نُفّذ متأخرًا'] : ['ok', 'نُفّذ في الوقت'] });
       });
       ab.forEach(function (a) {
         var s = a.stages && a.stages[st]; if (!s || !s.need || !inR(a.date)) return;
-        var d = a.doc[st] || {}; if (!F.prior && s.documented && isPrior(d)) return;
-        rows.push({ g: 'غياب', date: a.date, student: a.student, section: a.section, what: 'غياب بدون عذر', rep: 'رقم ' + a.n, req: a.text[st] || '', did: s.documented ? (isPrior(d) ? '—' : done(d)) : '', on: s.documented && !isPrior(d) ? d.date : '', due: s.due, st: s.documented && isPrior(d) ? ['prior', 'سجل سابق منقول'] : stat(s, d) });
+        var d = (a.doc || {})[st] || {}; if (!F.prior && s.documented && isPrior(d)) return;
+        rows.push({ g: 'غياب', date: a.date, student: a.student, section: a.section, what: 'غياب بدون عذر', rep: 'رقم ' + a.n, req: (a.text || {})[st] || '', did: s.documented ? (isPrior(d) ? '—' : done(d)) : '', on: s.documented && !isPrior(d) ? d.date : '', due: s.due, st: s.documented && isPrior(d) ? ['prior', 'سجل سابق منقول'] : stat(s, d) });
       });
     }
     if (st === 'teacher') {
@@ -973,7 +973,7 @@
       });
     }
     if (F.only) rows = rows.filter(function (r) { return r.st[0] === 'wait' || r.st[0] === 'bad'; });
-    var tard = st === 'supervisor' && F.kind !== 'abs' ? src.tardy.filter(function (x) { return x.by === me.name && inR(x.date); }).length : null;
+    var tard = st === 'supervisor' && F.kind !== 'abs' ? (src.tardy || []).filter(function (x) { return x.by === me.name && inR(x.date); }).length : null;
     rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
     var cnt = function (k) { return rows.filter(function (r) { return r.st[0] === k; }).length; };
     var nDone = cnt('ok') + cnt('late');
@@ -1027,13 +1027,20 @@
     var load = function () {
       var ok = (S.staffList || []).some(function (u) { return u.name === F.name && u.role === F.role; });
       if (!ok) { el.innerHTML = '<div class="noprint">' + head() + '</div>'; bind(); return; }
+      el.innerHTML = '<div class="noprint">' + head() + '</div><div class="empty card">جارٍ تحميل إجراءات أ. ' + esc(nm3(F.name)) + '…</div>'; bind();
       api('staffLog', { name: F.name, role: F.role, from: F.from, to: F.to }).then(function (r) {
-        logView(el, r.who, { cases: r.cases || [], abs: r.abs || [], tardy: r.tardy || [], teacher: r.teacher || [] }, F, head(), load);
+        try { logView(el, r.who, { cases: r.cases || [], abs: r.abs || [], tardy: r.tardy || [], teacher: r.teacher || [] }, F, head(), load); }
+        catch (e) { stErr(e); return; }
         bind();
-      }).catch(fail);
+      }).catch(stErr);
     };
-    if (S.staffList) load();
-    else api('staffList').then(function (r) { S.staffList = r.staff; load(); }).catch(fail);
+    var stErr = function (e) {
+      el.innerHTML = '<div class="noprint">' + head() + '</div><div class="empty card">تعذّر فتح الصفحة: ' + esc((e && e.message) || String(e)) + '<br><button class="btn sec" id="st-retry" type="button">إعادة المحاولة</button></div>';
+      bind(); var b = $('#st-retry'); if (b) b.onclick = function () { S.staffList = null; vStaff(el); };
+    };
+    el.innerHTML = '<div class="empty card">جارٍ تحميل قائمة المشرفات…</div>';
+    if (S.staffList && S.staffList.length) load();
+    else api('staffList').then(function (r) { S.staffList = r.staff || []; load(); }).catch(stErr);
   }
 
   /* ---------- كل الحالات ---------- */
