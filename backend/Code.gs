@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.15.0';
+var VERSION = '2.16.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -1611,6 +1611,10 @@ function absBoot_(me) {
   var res = { sections: secs, students: studentsFor_(secs), excuses: P.excuses.map(function (e) { return e.name; }), decisions: ABS_DECISIONS, contacts: ABS_CONTACT,
     exams: P.exams, excuseDays: Number(setting_('مهلة العذر', 2)) || 2,
     records: mine.slice(-1500).map(absPublic_).reverse(), tasks: absTasks_(me, list) };
+  // كل تواريخ الغياب بدون عذر لكل طالبة (من بداية العام) — حتى لا تسقط الأيام القديمة من النماذج حين تكثر السجلات
+  res.uDates = {};
+  mine.forEach(function (a) { if (a.kind === 'U') (res.uDates[a.student + '|' + a.section] = res.uDates[a.student + '|' + a.section] || []).push(a.date); });
+  Object.keys(res.uDates).forEach(function (k) { res.uDates[k].sort(); });
   // ما سُجّل اليوم في شعب المعلمة (لتأكيد معلمة الحصة الثانية)
   var t = today_();
   res.todayInSections = list.filter(function (a) { return a.date === t && secs.indexOf(a.section) >= 0; }).map(function (a) {

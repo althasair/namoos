@@ -82,10 +82,16 @@
   }
 
   /* ---------- نموذج 9: تحويل حالة غياب ---------- */
+  /* أيام الغياب بدون عذر للطالبة حتى تاريخ السجل — من القائمة الكاملة للخادم (uDates) حتى لا تسقط الأيام القديمة */
+  function uRecs(o) {
+    var A = N.S.boot.abs || {}, recs = (A.records || []).filter(function (x) { return x.student === o.student && x.section === o.section && x.kind === 'U' && x.date <= o.date; });
+    var seen = {}; recs.forEach(function (x) { seen[x.date] = 1; });
+    ((A.uDates || {})[o.student + '|' + o.section] || []).forEach(function (d) { if (d <= o.date && !seen[d]) { seen[d] = 1; recs.push({ date: d, kind: 'U', student: o.student, section: o.section }); } });
+    if (!recs.some(function (x) { return x.id === o.id || x.date === o.date; })) recs.push(o);
+    return recs.sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : 0; });
+  }
   function f9(a) {
-    var recs = ((N.S.boot.abs && N.S.boot.abs.records) || []).filter(function (x) { return x.student === a.student && x.section === a.section && x.kind === 'U' && x.date <= a.date; })
-      .sort(function (x, y) { return x.date < y.date ? -1 : 1; });
-    if (!recs.some(function (x) { return x.id === a.id; })) recs.push(a);
+    var recs = uRecs(a);
     var dates = recs.map(function (x) { return x.date; });
     var days = N.S.boot.dates || [];
     var cont = dates.length > 1 && dates.every(function (d, i) { return i === 0 || days.indexOf(d) === days.indexOf(dates[i - 1]) + 1; });
@@ -347,9 +353,7 @@
   /* استمارات سياسة تعزيز انضباط حضور الطلبة: إنذار — غياب بدون عذر لعدد (3 أيام) — النص كما ورد دون تعديل */
   function w3(o) {
     var P = people();
-    var recs = ((N.S.boot.abs && N.S.boot.abs.records) || []).filter(function (x) { return x.student === o.student && x.section === o.section && x.kind === 'U' && x.date <= o.date; })
-      .sort(function (x, y) { return x.date < y.date ? -1 : 1; });
-    if (!recs.some(function (x) { return x.id === o.id; })) recs.push(o);
+    var recs = uRecs(o);
     recs = recs.slice(0, 3);
     var gN = String(o.guardian || o.gName || '').replace(/\s*\([^)]*\)\s*$/, '');
     var dots = function (v) { return v ? '<span class="v">' + e(v) + '</span>' : '..............................'; };
@@ -372,9 +376,7 @@
   }
   function g9(o) {
     var P = people(), I = eligInfo(o);
-    var recs = ((N.S.boot.abs && N.S.boot.abs.records) || []).filter(function (x) { return x.student === o.student && x.section === o.section && x.kind === 'U' && x.date <= o.date; })
-      .sort(function (x, y) { return x.date < y.date ? -1 : 1; });
-    if (!recs.some(function (x) { return x.id === o.id; })) recs.push(o);
+    var recs = uRecs(o);
     var dates = recs.map(function (x) { return dmy(x.date); });
     var cnt = Math.max(recs.length, Number(o.n) || 0);
     var soc = o.social || '';
