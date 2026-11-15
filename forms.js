@@ -430,7 +430,7 @@
   function myTurn(o, st) { var s = o.stages && o.stages[st]; return !!(s && s.need && s.open && !s.documented); }
   function txt(o, st) { return String(o.text && o.text[st] || ''); }
   var GUIDE = {
-    g1: { title: 'تعهد طالب', no: 'رقم 1', st: 'supervisor', roles: ['supervisor'], when: function (o) { return reached(o, 'supervisor') && (/^(التأخير الصباحي|التأخر عن الطابور)/.test(o.violation || '') || /تعهد\s*(خطي\s*(\(\d\)\s*)?للطالب|الطالب\s*خطيا)|تنبيه خطي للطالب/.test(txt(o, 'supervisor'))); }, build: g1 },
+    g1: { title: 'تعهد طالب', no: 'رقم 1', st: 'supervisor', roles: ['supervisor'], when: function (o) { return reached(o, 'supervisor') && (/تعهد\s*(خطي\s*(\(\d\)\s*)?للطالب|الطالب\s*خطيا)|تنبيه خطي للطالب/.test(txt(o, 'supervisor'))); }, build: g1 },
     g2: { title: 'إثبات واقعة', no: 'رقم 2', st: 'coordinator', roles: ['coordinator'], when: function (o) { return reached(o, 'coordinator') && !isAbs(o); }, build: g2 },
     g3: { title: 'فصل داخلي مع تعهد', no: 'رقم 3', st: 'coordinator', roles: ['coordinator'], when: function (o) { return reached(o, 'coordinator') && /فصل داخلي/.test(txt(o, 'coordinator') + txt(o, 'admin')); }, build: g3 },
     g4: { title: 'فصل خارجي مع تعهد', no: 'رقم 4', st: 'coordinator', roles: ['coordinator'], when: function (o) { return reached(o, 'coordinator') && /فصل خارجي|من الحافلة|فصل الطالب من الدوام/.test(txt(o, 'coordinator') + txt(o, 'admin')); }, build: g4 },
@@ -471,7 +471,10 @@
     if (kind === 'case') {
       // التحويل السلوكي: حين تحيل السياسة الحالة إلى الاختصاصي، أو عند وصول مخالفات البند إلى 3
       // (ملاحظة نموذج 1 في الدليل: «يتم توقيع الطالب في حال وصول المخالفات لعدد 3 مخالفات وبعدها يتم تحويل الطالب مع الاستمارة واستمارة التحويل»)
-      if (staff && (o.req.social || o.req.psych || Number(o.rep) >= 3) && (r !== 'supervisor' || reached(o, 'supervisor'))) out.push('f10');
+      // التأخير الصباحي (مادة 3.4.2.2): التحويل فقط حيث ينص الجدول على الإحالة للاختصاصي (التكرار 3 و4 و5)
+      var tdy = /^(التأخير الصباحي|التأخر عن الطابور)/.test(o.violation || '');
+      var toSpec = tdy ? (o.req.social || o.req.psych || /الإحالة إلى الاختصاصي|الإحالة إلى الأخصائي/.test(txt(o, 'supervisor') + txt(o, 'coordinator'))) : (o.req.social || o.req.psych || Number(o.rep) >= 3);
+      if (staff && toSpec && (r !== 'supervisor' || reached(o, 'supervisor'))) out.push('f10');
       if (o.req.social && (r === 'social' || r === 'admin')) out.push('f5c');
     } else {
       if (o.kind === 'U' && o.req.social && staff) out.push('f9');

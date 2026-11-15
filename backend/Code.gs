@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.16.0';
+var VERSION = '2.17.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -446,7 +446,7 @@ function enrichCases_(all, teacherIndex) {
       });
     }
     // التكرار: من تنبيه المعلمة في التحويل الصفي، وإلا بعدد مرات المخالفة نفسها للطالبة
-    var k = [c.student, c.section, c.violation].join('|') + (isTardyV_(c.violation) ? '|ف' + semOf_(c.date) : ''); // التأخير الصباحي يُصفَّر كل فصل
+    var k = [c.student, c.section, isTardyV_(c.violation) ? TARDY_V : c.violation].join('|') + (isTardyV_(c.violation) ? '|ف' + semOf_(c.date) : ''); // التأخير الصباحي يُصفَّر كل فصل
     count[k] = (count[k] || 0) + 1;
     var t = c.transferNo ? tIdx[c.transferNo] : null;
     c.rep = (t && t.cat === 1 && Number(t.alert)) ? Number(t.alert) : count[k];
@@ -551,7 +551,7 @@ function allData_() {
 /** سجل الإجراءات السابقة للطالبة في المخالفة نفسها — يظهر لكل جهة قبل أن تنفّذ دورها */
 function attachHistory_(cases) {
   var by = {};
-  cases.forEach(function (c) { var k = [c.student, c.section, c.violation].join('|'); (by[k] = by[k] || []).push(c); });
+  cases.forEach(function (c) { var k = [c.student, c.section, isTardyV_(c.violation) ? TARDY_V : c.violation].join('|'); (by[k] = by[k] || []).push(c); });
   var isPrior = function (d) { return /^سجل سابق/.test(d.notes || '') || d.action === 'سجل سابق' || d.who === 'سجل سابق'; };
   var steps = function (c, upto) {
     var out = [];
