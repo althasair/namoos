@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.17.0';
+var VERSION = '2.18.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -82,7 +82,7 @@ function out_(o) {
 }
 
 var PUBLIC = { login: 1, ping: 1 };
-var WRITES = { saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+var WRITES = { saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
   recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
   recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
@@ -662,7 +662,7 @@ API.bootstrap = function (me) {
   var P = policy_();
   var data = allData_();
   var res = { me: publicUser_(me), today: today_(), dates: allowedDates_(), deadlineDays: Number(setting_('المهلة', 2)) || 2,
-    lists: lists_(), forms: formsInfo_(), staff: users_().map(function (u) { return { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role] }; }) };
+    lists: lists_(), forms: formsInfo_(), staff: users_().map(function (u) { return { name: u.name, role: u.role, roleLabel: ROLE_LABEL[u.role], sections: u.role === 'social' ? u.sections : undefined }; }) };
   if (me.role === 'daily') {
     res.tasks = []; res.taskCounts = { beh: 0, abs: 0 }; res.abs = null; res.unread = unread_(me);
     return res;
@@ -829,6 +829,36 @@ API.deleteSignature = function (me) {
   return { ok: true };
 };
 
+/* ===== تعبئة الاستمارات: ما تؤشّر عليه الموظفة وتكتبه في الاستمارة يُحفظ ويظهر كلما فتحتها هي أو غيرها ===== */
+var FORM_SHEET = 'تعبئة الاستمارات';
+function formSheet_() {
+  var sh = ss_().getSheetByName(FORM_SHEET);
+  if (!sh) { sh = ss_().insertSheet(FORM_SHEET); sh.getRange(1, 1, 1, 4).setValues([['المفتاح', 'البيانات', 'آخر حفظ', 'بواسطة']]); sh.hideSheet(); }
+  return sh;
+}
+function formRow_(key) {
+  var sh = formSheet_(), n = sh.getLastRow();
+  if (n < 2) return 0;
+  var v = sh.getRange(2, 1, n - 1, 1).getValues();
+  for (var i = 0; i < v.length; i++) if (str_(v[i][0]) === key) return i + 2;
+  return 0;
+}
+API.formState = function (me, req) {
+  var key = str_(req.key), r = key ? formRow_(key) : 0;
+  if (!r) return { data: '' };
+  var v = formSheet_().getRange(r, 2, 1, 3).getValues()[0];
+  return { data: str_(v[0]), at: str_(v[1]), by: str_(v[2]) };
+};
+API.saveFormState = function (me, req) {
+  if (me.role === 'teacher' || me.role === 'daily') throw new Error('غير مسموح');
+  var key = str_(req.key), d = str_(req.data);
+  if (!key || key.length > 200) throw new Error('مفتاح غير صالح');
+  if (d.length > 45000) throw new Error('بيانات الاستمارة كبيرة');
+  var sh = formSheet_(), r = formRow_(key), row = [key, d, now_(), me.name];
+  if (r) sh.getRange(r, 1, 1, 4).setValues([row]); else sh.appendRow(row);
+  return { ok: true };
+};
+
 function lists_() {
   var out = {};
   var r = rows_(SH.lists);
@@ -988,7 +1018,9 @@ API.sendForm = function (me, req) {
   if (b64.length > 9000000) throw new Error('حجم الاستمارة كبير');
   var name = (str_(req.title) || 'استمارة') + ' — ' + str_(req.student) + '.pdf';
   var blob = Utilities.newBlob(Utilities.base64Decode(b64), 'application/pdf', name);
-  var cc = ccEmails_().filter(function (e) { return e !== to.email; });
+  // نسخة: الأخصائية الاجتماعية المسؤولة عن شعبة الطالبة (ياسمين أو فاطمة حسب الشعبة) + النائبة الإدارية ومديرة المدرسة
+  var socCc = usersByRole_('social').filter(function (u) { return u.email && req.section && u.sections.indexOf(str_(req.section)) >= 0; }).map(function (u) { return u.email; });
+  var cc = socCc.concat(ccEmails_()).filter(function (e, i, a) { return e && e !== to.email && a.indexOf(e) === i; });
   var subject = str_(req.title) + ' — ' + str_(req.student) + (req.section ? ' (' + str_(req.section) + ')' : '');
   var note = str_(req.note);
   var body = 'السلام عليكم ورحمة الله وبركاته،\nنرفق لكم ' + str_(req.title) + ' للطالبة ' + str_(req.student) +

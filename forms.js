@@ -575,6 +575,33 @@
     paper.style.fontSize = fs + 'px';
     while (paper.scrollHeight > maxH && fs > 8.2) { fs -= 0.3; paper.style.fontSize = fs + 'px'; }
   }
+  /* ---------- حفظ تعبئة الاستمارة (المربعات والخانات) لتبقى كلما فُتحت ---------- */
+  function fsKey() { return CUR ? [CUR.id, CUR.kind, CUR.o.id].join('|') : ''; }
+  function fsGet(paper) {
+    return JSON.stringify({ cb: [].map.call(paper.querySelectorAll('.nf-cb'), function (x) { return x.classList.contains('on') ? 1 : 0; }),
+      ed: [].map.call(paper.querySelectorAll('.nf-ed'), function (x) { return x.innerText.replace(/\u00a0/g, ' ').trim(); }) });
+  }
+  function fsApply(paper, raw) {
+    var d; try { d = JSON.parse(raw); } catch (e) { return false; }
+    if (!d) return false;
+    var cbs = paper.querySelectorAll('.nf-cb'), eds = paper.querySelectorAll('.nf-ed');
+    if ((d.cb || []).length === cbs.length) [].forEach.call(cbs, function (x, i) { var on = !!d.cb[i]; x.classList.toggle('on', on); x.textContent = on ? '☑' : '☐'; x.setAttribute('aria-checked', on); });
+    if ((d.ed || []).length === eds.length) [].forEach.call(eds, function (x, i) { x.textContent = d.ed[i] || ''; });
+    fit(paper); return true;
+  }
+  var fsTimer = null, fsLast = '', fsDirty = false;
+  function fsSave(now) {
+    var paper = document.getElementById('nf-paper'); if (!paper || !CUR) return;
+    var key = fsKey(), data = fsGet(paper);
+    if (data === fsLast) return;
+    fsDirty = true;
+    try { localStorage.setItem('nf:' + key, data); } catch (e) {}
+    clearTimeout(fsTimer);
+    var go = function () { fsLast = data; N.api('saveFormState', { key: key, data: data }, true).catch(function () { fsLast = ''; }); };
+    if (now) go(); else fsTimer = setTimeout(go, 1500);
+  }
+
+  function socOf(sec) { var u = (N.S.boot.staff || []).filter(function (x) { return x.role === 'social' && (x.sections || []).indexOf(sec) >= 0; })[0]; return u ? u.name : ''; }
   function open(id, kind, oid) {
     var o = find(kind, oid);
     if (!o) { N.toast('لم أجد بيانات الحالة — حدّثي الصفحة', 'bad'); return; }
@@ -594,10 +621,10 @@
     if (!m) { m = document.createElement('div'); m.id = 'nf-modal'; document.body.appendChild(m); }
     m.innerHTML = '<div class="nf-back"></div><div class="nf-dlg" role="dialog" aria-modal="true" aria-label="معاينة الاستمارة">' +
       '<div class="nf-bar"><b>معاينة: ' + d.title + ' — ' + e(o.student) + '</b>' +
-      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-mailt" type="button">✉ إرسال بالبريد</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
+      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn sec" id="nf-mailt" type="button">✉ إرسال بالبريد</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
       '<div class="nf-mail" id="nf-mail" hidden><div class="field"><label class="lbl" for="nf-to">إلى</label><select class="inp" id="nf-to">' +
       staff.map(function (u) { return '<option value="' + e(u.name) + '"' + (u.name === defTo ? ' selected' : '') + '>' + e(u.name) + ' — ' + e(u.roleLabel || '') + '</option>'; }).join('') + '</select></div>' +
-      '<div class="nf-cc">نسخة تلقائيًا: <b>النائبة الإدارية' + (F().adminVP ? ' (' + e(F().adminVP) + ')' : '') + '</b> و<b>مديرة المدرسة' + (F().principal ? ' (' + e(F().principal) + ')' : '') + '</b> — والاستمارة مرفقة PDF</div>' +
+      '<div class="nf-cc">نسخة تلقائيًا: <b>الأخصائية الاجتماعية للشعبة' + (socOf(o.section) ? ' (' + e(socOf(o.section)) + ')' : '') + '</b> و<b>النائبة الإدارية' + (F().adminVP ? ' (' + e(F().adminVP) + ')' : '') + '</b> و<b>مديرة المدرسة' + (F().principal ? ' (' + e(F().principal) + ')' : '') + '</b> — والاستمارة مرفقة PDF</div>' +
       '<div class="field"><label class="lbl" for="nf-note">ملاحظة (اختياري)</label><input class="inp" id="nf-note"></div>' +
       '<button class="btn" id="nf-send" type="button">إرسال</button></div>' +
       '<p class="nf-hint">' + (id === 'g1' ? 'نموذج رقم (1) كما في دليل فريق إدارة سلوك الطلبة 2026، تعبّأت بياناته تلقائيًا ولا يُعدَّل نصه. أضيفي توقيعكِ، ودعي الطالبة توقّع إلكترونيًا.' : 'الخانات الزرقاء تعبّأت تلقائيًا. يمكنكِ الكتابة في الخانات المنقطة والتأشير على المربعات قبل الطباعة.') + '</p>' +
@@ -611,22 +638,33 @@
       var on = !cb.classList.contains('on'); cb.classList.toggle('on', on); cb.textContent = on ? '☑' : '☐'; cb.setAttribute('aria-checked', on);
     });
     paper.addEventListener('keydown', function (ev) { if ((ev.key === ' ' || ev.key === 'Enter') && ev.target.classList.contains('nf-cb')) { ev.preventDefault(); ev.target.click(); } });
-    paper.addEventListener('input', function () { fit(paper); });
+    paper.addEventListener('input', function () { fit(paper); fsSave(); });
+    paper.addEventListener('click', function (ev) { if (ev.target.closest('.nf-cb')) fsSave(); });
+    // ما حُفظ سابقًا: من هذا الجهاز فورًا، ثم من الخادم (يظهر للجميع)
+    fsLast = ''; fsDirty = false; var key0 = fsKey();
+    try { var loc = localStorage.getItem('nf:' + key0); if (loc) { fsApply(paper, loc); fsLast = loc; } } catch (e) {}
+    N.api('formState', { key: key0 }, true).then(function (r) { if (r && r.data && !fsDirty && CUR && fsKey() === key0 && document.getElementById('nf-paper') === paper) { fsApply(paper, r.data); fsLast = r.data; try { localStorage.setItem('nf:' + key0, r.data); } catch (e) {} } }).catch(function () {});
     document.getElementById('nf-close').onclick = close;
     m.querySelector('.nf-back').onclick = close;
-    document.getElementById('nf-print').onclick = function () { fit(paper); document.body.classList.add('nf-printing'); setTimeout(function () { window.print(); }, 60); };
+    document.getElementById('nf-print').onclick = function () { fsSave(true); fit(paper); document.body.classList.add('nf-printing'); setTimeout(function () { window.print(); }, 60); };
+    document.getElementById('nf-dl').onclick = function () {
+      var b = this; if (b.disabled) return; b.disabled = true; var lbl = b.textContent; b.textContent = 'جارٍ التجهيز…'; fsSave(true);
+      toPdf(paper, true).then(function (pdf) { pdf.save((CUR.d.title + ' — ' + CUR.o.student + '.pdf').replace(/[\\/:*?"<>|]/g, ' ')); })
+        .catch(function () { N.toast('تعذّر تجهيز الملف، حاولي مرة أخرى', 'bad'); })
+        .then(function () { b.disabled = false; b.textContent = lbl; });
+    };
     document.getElementById('nf-mailt').onclick = function () { var x = document.getElementById('nf-mail'); x.hidden = !x.hidden; };
     document.getElementById('nf-send').onclick = send;
   }
   window.addEventListener('afterprint', function () { document.body.classList.remove('nf-printing'); });
-  function close() { var m = document.getElementById('nf-modal'); if (m) { m.hidden = true; m.innerHTML = ''; } document.body.classList.remove('nf-open'); }
+  function close() { fsSave(true); var m = document.getElementById('nf-modal'); if (m) { m.hidden = true; m.innerHTML = ''; } document.body.classList.remove('nf-open'); }
 
   function loadLibs() {
     if (window.html2canvas && window.jspdf) return Promise.resolve();
     var add = function (src) { return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); };
     return add('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js').then(function () { return add('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'); });
   }
-  function toPdf(paper) {
+  function toPdf(paper, asDoc) {
     return loadLibs().then(function () {
       paper.classList.add('nf-snap');
       return window.html2canvas(paper, { scale: 2, backgroundColor: '#ffffff', useCORS: true, ignoreElements: function (el) { return el.classList && el.classList.contains('nf-noprint'); } });
@@ -643,11 +681,11 @@
           if (pg) pdf.addPage();
           pdf.addImage(c2.toDataURL('image/jpeg', 0.92), 'JPEG', 10, 10, 190, c2.height * 190 / c2.width);
         }
-        return pdf.output('datauristring');
+        return asDoc ? pdf : pdf.output('datauristring');
       }
       if (h > 277) { h = 277; w = cv.width * h / cv.height; }
       pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', (210 - w) / 2, 10, w, h);
-      return pdf.output('datauristring');
+      return asDoc ? pdf : pdf.output('datauristring');
     });
   }
   function send() {
@@ -692,5 +730,5 @@
         '<span class="fchip off" title="غير مطلوب في هذه المرحلة">' + DEF[id].title + '</span>';
     }).join('');
   }
-  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, chips: chips, _build: function (id, o) { return DEF[id].build(o); } };
+  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, chips: chips, _build: function (id, o) { return DEF[id].build(o); }, _open: function (id, kind, oid) { return open(id, kind, oid); } };
 })();
