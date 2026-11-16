@@ -154,6 +154,72 @@
       '</table>' + foot();
   }
 
+
+  /* ---------- نموذج 6: بحث حالة (استمارات العمل الاجتماعي 2026) — نصه كما هو، يمتد على صفحتين كالأصل ---------- */
+  function f6(o) {
+    var t = today(), v = String(o.violation || '');
+    var tardy = /^(التأخير الصباحي|التأخر عن الطابور)/.test(v);
+    var A = N.S.boot.abs || {}, ud = {};
+    ((A.uDates || {})[o.student + '|' + o.section] || []).forEach(function (d) { ud[d] = 1; });
+    (A.records || []).forEach(function (x) { if (x.student === o.student && x.section === o.section && x.kind === 'U') ud[x.date] = 1; });
+    var nAbs = Object.keys(ud).length;
+    var g = String(o.gName || ''), rel = (g.match(/\(([^)]+)\)\s*$/) || [])[1] || '', gn = g.replace(/\s*\([^)]*\)\s*$/, '');
+    var soc = me().role === 'social' ? me().name : (o.social || '');
+    var L = function (x) { return '<td class="l">' + x + '</td>'; };
+    var W = function (x, cs) { return '<td' + (cs ? ' colspan="' + cs + '"' : '') + '>' + x + '</td>'; };
+    var gr = function (items) { return '<div class="nf-g">' + items.map(function (i) { return '<span>' + i + '</span>'; }).join('') + '</div>'; };
+    var lines = function (n) { var h = ''; for (var i = 0; i < n; i++) h += ed('', '') + '<br>'; return h; };
+    var blank = function (cols, n) { var h = ''; for (var i = 0; i < n; i++) { h += '<tr>'; for (var j = 0; j < cols; j++) h += '<td>&nbsp;</td>'; h += '</tr>'; } return h; };
+    return head(6, 'بحث حالة (' + ed(tardy ? 'التأخير الصباحي' : v, '') + ')') +
+      '<table class="nf">' +
+      '<tr>' + L('اليوم') + '<td class="v">' + wd(t) + '</td>' + L('التاريخ') + '<td class="v">' + dmy(t) + '</td></tr>' +
+      '<tr><th colspan="4">البيانـــات الأولية</th></tr>' +
+      '<tr>' + L('اسم الطالب') + '<td class="v">' + e(o.student) + '</td>' + L('الجنسية') + '<td>' + ed(o.nat || natOf(o.qid), '') + '</td></tr>' +
+      '<tr>' + L('الصف') + '<td class="v">' + grade(o.section) + '</td>' + L('الشعبة') + '<td class="v">' + e(o.section) + '</td></tr>' +
+      '<tr>' + L('الرقم الشخصي') + '<td colspan="3" class="p0">' + qidBoxes(o.qid) + '</td></tr>' +
+      '<tr>' + L('العمر') + W(ed('', '')) + L('تاريخ الميلاد') + W(ed(yearOf(o.qid) ? '     /     / ' + yearOf(o.qid) : '', '')) + '</tr>' +
+      '<tr>' + L('عدد سنوات الرسوب') + W(ed('', '')) + L('الحالة الدراسية') + W(bx('مترفع') + ' &nbsp;&nbsp; ' + bx('باق')) + '</tr>' +
+      '<tr>' + L('عدد مرات الفصل المؤقت') + W(ed('', '')) + L('عدد أيام الغياب') + W('( <span class="v">' + nAbs + '</span> ) &nbsp;' + bx('متقطع') + ' &nbsp; ' + bx('مستمر')) + '</tr>' +
+      '<tr>' + L('المستوى الدراسي') + W(bx('ممتاز') + ' ' + bx('جيد جدا') + ' ' + bx('جيد') + ' ' + bx('مقبول') + ' ' + bx('ضعيف')) + L('الحالة الصحية') + W(bx('توجد') + ' &nbsp; ' + bx('لا توجد')) + '</tr>' +
+      '<tr><th colspan="4">بيانات ولي الأمر</th></tr>' +
+      '<tr>' + L('الاسم') + '<td class="v">' + e(gn) + '</td>' + L('صلة القرابة') + W(ed(rel, '')) + '</tr>' +
+      '<tr>' + L('المهنة') + W(ed('', ''), 3) + '</tr>' +
+      '<tr>' + L('الحالة الاجتماعية') + W(ed('', '')) + L('عنوان السكن') + W(ed('', '')) + '</tr>' +
+      '<tr>' + L('رقم الجوال') + W('الأب: ' + ed('', '')) + W('الأم: ' + ed('', ''), 2) + '</tr>' +
+      '<tr><th colspan="4">التكوين الأسري</th></tr>' +
+      '<tr><td colspan="4">عدد الأفراد: ' + ed('', '') + ' &nbsp;&nbsp; ذكور: ' + ed('', '') + ' &nbsp;&nbsp; إناث: ' + ed('', '') + ' &nbsp;&nbsp; ترتيب الطالب بينهم: ' + ed('', '') + '</td></tr>' +
+      '<tr><th colspan="4">ملخص تشخيص الحالة</th></tr>' +
+      '<tr><th colspan="4" class="sub">وصف المشكلة</th></tr>' +
+      '<tr><td colspan="4">' + gr([bx('غياب متكرر عن المدرسة'), bx('تأخر صباحي متكرر', tardy), bx('ضعف تحصيل دراسي'), bx('نوم داخل الصف', /النوم/.test(v)), bx('مشكلات مع المعلمين'), bx('ممارسة تنمر على الآخرين', /التنمر/.test(v))]) + 'أخرى: ' + ed('', '') + '</td></tr>' +
+      '<tr><th colspan="4" class="sub">العبارات التشخيصية</th></tr>' +
+      '<tr><th colspan="2" class="sub">الأسباب الذاتية</th><th colspan="2" class="sub">الأسباب البيئية</th></tr>' +
+      '<tr><td colspan="2" style="vertical-align:top">' + [bx('تعرض الطالب لضغوط اجتماعية أثرت في توافقه المدرسي.'), bx('معاناة الطالب من مشكلات صحية أانعكست على أدائه المدرسي.'), bx('ضعف المهارات الاجتماعية ومهارات حل المشكلات.'), bx('وجود مشكلات تتعلق باستخدام التقنية أو الألعاب الإلكترونية.'), bx('ضعف مهارات تنظيم الوقت وإدارة الواجبات الدراسية.'), bx('أخرى: ' + ed('', ''))].join('<br>') + '</td>' +
+      '<td colspan="2" style="vertical-align:top">' + [bx('وجود مؤشرات على اضطرابات أسرية .'), bx('وجود مشكلات في تكوين العلاقات مع الزملاء أو المعلمين.'), bx('ضعف المشاركة في الأنشطة المدرسية.'), bx('ضعف الإمكانيات المادية.'), bx('ضعف الاستجابة الأسرية والتعاون مع المدرسة.'), bx('أخرى: ' + ed('', ''))].join('<br>') + '</td></tr>' +
+      '<tr><th colspan="4">أولاً: تحديد و وصف الاستجابات السلوكية غير السوية التي ستكون هدفاً للتغيير</th></tr>' +
+      '<tr>' + L('التحديد') + W(bx('طبقة سلوكية واحـــــــــدة: ( ' + ed('', '') + ' )') + '<br>' + bx('طبقة سلوكية متعـددة: ( ' + ed('', '') + ' + ' + ed('', '') + ' )'), 3) + '</tr>' +
+      '<tr>' + L('الوصف') + W(gr([bx('وجود سلوك ينبغي إلغاؤه: ' + ed('', '')), bx('وجود سلوك ينبغي إيجاده: ' + ed('', '')), bx('وجود سلوك ينبغي إنقاصه: ' + ed('', '')), bx('وجود سلوك ينبغي زيادته: ' + ed('', ''))]), 3) + '</tr>' +
+      '</table>' +
+      '<table class="nf">' +
+      '<tr><th colspan="2">ثانياً: تحديد خط الأساس baseline</th></tr>' +
+      '<tr><th class="sub">السلوك</th><th class="sub">التكرار المبدئي (خط الأساس)</th></tr>' + blank(2, 2) +
+      '<tr><th colspan="2">ثالثاً: عملية التدخل العلاجي</th></tr>' +
+      '<tr><th colspan="2" class="sub">أولاً: الأساليب الخاصة بإيجاد وزيادة السلوك</th></tr>' +
+      '<tr><td colspan="2">1. التدعيــــــــم: ' + lines(1) + '2. تشكيـــل الاستجابـــة: ' + lines(1) + '3. تشكيل المثير (اطفاؤه): ' + lines(1) + '</td></tr>' +
+      '<tr><th colspan="2" class="sub">ثانياً: الأساليب الخاصة بإلغاء وإنقاص السلوك</th></tr>' +
+      '<tr><td colspan="2">1. العقاب التربــــوي: ' + lines(1) + '2. الانطفاء الإجرائي: ' + lines(1) + '3. الممارسة السلبية: ' + lines(1) + '</td></tr>' +
+      '</table>' +
+      '<table class="nf">' +
+      '<tr><th colspan="3">متابعة الحالة</th></tr>' +
+      '<tr><th class="sub" style="width:12%">المتابعة</th><th class="sub" style="width:18%">التاريخ</th><th class="sub">ما يلاحظ على الحالة</th></tr>' + blank(3, 6) +
+      '<tr><th colspan="3">رابعا: تقييم نتائج التدخل العلاجي</th></tr>' +
+      '<tr><th class="sub">السلوك</th><th class="sub">التكرار قبل التدخل</th><th class="sub">التكرار بعد التدخل</th></tr>' + blank(3, 2) +
+      '<tr><td colspan="3" style="text-align:center">نسبة تحقيق الأهداف = <span style="display:inline-block;vertical-align:middle;text-align:center"><span style="display:block;border-bottom:1px solid #111;padding:0 6px">التكرار المبدئي ( &nbsp;&nbsp;&nbsp; ) – التكرار بعد التدخل( &nbsp;&nbsp;&nbsp; )</span><span style="display:block;padding:0 6px">التكرار المبدئــــي ( &nbsp;&nbsp;&nbsp; ) – التكرار المستهدف( &nbsp;&nbsp;&nbsp; )</span></span> X 100 =</td></tr>' +
+      '<tr><th colspan="3">خامسا: رأي الاختصاصي الاجتماعي</th></tr>' +
+      '<tr><td colspan="3">' + gr([bx('استمرار متابعة الحالة لمدة ' + ed('', '')), bx('إشراك الطالب في نشاط مدرسي مناسب.'), bx('تعزيز السلوك الإيجابي .'), bx('تحويل الطالب إلى الاختصاصي النفسي'), bx('تحويل الطالب إلى قسم حماية ورعاية الطلبة.'), bx('إغلاق الحالة بعد تحقق الأهداف واستقرار السلوك &nbsp; / &nbsp;&nbsp; / &nbsp;&nbsp; 202')]) + 'أخرى: ' + ed('', '') + '</td></tr>' +
+      '</table>' +
+      '<table class="nf"><tr><td class="l">اسم الاختصاصي الاجتماعي</td><td class="v">' + e(soc) + '</td><td class="l">التوقيع</td><td class="sgn">&nbsp;</td></tr></table>' + foot();
+  }
+
   function sigs(list) {
     return '<table class="nf-sig"><tr>' + list.map(function (p) { return '<td><b>' + p[0] + '</b><div class="nm">' + (p[1] ? e(p[1]) : '&nbsp;') + '</div><div class="ln">&nbsp;</div></td>'; }).join('') + '</tr></table>';
   }
@@ -463,6 +529,7 @@
   var DEF = {
     f10: { title: 'استمارة تحويل حالة سلوكية', btn: 'التحويل السلوكي', no: 10, build: function (o) { return f10(o); } },
     f9: { title: 'استمارة تحويل حالة غياب', no: 9, build: function (o) { return f9(o); } },
+    f6: { title: 'بحث حالة', btn: 'دراسة الحالة (بحث حالة)', no: 6, pages: 2, build: function (o) { return f6(o); } },
     f5c: { title: 'استمارة جلسة فردية', no: 5, build: function (o) { return f5(o, false); } },
     f5a: { title: 'استمارة جلسة فردية', no: 5, build: function (o) { return f5(o, true); } }
   };
@@ -479,6 +546,8 @@
       var toSpec = tdy ? (o.req.social || o.req.psych || /الإحالة إلى الاختصاصي|الإحالة إلى الأخصائي/.test(txt(o, 'supervisor') + txt(o, 'coordinator'))) : (o.req.social || o.req.psych || Number(o.rep) >= 3);
       if (staff && toSpec && (r !== 'supervisor' || reached(o, 'supervisor'))) out.push('f10');
       if (o.req.social && (r === 'social' || r === 'admin')) out.push('f5c');
+      // التأخير الصباحي: دراسة الحالة في المرة السادسة (نموذج 6 «بحث حالة») — حيث نص الأخصائية «دراسة حالة»
+      if (tdy && o.req.social && /دراسة حالة/.test(txt(o, 'social')) && (r === 'social' || r === 'admin')) out.push('f6');
     } else {
       if (o.kind === 'U' && o.req.social && staff) out.push('f9');
       if (o.req.social && (r === 'social' || r === 'admin')) out.push('f5a');
@@ -500,8 +569,8 @@
     if (kind === 'case') return (b.cases || []).filter(function (c) { return c.id === id; })[0];
     return ((b.abs && b.abs.records) || []).filter(function (a) { return a.id === id; })[0];
   }
-  function fit(paper) { // ورقة واحدة: نصغّر الخط حتى تدخل في A4
-    var maxH = 277 * 3.7795;
+  function fit(paper) { // ورقة واحدة (أو عدد صفحات الاستمارة الأصلية): نصغّر الخط حتى تدخل في A4
+    var maxH = 277 * 3.7795 * ((CUR && CUR.d && CUR.d.pages) || 1);
     var fs = 15;
     paper.style.fontSize = fs + 'px';
     while (paper.scrollHeight > maxH && fs > 8.2) { fs -= 0.3; paper.style.fontSize = fs + 'px'; }
@@ -532,7 +601,7 @@
       '<div class="field"><label class="lbl" for="nf-note">ملاحظة (اختياري)</label><input class="inp" id="nf-note"></div>' +
       '<button class="btn" id="nf-send" type="button">إرسال</button></div>' +
       '<p class="nf-hint">' + (id === 'g1' ? 'نموذج رقم (1) كما في دليل فريق إدارة سلوك الطلبة 2026، تعبّأت بياناته تلقائيًا ولا يُعدَّل نصه. أضيفي توقيعكِ، ودعي الطالبة توقّع إلكترونيًا.' : 'الخانات الزرقاء تعبّأت تلقائيًا. يمكنكِ الكتابة في الخانات المنقطة والتأشير على المربعات قبل الطباعة.') + '</p>' +
-      '<div class="nf-stage"><article class="nf-paper' + (/^[gw]/.test(id) ? ' nf-gdoc' : '') + '" id="nf-paper">' + d.build(o) + '</article></div></div>';
+      '<div class="nf-stage"><article class="nf-paper' + (/^[gw]/.test(id) ? ' nf-gdoc' : '') + (d.pages > 1 ? ' nf-multi' : '') + '" id="nf-paper">' + d.build(o) + '</article></div></div>';
     m.hidden = false; document.body.classList.add('nf-open');
     var paper = document.getElementById('nf-paper');
     fit(paper);
@@ -565,6 +634,17 @@
       paper.classList.remove('nf-snap');
       var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
       var w = 190, h = cv.height * w / cv.width;
+      var pages = (CUR && CUR.d && CUR.d.pages) || 1;
+      if (pages > 1 && h > 277) { // استمارة متعددة الصفحات: تُقسَّم الصورة على صفحات A4
+        var sliceH = Math.floor(cv.width * 277 / 190);
+        for (var y = 0, pg = 0; y < cv.height; y += sliceH, pg++) {
+          var c2 = document.createElement('canvas'); c2.width = cv.width; c2.height = Math.min(sliceH, cv.height - y);
+          var cx = c2.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c2.width, c2.height); cx.drawImage(cv, 0, -y);
+          if (pg) pdf.addPage();
+          pdf.addImage(c2.toDataURL('image/jpeg', 0.92), 'JPEG', 10, 10, 190, c2.height * 190 / c2.width);
+        }
+        return pdf.output('datauristring');
+      }
       if (h > 277) { h = 277; w = cv.width * h / cv.height; }
       pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', (210 - w) / 2, 10, w, h);
       return pdf.output('datauristring');

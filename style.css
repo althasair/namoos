@@ -447,3 +447,6 @@ td.sg-has .sg-txt{visibility:hidden}
 .nf-paper table.nf-w3t{width:70%;margin:6px auto 10px}.nf-paper table.nf-w3t td{text-align:center}
 .nf-w3n{border:1.5px solid #333;border-radius:14px;padding:6px 12px;margin-top:8px;text-align:justify}
 .nf-paper table.nf-w6{width:92%}.nf-paper td.nf-gr{background:#d9d9d9}.nf-w3l{margin:4px 18px 8px;padding:0 18px}
+
+@media print{body.nf-printing #nf-paper.nf-multi{break-inside:auto!important;page-break-inside:auto!important}body.nf-printing #nf-paper.nf-multi table.nf tr{break-inside:avoid}}
+.nf-paper table.nf th.sub{background:#fafafa;font-weight:700}
