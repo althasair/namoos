@@ -82,7 +82,7 @@ function out_(o) {
 }
 
 var PUBLIC = { login: 1, ping: 1 };
-var WRITES = { saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+var WRITES = { requestApproval: 1, approveForm: 1, saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
   recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
   recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
@@ -693,6 +693,8 @@ API.bootstrap = function (me) {
   res.taskCounts = { beh: res.tasks.length - at.length, abs: at.length };
   if (res.abs) delete res.abs.tasks;
   res.unread = unread_(me);
+  try { res.approvals = approvalsFor_(me); } catch (ea) { res.approvals = []; }
+  res.me.vp = isVP_(me);
   return res;
 };
 
@@ -845,9 +847,77 @@ function formRow_(key) {
 }
 API.formState = function (me, req) {
   var key = str_(req.key), r = key ? formRow_(key) : 0;
-  if (!r) return { data: '' };
+  var out = { data: '', approval: approvalOf_(key) };
+  if (!r) return out;
   var v = formSheet_().getRange(r, 2, 1, 3).getValues()[0];
-  return { data: str_(v[0]), at: str_(v[1]), by: str_(v[2]) };
+  out.data = str_(v[0]); out.at = str_(v[1]); out.by = str_(v[2]);
+  return out;
+};
+
+/* ===== اعتماد الاستمارات: الموظفة تطلب الاعتماد ← النائبة الإدارية تعتمد بتوقيعها ← تعود للطالبة/الموظفة موقّعة =====
+ * توقيع النائبة يُنسخ في سجل الاعتماد لحظة اعتمادها هي بنفسها (موافقتها على وضعه في تلك الاستمارة فقط). */
+var APPR_SHEET = 'طلبات الاعتماد';
+var APPR_COLS = ['المعرف', 'وقت الطلب', 'المفتاح', 'طلبتها', 'صفتها', 'الاستمارة', 'الطالبة', 'الشعبة', 'رقم الحالة', 'نوع السجل', 'رمز الاستمارة', 'الحالة', 'المعتمدة', 'وقت الاعتماد', 'التوقيع'];
+function apprSheet_() {
+  var sh = ss_().getSheetByName(APPR_SHEET);
+  if (!sh) { sh = ss_().insertSheet(APPR_SHEET); sh.getRange(1, 1, 1, APPR_COLS.length).setValues([APPR_COLS]); }
+  return sh;
+}
+function apprAll_() {
+  var sh = apprSheet_(), n = sh.getLastRow();
+  if (n < 2) return [];
+  return sh.getRange(2, 1, n - 1, APPR_COLS.length).getValues().map(function (r, i) {
+    return { row: i + 2, id: str_(r[0]), at: str_(r[1]), key: str_(r[2]), by: str_(r[3]), byRole: str_(r[4]), title: str_(r[5]), student: str_(r[6]),
+      section: str_(r[7]), caseId: str_(r[8]), kind: str_(r[9]), form: str_(r[10]), status: str_(r[11]), approver: str_(r[12]), approvedAt: str_(r[13]), sig: str_(r[14]) };
+  });
+}
+function isVP_(me) { return me.role === 'admin' && me.roleAr === 'النائب الإداري'; }
+function apprPublic_(a, withSig) {
+  return { id: a.id, at: a.at, key: a.key, by: a.by, title: a.title, student: a.student, section: a.section, caseId: a.caseId, kind: a.kind, form: a.form,
+    status: a.status, approver: a.approver, approvedAt: a.approvedAt, sig: withSig ? a.sig : undefined };
+}
+function approvalsFor_(me) {
+  var all = apprAll_();
+  if (isVP_(me)) return all.filter(function (a) { return a.status === 'بانتظار الاعتماد' || a.approver === me.name; }).slice(-200).map(function (a) { return apprPublic_(a, false); }).reverse();
+  return all.filter(function (a) { return a.by === me.name; }).slice(-100).map(function (a) { return apprPublic_(a, false); }).reverse();
+}
+function approvalOf_(key) {
+  if (!key) return null;
+  var l = apprAll_().filter(function (a) { return a.key === key; });
+  if (!l.length) return null;
+  var ok = l.filter(function (a) { return a.status === 'معتمدة'; });
+  return apprPublic_(ok.length ? ok[ok.length - 1] : l[l.length - 1], true);
+}
+API.requestApproval = function (me, req) {
+  if (me.role === 'teacher' || me.role === 'daily') throw new Error('غير مسموح');
+  if (isVP_(me)) throw new Error('أنتِ المعتمِدة — اعتمدي مباشرة');
+  var key = str_(req.key);
+  if (!key) throw new Error('الاستمارة غير محددة');
+  var vp = usersByRole_('admin').filter(function (u) { return u.roleAr === 'النائب الإداري'; })[0];
+  if (!vp) throw new Error('لا توجد نائبة إدارية مسجّلة في المستخدمين');
+  var sh = apprSheet_(), prev = apprAll_().filter(function (a) { return a.key === key && a.status === 'بانتظار الاعتماد'; })[0];
+  var row = ['اع-' + Utilities.getUuid().slice(0, 8), now_(), key, me.name, ROLE_LABEL[me.role] || '', str_(req.title), str_(req.student), str_(req.section),
+    str_(req.caseId), str_(req.kind), str_(req.form), 'بانتظار الاعتماد', '', '', ''];
+  if (prev) { row[0] = prev.id; sh.getRange(prev.row, 1, 1, APPR_COLS.length).setValues([row]); }
+  else sh.appendRow(row);
+  append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': now_(), 'من': me.name, 'إلى': vp.name,
+    'الموضوع': 'يرجى الاعتماد: ' + str_(req.title) + ' — ' + str_(req.student), 'النص': 'يرجى اعتماد ' + str_(req.title) + ' للطالبة ' + str_(req.student) + (req.section ? ' (' + str_(req.section) + ')' : '') + '.\nتجدينها في «طلبات الاعتماد».',
+    'الحالة': str_(req.caseId), 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
+  return { ok: true, id: row[0], to: vp.name };
+};
+API.approveForm = function (me, req) {
+  if (!isVP_(me)) throw new Error('الاعتماد للنائبة الإدارية فقط');
+  var a = apprAll_().filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!a) throw new Error('لم أجد الطلب');
+  var sr = sigRow_(me);
+  var sig = sr ? str_(sigSheet_().getRange(sr, 3).getValue()) : '';
+  if (!sig) throw new Error('أضيفي توقيعكِ أولًا من «توقيعي»، ثم اعتمدي');
+  var t = now_();
+  apprSheet_().getRange(a.row, 12, 1, 4).setValues([['معتمدة', me.name, t, sig]]);
+  append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': t, 'من': me.name, 'إلى': a.by,
+    'الموضوع': '✔ تم اعتماد ' + a.title + ' — ' + a.student, 'النص': 'تم اعتماد ' + a.title + ' للطالبة ' + a.student + ' وتوقيعها.\nافتحي الاستمارة من الحالة، وستجدينها موقّعة وجاهزة للطباعة.',
+    'الحالة': a.caseId, 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
+  return { ok: true, approvedAt: t };
 };
 API.saveFormState = function (me, req) {
   if (me.role === 'teacher' || me.role === 'daily') throw new Error('غير مسموح');

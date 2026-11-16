@@ -55,7 +55,7 @@
         throw new Error('تعذّر الاتصال بالمنصة — تحققي من الإنترنت');
       });
   }
-  if (window.NamoosForms) setTimeout(function () { NamoosForms.init({ S: S, api: api, toast: toast, esc: esc, ar: ar, arFull: arFull }); }, 0);
+  if (window.NamoosForms) setTimeout(function () { NamoosForms.init({ S: S, api: api, toast: toast, esc: esc, ar: ar, arFull: arFull, refresh: function () { return refresh(true); } }); }, 0);
   if (window.NamoosSig) setTimeout(function () { NamoosSig.init({ S: S, api: api, toast: toast }); }, 0);
   function toast(msg, kind, ms) {
     var t = $('#toast'); if (t) t.remove();
@@ -117,7 +117,7 @@
     var b = $('#bellBadge'); if (b) { b.textContent = unread; b.classList.toggle('hidden', !unread); }
     var tc = S.taskCounts || { beh: tasks, abs: 0 };
     var sp = srcCounts();
-    [['tasks', tc.beh], ['tasksS', sp.s], ['tasksT', sp.t], ['abstasks', tc.abs], ['board', (tc.beh || 0) + (tc.abs || 0)], ['sec-beh', tc.beh], ['sec-abs', tc.abs]].forEach(function (p) {
+    [['tasks', tc.beh], ['tasksS', sp.s], ['tasksT', sp.t], ['abstasks', tc.abs], ['board', (tc.beh || 0) + (tc.abs || 0)], ['sec-beh', tc.beh], ['sec-abs', tc.abs], ['appr', S.me && S.me.vp ? apprPending().length : 0]].forEach(function (p) {
       $$('[data-count="' + p[0] + '"]').forEach(function (el) { el.textContent = p[1]; el.classList.toggle('hidden', !p[1]); });
     });
     $$('[data-count="messages"]').forEach(function (el) { el.textContent = unread; el.classList.toggle('hidden', !unread); });
@@ -187,7 +187,14 @@
     admin: [['absDash', 'لوحة الغياب'], ['report', 'التقرير الشهري'], ['absTasks', 'مهام الغياب', 'abstasks'], ['studFile', 'ملف الطالبات'], ['absLog', 'سجل الغياب'], ['absStud', 'متابعة الطالبات'], ['absDep', 'المحرومات'], ['staff', 'طباعة الإجراءات'], ['messages', 'الرسائل', 'messages']]
   };
   function hasAbs() { return !!(S.boot && S.boot.abs); }
-  function navList() { return (S.sec === 'abs' && hasAbs() ? NAV_ABS : NAV)[S.me.role]; }
+  function navList() {
+    var l = ((S.sec === 'abs' && hasAbs() ? NAV_ABS : NAV)[S.me.role] || []).slice();
+    if (S.me.vp) l.splice(1, 0, ['approvals', 'طلبات الاعتماد', 'appr']);
+    else if (S.me.role !== 'teacher' && S.me.role !== 'daily') l.push(['approvals', 'طلباتي للاعتماد']);
+    if (S.me.role !== 'daily') l.push(['mySig', '✍ توقيعي']);
+    return l;
+  }
+  function apprPending() { return ((S.boot && S.boot.approvals) || []).filter(function (a) { return a.status === 'بانتظار الاعتماد'; }); }
   function setSec(sec, v) {
     S.sec = sec; store('namoos_sec', sec);
     S.view = v || navList()[0][0];
@@ -203,6 +210,7 @@
       shell();
       setBadges(b.unread, b.tasks.length);
       if (b.tasks.length || b.unread) showTasksModal();
+      if (S.me.vp && apprPending().length) setTimeout(showApprModal, b.tasks.length || b.unread ? 400 : 0);
       startPoll();
     }).catch(function (e) { if (S.token) renderLogin(e.message); });
   }
@@ -235,7 +243,7 @@
     $$('.nav button').forEach(function (b) { if (b.dataset.v === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     var m = $('#main'); if (!m) return;
     var fn = { record: vRecord, mine: vMine, tasks: function (e) { vTasks(e); }, tTasks: vTTasks, cases: vCases, outside: vOutside, tardy: vTardy, messages: vMessages, dash: vDash, report: vReport,
-      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily, myLog: vMyLog, staff: vStaff, studFile: vStudFile, board: vBoard }[v];
+      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily, myLog: vMyLog, staff: vStaff, studFile: vStudFile, board: vBoard, mySig: vMySig, approvals: vApprovals }[v];
     m.innerHTML = secSwitch() + welcome() + '<div id="vw"></div>';
     $$('[data-sec]', m).forEach(function (b) { b.onclick = function () { if (b.dataset.sec !== S.sec) setSec(b.dataset.sec); }; });
     fn($('#vw'));
@@ -250,6 +258,50 @@
   }
   function welcome() {
     return '<div class="welcome"><b>مرحبًا أ. ' + esc(S.me.name) + '</b><span class="tg">' + T2 + '</span></div>';
+  }
+
+  /* ---------------- توقيعي (كما في سنابل والميزان): كل حساب يضيف توقيعه ويتحكم فيه وحده ---------------- */
+  function vMySig(el) {
+    el.innerHTML = '<h2>✍ توقيعي</h2><div class="card"><p class="sub">توقيعكِ خاص بكِ: يُحفظ باسمكِ، ويوضع تلقائيًا في خانة توقيعكِ بكل استمارة وتقرير يحمل اسمكِ، ويمكنكِ إزالته من أي ورقة بعلامة ×.</p>' +
+      '<div id="msg-cur" class="msig">جارٍ التحميل…</div><div class="row" style="gap:10px;flex-wrap:wrap;margin-top:12px"><button class="btn" id="msg-ed" type="button">✍ إضافة / تغيير توقيعي</button></div></div>';
+    var show = function () {
+      api('mySignature', {}, true).then(function (r) {
+        var c = $('#msg-cur'); if (!c) return;
+        c.innerHTML = r.data ? '<span>توقيعكِ المحفوظ:</span><img src="' + r.data + '" alt="توقيعي">' : '<span class="muted">لم تضيفي توقيعكِ بعد.</span>';
+      }).catch(function (e) { var c = $('#msg-cur'); if (c) c.textContent = e.message; });
+    };
+    show();
+    $('#msg-ed').onclick = function () { if (window.NamoosSig) { NamoosSig.reset(); NamoosSig.open(function () { show(); }); } };
+  }
+
+  /* ---------------- طلبات الاعتماد ---------------- */
+  function vApprovals(el) {
+    var all = (S.boot && S.boot.approvals) || [], vp = S.me.vp;
+    var pend = all.filter(function (a) { return a.status === 'بانتظار الاعتماد'; }), done = all.filter(function (a) { return a.status === 'معتمدة'; });
+    var row = function (a) {
+      return '<div class="card apr"><div class="row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><div><b>' + esc(a.student) + '</b> <span class="muted">' + esc(a.section) + '</span><div>' + esc(a.title) + '</div>' +
+        '<div class="muted" style="font-size:13px">' + (vp ? 'طلبتها: أ. ' + esc(a.by) + ' — ' : '') + esc(String(a.at).replace('T', ' ').slice(0, 16)) +
+        (a.status === 'معتمدة' ? ' • ✔ معتمدة ' + esc(String(a.approvedAt).replace('T', ' ').slice(0, 16)) : ' • ⏳ بانتظار الاعتماد') + '</div></div>' +
+        '<button class="btn' + (vp && a.status !== 'معتمدة' ? '' : ' sec') + '" type="button" data-apr="' + esc(a.id) + '">' + (vp && a.status !== 'معتمدة' ? '✔ فتح واعتماد' : '🖨 فتح الاستمارة') + '</button></div></div>';
+    };
+    el.innerHTML = '<h2>' + (vp ? 'طلبات الاعتماد' : 'طلباتي للاعتماد') + '</h2>' +
+      '<p class="sub">' + (vp ? 'افتحي الاستمارة وراجعيها، ثم اضغطي «✔ اعتماد وتوقيع»؛ يوضع توقيعكِ في خانتكِ فقط، وتعود الاستمارة موقّعة لمن طلبتها.' : 'الاستمارات التي أرسلتِها للنائبة الإدارية للاعتماد. بعد اعتمادها تفتحينها فتجدينها موقّعة وجاهزة للطباعة.') + '</p>' +
+      '<h3>' + (vp ? 'يرجى الاعتماد' : 'بانتظار الاعتماد') + ' (' + pend.length + ')</h3>' + (pend.length ? pend.map(row).join('') : '<p class="muted">لا يوجد.</p>') +
+      '<h3>المعتمدة (' + done.length + ')</h3>' + (done.length ? done.map(row).join('') : '<p class="muted">لا يوجد.</p>');
+    $$('[data-apr]', el).forEach(function (b) { b.onclick = function () {
+      var a = all.filter(function (x) { return x.id === b.dataset.apr; })[0]; if (!a || !window.NamoosForms) return;
+      NamoosForms._open(a.form, a.kind, a.caseId, a);
+    }; });
+  }
+  function showApprModal() {
+    if (document.getElementById('apm')) return;
+    var n = apprPending().length; if (!n) return;
+    var m = document.createElement('div'); m.className = 'modal'; m.id = 'apm';
+    m.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="apmh"><h2 id="apmh">✍ يرجى الاعتماد</h2><p>لديكِ <b>' + n + '</b> ' + (n === 1 ? 'استمارة تنتظر' : 'استمارات تنتظر') + ' اعتمادكِ وتوقيعكِ.</p>' +
+      '<div class="row" style="gap:10px"><button class="btn" id="apgo" type="button">عرض طلبات الاعتماد</button><button class="btn sec" id="apx" type="button">لاحقًا</button></div></div>';
+    document.body.appendChild(m);
+    $('#apgo').onclick = function () { m.remove(); var t = document.getElementById('tm'); if (t) t.remove(); view('approvals'); };
+    $('#apx').onclick = function () { m.remove(); };
   }
 
   /* ---------------- نافذة المهام عند الدخول ---------------- */
