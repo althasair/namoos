@@ -153,5 +153,5 @@
       var h = m.querySelector('.sub'); if (h) h.insertAdjacentHTML('beforebegin', '<div class="why" style="margin:6px 0">مرحبًا بكِ 🌿 أضيفي توقيعكِ مرة واحدة، وسيظهر تلقائيًا في خانة توقيعكِ بكل النماذج والتقارير. يمكنكِ تغييره لاحقًا من أيقونة ✍ في الأعلى.</div>');
     }).catch(function () {});
   }
-  window.NamoosSig = { init: function (ctx) { N = ctx; }, open: function (cb) { pad(cb); }, place: place, decorate: decorate, autoMine: autoMine, askOnce: askOnce, reset: function () { CACHE = null; } };
+  window.NamoosSig = { init: function (ctx) { N = ctx; }, open: function (cb) { pad(cb); }, place: place, mine: get, decorate: decorate, autoMine: autoMine, askOnce: askOnce, reset: function () { CACHE = null; } };
 })();

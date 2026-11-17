@@ -462,3 +462,6 @@ td.sg-has .sg-txt{visibility:hidden}
 
 .mylog h3.mlgh{margin:16px 0 6px;font-size:15px;border-right:4px solid #13235B;padding-right:8px}.mylog h3.mlgh span{color:#667;font-weight:400}
 @media print{.mylog h3.mlgh{break-after:avoid}}
+
+.apreq{margin-top:6px;font-size:13px;background:#fff8e1;border:1px solid #f0d27a;border-radius:6px;padding:6px 8px}
+.nf-apst .w{color:#7a4b00}

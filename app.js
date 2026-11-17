@@ -117,7 +117,7 @@
     var b = $('#bellBadge'); if (b) { b.textContent = unread; b.classList.toggle('hidden', !unread); }
     var tc = S.taskCounts || { beh: tasks, abs: 0 };
     var sp = srcCounts();
-    [['tasks', tc.beh], ['tasksS', sp.s], ['tasksT', sp.t], ['abstasks', tc.abs], ['board', (tc.beh || 0) + (tc.abs || 0)], ['sec-beh', tc.beh], ['sec-abs', tc.abs], ['appr', S.me && S.me.vp ? apprPending().length : 0]].forEach(function (p) {
+    [['tasks', tc.beh], ['tasksS', sp.s], ['tasksT', sp.t], ['abstasks', tc.abs], ['board', (tc.beh || 0) + (tc.abs || 0)], ['sec-beh', tc.beh], ['sec-abs', tc.abs], ['appr', S.me ? apprPending().length : 0]].forEach(function (p) {
       $$('[data-count="' + p[0] + '"]').forEach(function (el) { el.textContent = p[1]; el.classList.toggle('hidden', !p[1]); });
     });
     $$('[data-count="messages"]').forEach(function (el) { el.textContent = unread; el.classList.toggle('hidden', !unread); });
@@ -189,12 +189,12 @@
   function hasAbs() { return !!(S.boot && S.boot.abs); }
   function navList() {
     var l = ((S.sec === 'abs' && hasAbs() ? NAV_ABS : NAV)[S.me.role] || []).slice();
-    if (S.me.vp) l.splice(1, 0, ['approvals', 'طلبات الاعتماد', 'appr']);
-    else if (S.me.role !== 'teacher' && S.me.role !== 'daily') l.push(['approvals', 'طلباتي للاعتماد']);
+    if (S.me.role !== 'teacher' && S.me.role !== 'daily') l.splice(1, 0, ['approvals', 'طلبات الاعتماد', 'appr']);
+    if (S.me.role === 'admin') l.push(['backup', '💾 النسخ الاحتياطية']);
     if (S.me.role !== 'daily') l.push(['mySig', '✍ توقيعي']);
     return l;
   }
-  function apprPending() { return ((S.boot && S.boot.approvals) || []).filter(function (a) { return a.status === 'بانتظار الاعتماد'; }); }
+  function apprPending() { return ((S.boot && S.boot.approvals) || []).filter(function (a) { return a.status === 'بانتظار الاعتماد' && a.to === S.me.name; }); }
   function setSec(sec, v) {
     S.sec = sec; store('namoos_sec', sec);
     S.view = v || navList()[0][0];
@@ -210,7 +210,7 @@
       shell();
       setBadges(b.unread, b.tasks.length);
       if (b.tasks.length || b.unread) showTasksModal();
-      if (S.me.vp && apprPending().length) setTimeout(showApprModal, b.tasks.length || b.unread ? 400 : 0);
+      if (apprPending().length) setTimeout(showApprModal, b.tasks.length || b.unread ? 400 : 0);
       startPoll();
     }).catch(function (e) { if (S.token) renderLogin(e.message); });
   }
@@ -243,7 +243,7 @@
     $$('.nav button').forEach(function (b) { if (b.dataset.v === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     var m = $('#main'); if (!m) return;
     var fn = { record: vRecord, mine: vMine, tasks: function (e) { vTasks(e); }, tTasks: vTTasks, cases: vCases, outside: vOutside, tardy: vTardy, messages: vMessages, dash: vDash, report: vReport,
-      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily, myLog: vMyLog, staff: vStaff, studFile: vStudFile, board: vBoard, mySig: vMySig, approvals: vApprovals }[v];
+      absRec: vAbsRec, absMine: vAbsMine, absTasks: vAbsTasks, absLog: vAbsLog, absStud: vAbsStud, absDep: vAbsDep, absDash: vAbsDash, dTardy: vDaily, dAbs: vDaily, myLog: vMyLog, staff: vStaff, studFile: vStudFile, board: vBoard, mySig: vMySig, approvals: vApprovals, backup: vBackup }[v];
     m.innerHTML = secSwitch() + welcome() + '<div id="vw"></div>';
     $$('[data-sec]', m).forEach(function (b) { b.onclick = function () { if (b.dataset.sec !== S.sec) setSec(b.dataset.sec); }; });
     fn($('#vw'));
@@ -276,28 +276,54 @@
 
   /* ---------------- طلبات الاعتماد ---------------- */
   function vApprovals(el) {
-    var all = (S.boot && S.boot.approvals) || [], vp = S.me.vp;
-    var pend = all.filter(function (a) { return a.status === 'بانتظار الاعتماد'; }), done = all.filter(function (a) { return a.status === 'معتمدة'; });
-    var row = function (a) {
-      return '<div class="card apr"><div class="row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><div><b>' + esc(a.student) + '</b> <span class="muted">' + esc(a.section) + '</span><div>' + esc(a.title) + '</div>' +
-        '<div class="muted" style="font-size:13px">' + (vp ? 'طلبتها: أ. ' + esc(a.by) + ' — ' : '') + esc(String(a.at).replace('T', ' ').slice(0, 16)) +
-        (a.status === 'معتمدة' ? ' • ✔ معتمدة ' + esc(String(a.approvedAt).replace('T', ' ').slice(0, 16)) : ' • ⏳ بانتظار الاعتماد') + '</div></div>' +
-        '<button class="btn' + (vp && a.status !== 'معتمدة' ? '' : ' sec') + '" type="button" data-apr="' + esc(a.id) + '">' + (vp && a.status !== 'معتمدة' ? '✔ فتح واعتماد' : '🖨 فتح الاستمارة') + '</button></div></div>';
+    var all = (S.boot && S.boot.approvals) || [], me = S.me.name, adm = S.me.role === 'admin';
+    var myStage = { supervisor: 'supervisor', coordinator: 'coordinator', social: 'social', psych: 'psych', admin: 'admin' }[S.me.role];
+    var reqTxt = function (a) {
+      var arr = a.kind === 'abs' ? (S.boot.abs && S.boot.abs.records) : S.boot.cases;
+      var o = (arr || []).filter(function (x) { return x.id === a.caseId; })[0];
+      var t = o && o.text ? o.text[myStage] : ''; return t ? '<div class="apreq"><b>المطلوب منكِ حسب السياسة:</b> ' + esc(t) + '</div>' : '';
     };
-    el.innerHTML = '<h2>' + (vp ? 'طلبات الاعتماد' : 'طلباتي للاعتماد') + '</h2>' +
-      '<p class="sub">' + (vp ? 'افتحي الاستمارة وراجعيها، ثم اضغطي «✔ اعتماد وتوقيع»؛ يوضع توقيعكِ في خانتكِ فقط، وتعود الاستمارة موقّعة لمن طلبتها.' : 'الاستمارات التي أرسلتِها للنائبة الإدارية للاعتماد. بعد اعتمادها تفتحينها فتجدينها موقّعة وجاهزة للطباعة.') + '</p>' +
-      '<h3>' + (vp ? 'يرجى الاعتماد' : 'بانتظار الاعتماد') + ' (' + pend.length + ')</h3>' + (pend.length ? pend.map(row).join('') : '<p class="muted">لا يوجد.</p>') +
-      '<h3>المعتمدة (' + done.length + ')</h3>' + (done.length ? done.map(row).join('') : '<p class="muted">لا يوجد.</p>');
+    var dt = function (x) { return esc(String(x || '').replace('T', ' ').slice(0, 16)); };
+    var card = function (a, act) {
+      return '<div class="card apr"><div class="row" style="justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start"><div style="min-width:0;flex:1"><b>' + esc(a.student) + '</b> <span class="muted">' + esc(a.section) + '</span> — ' + esc(a.title) +
+        '<div class="muted" style="font-size:13px">من أ. ' + esc(a.by) + ' إلى أ. ' + esc(a.to) + ' — ' + dt(a.at) + (a.status === 'معتمدة' ? ' • ✔ اعتُمدت ' + dt(a.approvedAt) : ' • ⏳ لم يتم الإجراء بعد') + '</div>' + (act ? reqTxt(a) : '') + '</div>' +
+        '<button class="btn' + (act ? '' : ' sec') + '" type="button" data-apr="' + esc(a.id) + '">' + (act ? '✔ فتح والاعتماد بالتوقيع' : '🖨 فتح الاستمارة') + '</button></div></div>';
+    };
+    var sec = function (t, l, act, empty) { return '<h3>' + t + ' (' + l.length + ')</h3>' + (l.length ? l.map(function (a) { return card(a, act); }).join('') : '<p class="muted">' + (empty || 'لا يوجد.') + '</p>'); };
+    var toMe = all.filter(function (a) { return a.to === me && a.status === 'بانتظار الاعتماد'; });
+    var byMe = all.filter(function (a) { return a.by === me; });
+    var mon = adm ? all.filter(function (a) { return a.status === 'بانتظار الاعتماد' && a.to !== me; }) : [];
+    var doneMe = all.filter(function (a) { return a.to === me && a.status === 'معتمدة'; });
+    el.innerHTML = '<h2>طلبات الاعتماد</h2><p class="sub">الاستمارات تُرسل للاعتماد داخل المنصة: تفتحينها، تضيفين توقيعكِ، وتنفّذين الإجراء المطلوب منكِ، ثم «✔ اعتماد وتوقيع» فتعود موقّعة لمن أرسلتها.</p>' +
+      sec('يرجى اعتمادها منكِ', toMe, true, 'لا توجد طلبات تنتظركِ 🌿') +
+      (adm ? sec('متابعة الإدارة: أُرسلت للاعتماد ولم يتم الإجراء بعد', mon, false) : '') +
+      sec('ما أرسلتُه للاعتماد', byMe, false) +
+      (doneMe.length ? sec('ما اعتمدتُه', doneMe.slice(0, 50), false) : '');
     $$('[data-apr]', el).forEach(function (b) { b.onclick = function () {
       var a = all.filter(function (x) { return x.id === b.dataset.apr; })[0]; if (!a || !window.NamoosForms) return;
       NamoosForms._open(a.form, a.kind, a.caseId, a);
     }; });
   }
+  /* ---------------- النسخ الاحتياطية (كما في سنابل) ---------------- */
+  function vBackup(el) {
+    el.innerHTML = '<h2>💾 النسخ الاحتياطية</h2><p class="sub">نسخة كاملة من بيانات نوماس (الشيت بكل أوراقه) تُحفظ في مجلد «نسخ نوماس الاحتياطية» على Google Drive. لا تُحذف أي نسخة، ويمكنكِ فتح أي نسخة واسترجاع ما تحتاجينه منها.</p><div id="bkx" class="card">جارٍ التحميل…</div>';
+    var draw = function (r) {
+      var x = $('#bkx'); if (!x) return;
+      x.innerHTML = '<div class="row" style="gap:10px;flex-wrap:wrap;align-items:center"><button class="btn" id="bknow" type="button">💾 حفظ نسخة الآن</button>' +
+        '<label class="mlchk"><input type="checkbox" id="bkauto"' + (r.auto ? ' checked' : '') + '> نسخة تلقائية كل أسبوع (الخميس 2 ظهرًا)</label>' +
+        (r.folder ? '<a class="btn sec" href="' + esc(r.folder) + '" target="_blank" rel="noopener">📁 فتح مجلد النسخ</a>' : '') + '</div>' +
+        '<h3>آخر النسخ (' + (r.list || []).length + ')</h3>' + ((r.list || []).length ? '<div class="tw"><table class="t"><thead><tr><th>النسخة</th><th>التاريخ</th><th></th></tr></thead><tbody>' + r.list.map(function (b) {
+          return '<tr><td>' + esc(b.name) + '</td><td class="nw">' + esc(b.at) + '</td><td><a href="' + esc(b.url) + '" target="_blank" rel="noopener">فتح</a></td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="muted">لا توجد نسخ بعد.</p>');
+      $('#bknow').onclick = function () { var b = this; b.disabled = true; b.textContent = 'جارٍ الحفظ…'; api('backupNow').then(function (r2) { toast('✔ حُفظت نسخة: ' + r2.made.name, 'ok', 5000); draw(r2); }).catch(function (e) { b.disabled = false; b.textContent = '💾 حفظ نسخة الآن'; fail(e); }); };
+      $('#bkauto').onchange = function () { var on = this.checked; api('setAutoBackup', { on: on }).then(function (r2) { toast(on ? '✔ فُعّلت النسخة الأسبوعية التلقائية' : 'أُوقفت النسخة التلقائية', 'ok'); draw(r2); }).catch(fail); };
+    };
+    api('backups', {}, true).then(draw).catch(function (e) { var x = $('#bkx'); if (x) x.textContent = e.message; });
+  }
   function showApprModal() {
     if (document.getElementById('apm')) return;
     var n = apprPending().length; if (!n) return;
     var m = document.createElement('div'); m.className = 'modal'; m.id = 'apm';
-    m.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="apmh"><h2 id="apmh">✍ يرجى الاعتماد</h2><p>لديكِ <b>' + n + '</b> ' + (n === 1 ? 'استمارة تنتظر' : 'استمارات تنتظر') + ' اعتمادكِ وتوقيعكِ.</p>' +
+    m.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="apmh"><h2 id="apmh">✍ يرجى الاعتماد</h2><p>لديكِ <b>' + n + '</b> ' + (n === 1 ? 'استمارة مرسلة إليكِ تنتظر' : 'استمارات مرسلة إليكِ تنتظر') + ' اعتمادكِ وتوقيعكِ وتنفيذ الإجراء المطلوب.</p>' +
       '<div class="row" style="gap:10px"><button class="btn" id="apgo" type="button">عرض طلبات الاعتماد</button><button class="btn sec" id="apx" type="button">لاحقًا</button></div></div>';
     document.body.appendChild(m);
     $('#apgo').onclick = function () { m.remove(); var t = document.getElementById('tm'); if (t) t.remove(); view('approvals'); };

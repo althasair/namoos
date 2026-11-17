@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.19.0';
+var VERSION = '2.20.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -82,7 +82,7 @@ function out_(o) {
 }
 
 var PUBLIC = { login: 1, ping: 1 };
-var WRITES = { fixStageDoc: 1, requestApproval: 1, approveForm: 1, saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+var WRITES = { backupNow: 1, setAutoBackup: 1, fixStageDoc: 1, requestApproval: 1, approveForm: 1, saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
   recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
   recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
@@ -694,6 +694,17 @@ API.bootstrap = function (me) {
   if (res.abs) delete res.abs.tasks;
   res.unread = unread_(me);
   try { res.approvals = approvalsFor_(me); } catch (ea) { res.approvals = []; }
+  // الحالات المرتبطة بطلبات الاعتماد تُضاف للمستلمة حتى لو لم تكن ضمن حالاتها، لتفتح الاستمارة وتعتمدها
+  try {
+    var haveC = {}; (res.cases || []).forEach(function (c) { haveC[c.id] = 1; });
+    var needC = {}, needA = {};
+    res.approvals.forEach(function (x) { if (x.kind === 'abs') needA[x.caseId] = 1; else if (!haveC[x.caseId]) needC[x.caseId] = 1; });
+    if (Object.keys(needC).length) { res.cases = res.cases || []; data.cases.forEach(function (c) { if (needC[c.id]) res.cases.push(casePublic_(c)); }); }
+    if (res.abs && Object.keys(needA).length) {
+      var haveA = {}; (res.abs.records || []).forEach(function (r) { haveA[r.id] = 1; });
+      absData_().forEach(function (r) { if (needA[r.id] && !haveA[r.id]) res.abs.records.push(absPublic_(r)); });
+    }
+  } catch (ec) {}
   res.me.vp = isVP_(me);
   return res;
 };
@@ -857,58 +868,60 @@ API.formState = function (me, req) {
 /* ===== اعتماد الاستمارات: الموظفة تطلب الاعتماد ← النائبة الإدارية تعتمد بتوقيعها ← تعود للطالبة/الموظفة موقّعة =====
  * توقيع النائبة يُنسخ في سجل الاعتماد لحظة اعتمادها هي بنفسها (موافقتها على وضعه في تلك الاستمارة فقط). */
 var APPR_SHEET = 'طلبات الاعتماد';
-var APPR_COLS = ['المعرف', 'وقت الطلب', 'المفتاح', 'طلبتها', 'صفتها', 'الاستمارة', 'الطالبة', 'الشعبة', 'رقم الحالة', 'نوع السجل', 'رمز الاستمارة', 'الحالة', 'المعتمدة', 'وقت الاعتماد', 'التوقيع'];
+var APPR_COLS = ['المعرف', 'وقت الطلب', 'المفتاح', 'طلبتها', 'صفتها', 'الاستمارة', 'الطالبة', 'الشعبة', 'رقم الحالة', 'نوع السجل', 'رمز الاستمارة', 'الحالة', 'المعتمدة', 'وقت الاعتماد', 'التوقيع', 'إلى'];
 function apprSheet_() {
   var sh = ss_().getSheetByName(APPR_SHEET);
   if (!sh) { sh = ss_().insertSheet(APPR_SHEET); sh.getRange(1, 1, 1, APPR_COLS.length).setValues([APPR_COLS]); }
+  else if (str_(sh.getRange(1, APPR_COLS.length).getValue()) !== 'إلى') sh.getRange(1, APPR_COLS.length).setValue('إلى');
   return sh;
 }
+function vpName_() { var vp = usersByRole_('admin').filter(function (u) { return u.roleAr === 'النائب الإداري'; })[0]; return vp ? vp.name : ''; }
 function apprAll_() {
   var sh = apprSheet_(), n = sh.getLastRow();
   if (n < 2) return [];
   return sh.getRange(2, 1, n - 1, APPR_COLS.length).getValues().map(function (r, i) {
     return { row: i + 2, id: str_(r[0]), at: str_(r[1]), key: str_(r[2]), by: str_(r[3]), byRole: str_(r[4]), title: str_(r[5]), student: str_(r[6]),
-      section: str_(r[7]), caseId: str_(r[8]), kind: str_(r[9]), form: str_(r[10]), status: str_(r[11]), approver: str_(r[12]), approvedAt: str_(r[13]), sig: str_(r[14]) };
+      section: str_(r[7]), caseId: str_(r[8]), kind: str_(r[9]), form: str_(r[10]), status: str_(r[11]), approver: str_(r[12]), approvedAt: str_(r[13]), sig: str_(r[14]), to: str_(r[15]) || vpName_() };
   });
 }
 function isVP_(me) { return me.role === 'admin' && me.roleAr === 'النائب الإداري'; }
 function apprPublic_(a, withSig) {
   return { id: a.id, at: a.at, key: a.key, by: a.by, title: a.title, student: a.student, section: a.section, caseId: a.caseId, kind: a.kind, form: a.form,
-    status: a.status, approver: a.approver, approvedAt: a.approvedAt, sig: withSig ? a.sig : undefined };
+    status: a.status, approver: a.approver, approvedAt: a.approvedAt, to: a.to, sig: withSig && a.status === 'معتمدة' ? a.sig : undefined };
 }
+/* طلبات الاعتماد داخل المنصة: ما أُرسل إليّ، وما أرسلته أنا، والإدارة (النائبة الإدارية ومديرة المدرسة والنائبة الأكاديمية) ترى كل ما لم يُعتمد بعد للمتابعة */
 function approvalsFor_(me) {
-  var all = apprAll_();
-  if (isVP_(me)) return all.filter(function (a) { return a.status === 'بانتظار الاعتماد' || a.approver === me.name; }).slice(-200).map(function (a) { return apprPublic_(a, false); }).reverse();
-  return all.filter(function (a) { return a.by === me.name; }).slice(-100).map(function (a) { return apprPublic_(a, false); }).reverse();
+  var all = apprAll_(), adm = me.role === 'admin';
+  return all.filter(function (a) { return a.to === me.name || a.by === me.name || (adm && (a.status === 'بانتظار الاعتماد' || a.approvedAt >= addDaysIso_(today_(), -30))); })
+    .slice(-300).map(function (a) { return apprPublic_(a, false); }).reverse();
 }
+function addDaysIso_(d, n) { var x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return Utilities.formatDate(x, TZ, 'yyyy-MM-dd'); }
 function approvalOf_(key) {
-  if (!key) return null;
-  var l = apprAll_().filter(function (a) { return a.key === key; });
-  if (!l.length) return null;
-  var ok = l.filter(function (a) { return a.status === 'معتمدة'; });
-  return apprPublic_(ok.length ? ok[ok.length - 1] : l[l.length - 1], true);
+  if (!key) return [];
+  return apprAll_().filter(function (a) { return a.key === key; }).map(function (a) { return apprPublic_(a, true); });
 }
 API.requestApproval = function (me, req) {
   if (me.role === 'teacher' || me.role === 'daily') throw new Error('غير مسموح');
-  if (isVP_(me)) throw new Error('أنتِ المعتمِدة — اعتمدي مباشرة');
   var key = str_(req.key);
   if (!key) throw new Error('الاستمارة غير محددة');
-  var vp = usersByRole_('admin').filter(function (u) { return u.roleAr === 'النائب الإداري'; })[0];
-  if (!vp) throw new Error('لا توجد نائبة إدارية مسجّلة في المستخدمين');
-  var sh = apprSheet_(), prev = apprAll_().filter(function (a) { return a.key === key && a.status === 'بانتظار الاعتماد'; })[0];
+  var toName = str_(req.to) || vpName_();
+  var vp = users_().filter(function (u) { return u.name === toName && u.role !== 'teacher' && u.role !== 'daily'; })[0];
+  if (!vp) throw new Error('لم أجد المستلمة «' + toName + '» في المستخدمين');
+  if (vp.name === me.name) throw new Error('لا يمكن إرسال الاعتماد لنفسكِ');
+  var sh = apprSheet_(), prev = apprAll_().filter(function (a) { return a.key === key && a.to === vp.name && a.status === 'بانتظار الاعتماد'; })[0];
   var row = ['اع-' + Utilities.getUuid().slice(0, 8), now_(), key, me.name, ROLE_LABEL[me.role] || '', str_(req.title), str_(req.student), str_(req.section),
-    str_(req.caseId), str_(req.kind), str_(req.form), 'بانتظار الاعتماد', '', '', ''];
+    str_(req.caseId), str_(req.kind), str_(req.form), 'بانتظار الاعتماد', '', '', '', vp.name];
   if (prev) { row[0] = prev.id; sh.getRange(prev.row, 1, 1, APPR_COLS.length).setValues([row]); }
   else sh.appendRow(row);
   append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': now_(), 'من': me.name, 'إلى': vp.name,
-    'الموضوع': 'يرجى الاعتماد: ' + str_(req.title) + ' — ' + str_(req.student), 'النص': 'يرجى اعتماد ' + str_(req.title) + ' للطالبة ' + str_(req.student) + (req.section ? ' (' + str_(req.section) + ')' : '') + '.\nتجدينها في «طلبات الاعتماد».',
+    'الموضوع': 'يرجى الاعتماد: ' + str_(req.title) + ' — ' + str_(req.student), 'النص': 'يرجى اعتماد ' + str_(req.title) + ' للطالبة ' + str_(req.student) + (req.section ? ' (' + str_(req.section) + ')' : '') + ' وتوقيعها وتنفيذ الإجراء المطلوب منكِ.\nتجدينها في «طلبات الاعتماد».',
     'الحالة': str_(req.caseId), 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
   return { ok: true, id: row[0], to: vp.name };
 };
 API.approveForm = function (me, req) {
-  if (!isVP_(me)) throw new Error('الاعتماد للنائبة الإدارية فقط');
   var a = apprAll_().filter(function (x) { return x.id === str_(req.id); })[0];
   if (!a) throw new Error('لم أجد الطلب');
+  if (a.to !== me.name) throw new Error('هذا الطلب مُرسل إلى أ. ' + a.to + ' للاعتماد');
   var sr = sigRow_(me);
   var sig = sr ? str_(sigSheet_().getRange(sr, 3).getValue()) : '';
   if (!sig) throw new Error('أضيفي توقيعكِ أولًا من «توقيعي»، ثم اعتمدي');
@@ -930,6 +943,44 @@ API.saveFormState = function (me, req) {
 };
 
 var NO_REPLY = 'لم يرد ولي الأمر — تم إرسال رسالة نصية';
+/* ===== النسخ الاحتياطية (كما في سنابل): نسخة كاملة من الشيت في مجلد «نسخ نوماس الاحتياطية» على Drive — لا تُحذف أي نسخة ===== */
+var BK_FOLDER = 'نسخ نوماس الاحتياطية';
+function bkFolder_() {
+  var it = DriveApp.getFoldersByName(BK_FOLDER);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(BK_FOLDER);
+}
+function makeBackup_(by) {
+  var f = DriveApp.getFileById(ss_().getId());
+  var name = 'نسخة نوماس — ' + Utilities.formatDate(new Date(), 'Asia/Qatar', 'yyyy-MM-dd HH:mm') + (by ? ' — ' + by : '');
+  var c = f.makeCopy(name, bkFolder_());
+  return { name: name, url: c.getUrl(), at: now_() };
+}
+function backupList_() {
+  var out = [], it = bkFolder_().getFiles();
+  while (it.hasNext()) { var f = it.next(); out.push({ name: f.getName(), url: f.getUrl(), at: Utilities.formatDate(f.getDateCreated(), 'Asia/Qatar', 'yyyy-MM-dd HH:mm') }); }
+  out.sort(function (a, b) { return a.at < b.at ? 1 : -1; });
+  return out.slice(0, 30);
+}
+function autoBackup() { makeBackup_('تلقائية'); }
+/** شغّليها مرة واحدة من المحرّر (Run) لمنح صلاحية Drive والمشغّلات للنسخ الاحتياطية */
+function authorizeBackup() { bkFolder_(); ScriptApp.getProjectTriggers(); return 'تم'; }
+function autoOn_() { return ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'autoBackup'; }); }
+API.backups = function (me) {
+  if (me.role !== 'admin') throw new Error('النسخ الاحتياطية للإدارة');
+  return { list: backupList_(), auto: autoOn_(), folder: bkFolder_().getUrl() };
+};
+API.backupNow = function (me) {
+  if (me.role !== 'admin') throw new Error('النسخ الاحتياطية للإدارة');
+  var b = makeBackup_(me.name);
+  return { made: b, list: backupList_(), auto: autoOn_(), folder: bkFolder_().getUrl() };
+};
+API.setAutoBackup = function (me, req) {
+  if (me.role !== 'admin') throw new Error('النسخ الاحتياطية للإدارة');
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'autoBackup') ScriptApp.deleteTrigger(t); });
+  if (req.on) ScriptApp.newTrigger('autoBackup').timeBased().onWeekDay(ScriptApp.WeekDay.THURSDAY).atHour(14).create();
+  return { list: backupList_(), auto: autoOn_(), folder: bkFolder_().getUrl() };
+};
+
 function lists_() {
   var out = {};
   var r = rows_(SH.lists);
@@ -1085,6 +1136,11 @@ function ccEmails_() {
 API.sendForm = function (me, req) {
   if (me.role === 'teacher' || me.role === 'daily') throw new Error('الإرسال للإدارة والمشرفات والأخصائيات');
   var to = users_().filter(function (u) { return u.name === str_(req.to) && u.email; })[0];
+  if (req.committee) { // الإرسال الأخير بالبريد: لجنة الضبط السلوكي
+    var ce = str_(setting_('بريد لجنة الضبط السلوكي', '')).split(/[،,;\s]+/).filter(String);
+    if (!ce.length) throw new Error('لم يُضبط بريد لجنة الضبط السلوكي في الإعدادات');
+    to = { name: 'لجنة الضبط السلوكي', email: ce.join(',') };
+  }
   if (!to) throw new Error('لا يوجد بريد مسجّل لـ ' + str_(req.to));
   var b64 = String(req.pdf || '').replace(/^data:[^,]+,/, '');
   if (!b64) throw new Error('الاستمارة غير جاهزة');
@@ -1093,7 +1149,7 @@ API.sendForm = function (me, req) {
   var blob = Utilities.newBlob(Utilities.base64Decode(b64), 'application/pdf', name);
   // نسخة: الأخصائية الاجتماعية المسؤولة عن شعبة الطالبة (ياسمين أو فاطمة حسب الشعبة) + النائبة الإدارية ومديرة المدرسة
   var socCc = usersByRole_('social').filter(function (u) { return u.email && req.section && u.sections.indexOf(str_(req.section)) >= 0; }).map(function (u) { return u.email; });
-  var cc = socCc.concat(ccEmails_()).filter(function (e, i, a) { return e && e !== to.email && a.indexOf(e) === i; });
+  var cc = socCc.concat(ccEmails_()).filter(function (e, i, a) { return e && to.email.split(',').indexOf(e) < 0 && a.indexOf(e) === i; });
   var subject = str_(req.title) + ' — ' + str_(req.student) + (req.section ? ' (' + str_(req.section) + ')' : '');
   var note = str_(req.note);
   var body = 'السلام عليكم ورحمة الله وبركاته،\nنرفق لكم ' + str_(req.title) + ' للطالبة ' + str_(req.student) +
@@ -1105,7 +1161,7 @@ API.sendForm = function (me, req) {
   } catch (err) { res = 'تعذّر: ' + err; }
   append_(SH.mailLog, COLS.mailLog, { 'الوقت': now_(), 'إلى': to.email + (cc.length ? ' • نسخة: ' + cc.join('، ') : ''), 'الموضوع': subject, 'النتيجة': res });
   if (res !== 'تم') throw new Error('تعذّر الإرسال، حاولي مرة أخرى');
-  append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': now_(), 'من': me.name, 'إلى': to.name,
+  if (!req.committee) append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': now_(), 'من': me.name, 'إلى': to.name,
     'الموضوع': subject, 'النص': body + '\n📎 الاستمارة مرفقة في بريدكِ الرسمي.', 'الحالة': str_(req.caseId), 'مقروءة': '', 'النوع': 'استمارة', 'الرابط': '' });
   flush_();
   return { sent: true, to: to.name, cc: cc.length };

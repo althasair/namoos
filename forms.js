@@ -602,38 +602,58 @@
   }
 
   function socOf(sec) { var u = (N.S.boot.staff || []).filter(function (x) { return x.role === 'social' && (x.sections || []).indexOf(sec) >= 0; })[0]; return u ? u.name : ''; }
-  /* خانة توقيع النائبة الإدارية في الاستمارة: الخانة التي تحمل اسمها (أو المعلَّمة sgvp) */
-  function vpCells(paper) {
-    var n = String(F().adminVP || '').trim();
+  /* خانات توقيع شخص في الاستمارة: الخانة التي تحمل اسمه (والنائبة الإدارية أيضًا خانة sgvp) */
+  function nameCells(paper, name) {
+    var n = String(name || '').trim(); if (!n) return [];
+    var vp = n === String(F().adminVP || '').trim();
     return [].filter.call(paper.querySelectorAll('td.sgvp, td.sgn2, td.sgn, .nf-sig td, .nf-appr, td.v'), function (c) {
-      if (c.classList.contains('sgvp')) return true;
-      return n && !c.classList.contains('l') && (c.textContent || '').replace(/✍ [^✍]*$/, '').indexOf(n) >= 0;
+      if (vp && c.classList.contains('sgvp')) return true;
+      return !c.classList.contains('l') && (c.textContent || '').replace(/✍ [^✍]*$/, '').indexOf(n) >= 0;
     }).filter(function (c, i, a) { return !a.some(function (o) { return o !== c && o.contains(c); }); });
   }
-  function apprFor(key) { return ((N.S.boot && N.S.boot.approvals) || []).filter(function (a) { return a.key === key; })[0] || null; }
-  function apprShow(paper, ap) {
-    var st = document.getElementById('nf-apst'); if (!st) return;
-    var vp = !!me().vp;
-    CUR.ap = ap || CUR.ap;
-    ap = CUR.ap;
-    var ok = ap && ap.status === 'معتمدة', pend = ap && ap.status === 'بانتظار الاعتماد';
-    st.innerHTML = ok ? '✔ معتمدة من أ. ' + e(ap.approver) + ' — ' + e(String(ap.approvedAt).replace('T', ' ').slice(0, 16)) : pend ? '⏳ بانتظار اعتماد النائبة الإدارية' : '';
-    st.hidden = !st.innerHTML;
-    var rq = document.getElementById('nf-reqap'), apb = document.getElementById('nf-approve');
-    var hasVP = vpCells(paper).length > 0;
-    if (rq) rq.hidden = vp || !hasVP || ok || me().role === 'teacher';
-    if (rq && pend) rq.textContent = '⏳ أُرسلت للاعتماد — إعادة الإرسال';
-    if (apb) apb.hidden = !(vp && pend);
-    // بعد الاعتماد: توقيع النائبة (المحفوظ لحظة اعتمادها) يظهر في خانتها لكل من يفتح الاستمارة
-    if (ok && ap.sig && window.NamoosSig && !vp) vpCells(paper).forEach(function (c) { if (!c.querySelector('.sgw')) { c.setAttribute('data-as', '1'); NamoosSig.place(c, ap.sig); } });
+  function vpCells(paper) { return nameCells(paper, F().adminVP); }
+  function apprList(key) { return ((N.S.boot && N.S.boot.approvals) || []).filter(function (a) { return a.key === key; }); }
+  function apprFor(key) { var l = apprList(key); return l.filter(function (a) { return a.to === me().name && a.status === 'بانتظار الاعتماد'; })[0] || l[0] || null; }
+  var dt = function (x) { return String(x || '').replace('T', ' ').slice(0, 16); };
+  function apprShow(paper, list) {
+    var st = document.getElementById('nf-apst'); if (!st || !CUR) return;
+    if (list) CUR.aps = list; else if (!CUR.aps) CUR.aps = apprList(fsKey());
+    var L = CUR.aps || [], mine = me().name;
+    // آخر حالة لكل مستلمة
+    var by = {}; L.forEach(function (a) { var k = a.to || ''; if (!by[k] || (a.status === 'معتمدة') || a.at > by[k].at) by[k] = a; });
+    var items = Object.keys(by).map(function (k) { return by[k]; });
+    st.innerHTML = items.map(function (a) {
+      return a.status === 'معتمدة' ? '<div>✔ اعتمدتها أ. ' + e(a.approver || a.to) + ' — ' + e(dt(a.approvedAt)) + '</div>' : '<div class="w">⏳ أُرسلت إلى أ. ' + e(a.to) + ' للاعتماد منذ ' + e(dt(a.at)) + ' — لم يتم الإجراء بعد</div>';
+    }).join('');
+    st.hidden = !items.length;
+    CUR.ap = items.filter(function (a) { return a.to === mine && a.status === 'بانتظار الاعتماد'; })[0] || null;
+    var coord = (F().coordinators || [])[0] || '', vp = F().adminVP || '';
+    var pendTo = function (n) { return items.some(function (a) { return a.to === n && a.status === 'بانتظار الاعتماد'; }); };
+    var okBy = function (n) { return items.some(function (a) { return a.to === n && a.status === 'معتمدة'; }); };
+    var tc = document.getElementById('nf-tocoord'), rq = document.getElementById('nf-reqap'), apb = document.getElementById('nf-approve');
+    if (tc) { tc.hidden = !coord || mine === coord || okBy(coord) || me().role === 'teacher'; tc.textContent = pendTo(coord) ? '⏳ عند شؤون الطالبات — إعادة الإرسال' : '📨 إرسال لشؤون الطالبات للاعتماد'; }
+    if (rq) { rq.hidden = !vp || mine === vp || okBy(vp) || me().role === 'teacher'; rq.textContent = pendTo(vp) ? '⏳ عند النائبة الإدارية — إعادة الإرسال' : '✅ إرسال للنائبة الإدارية للاعتماد'; }
+    if (apb) apb.hidden = !CUR.ap;
+    // توقيع كل من اعتمدت (المحفوظ لحظة اعتمادها) يظهر في خانتها لكل من يفتح الاستمارة
+    if (window.NamoosSig) items.forEach(function (a) {
+      if (a.status !== 'معتمدة' || !a.sig || a.approver === mine) return;
+      nameCells(paper, a.approver).forEach(function (c) { if (!c.querySelector('.sgw')) { c.setAttribute('data-as', '1'); NamoosSig.place(c, a.sig); } });
+    });
     fit(paper);
+  }
+  function reqAppr(paper, to, b) {
+    if (b.disabled) return; b.disabled = true; fsSave(true);
+    N.api('requestApproval', { to: to, key: fsKey(), form: CUR.id, kind: CUR.kind, caseId: CUR.o.id, title: CUR.d.title, student: CUR.o.student, section: CUR.o.section })
+      .then(function (r) { N.toast('✔ أُرسلت الاستمارة إلى أ. ' + r.to + ' للاعتماد داخل المنصة؛ ستعود إليكِ موقّعة بعد اعتمادها', 'ok', 6000); return N.refresh && N.refresh(); })
+      .then(function () { apprShow(paper, apprList(fsKey())); })
+      .catch(function (err) { N.toast(err.message, 'bad'); }).then(function () { b.disabled = false; });
   }
   function open(id, kind, oid, apReq) {
     var o = find(kind, oid);
     if (!o) { N.toast('لم أجد بيانات الحالة — حدّثي الصفحة', 'bad'); return; }
     var d = DEF[id];
     CUR = { id: id, o: o, d: d, kind: kind };
-    CUR.ap = apReq || apprFor(fsKey());
+    CUR.ap = null; CUR.aps = null;
     var staff = (N.S.boot.staff || []).filter(function (u) { return u.name !== me().name && u.role !== 'teacher' && u.role !== 'daily'; });
     // «إلى» حسب السياسة: الجهة التي تُحال إليها الحالة في نص إجراء الموظفة نفسها (ويمكن تغييرها)
     var byRole = function (r) { var u = staff.filter(function (x) { return x.role === r; })[0]; return u ? u.name : ''; };
@@ -649,9 +669,8 @@
     if (!m) { m = document.createElement('div'); m.id = 'nf-modal'; document.body.appendChild(m); }
     m.innerHTML = '<div class="nf-back"></div><div class="nf-dlg" role="dialog" aria-modal="true" aria-label="معاينة الاستمارة">' +
       '<div class="nf-bar"><b>معاينة: ' + d.title + ' — ' + e(o.student) + '</b>' +
-      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn sec" id="nf-mailt" type="button">📨 إرسال إلى شؤون الطالبات</button><button class="btn sec" id="nf-reqap" type="button" hidden>✅ إرسال للاعتماد</button><button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
-      '<div class="nf-mail" id="nf-mail" hidden><div class="field"><label class="lbl" for="nf-to">إلى</label><select class="inp" id="nf-to">' +
-      staff.map(function (u) { return '<option value="' + e(u.name) + '"' + (u.name === defTo ? ' selected' : '') + '>' + e(u.name) + ' — ' + e(u.roleLabel || '') + '</option>'; }).join('') + '</select></div>' +
+      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn sec" id="nf-tocoord" type="button" hidden>📨 إرسال لشؤون الطالبات للاعتماد</button><button class="btn sec" id="nf-reqap" type="button" hidden>✅ إرسال للنائبة الإدارية للاعتماد</button>' + (me().role === 'coordinator' || me().role === 'admin' ? '<button class="btn sec" id="nf-mailt" type="button">✉ إرسال إلى لجنة الضبط السلوكي</button>' : '') + '<button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
+      '<div class="nf-mail" id="nf-mail" hidden><div class="field"><label class="lbl">إلى</label><div class="inp" style="background:#f6f6f6">لجنة الضبط السلوكي (بالبريد الإلكتروني، والاستمارة مرفقة PDF)</div></div>' +
       '<div class="nf-cc">نسخة تلقائيًا: <b>الأخصائية الاجتماعية للشعبة' + (socOf(o.section) ? ' (' + e(socOf(o.section)) + ')' : '') + '</b> و<b>النائبة الإدارية' + (F().adminVP ? ' (' + e(F().adminVP) + ')' : '') + '</b> و<b>مديرة المدرسة' + (F().principal ? ' (' + e(F().principal) + ')' : '') + '</b> — والاستمارة مرفقة PDF</div>' +
       '<div class="field"><label class="lbl" for="nf-note">ملاحظة (اختياري)</label><input class="inp" id="nf-note"></div>' +
       '<button class="btn" id="nf-send" type="button">إرسال</button></div>' +
@@ -671,27 +690,28 @@
     // ما حُفظ سابقًا: من هذا الجهاز فورًا، ثم من الخادم (يظهر للجميع)
     fsLast = ''; fsDirty = false; var key0 = fsKey();
     try { var loc = localStorage.getItem('nf:' + key0); if (loc) { fsApply(paper, loc); fsLast = loc; } } catch (e) {}
-    N.api('formState', { key: key0 }, true).then(function (r) { if (!(CUR && fsKey() === key0 && document.getElementById('nf-paper') === paper)) return; if (r && r.data && !fsDirty) { fsApply(paper, r.data); fsLast = r.data; try { localStorage.setItem('nf:' + key0, r.data); } catch (e) {} } if (r && r.approval) apprShow(paper, r.approval); }).catch(function () {});
+    N.api('formState', { key: key0 }, true).then(function (r) { if (!(CUR && fsKey() === key0 && document.getElementById('nf-paper') === paper)) return; if (r && r.data && !fsDirty) { fsApply(paper, r.data); fsLast = r.data; try { localStorage.setItem('nf:' + key0, r.data); } catch (e) {} } if (r && r.approval) apprShow(paper, [].concat(r.approval)); }).catch(function () {});
     document.getElementById('nf-close').onclick = close;
     m.querySelector('.nf-back').onclick = close;
     document.getElementById('nf-print').onclick = function () { fsSave(true); fit(paper); document.body.classList.add('nf-printing'); setTimeout(function () { window.print(); }, 60); };
     apprShow(paper);
-    document.getElementById('nf-reqap').onclick = function () {
-      var b = this; if (b.disabled) return; b.disabled = true; fsSave(true);
-      N.api('requestApproval', { key: fsKey(), form: CUR.id, kind: CUR.kind, caseId: CUR.o.id, title: CUR.d.title, student: CUR.o.student, section: CUR.o.section })
-        .then(function (r) { N.toast('✔ أُرسلت الاستمارة للاعتماد إلى أ. ' + r.to + '؛ ستعود إليكِ موقّعة بعد اعتمادها', 'ok', 6000); return N.refresh && N.refresh(); })
-        .then(function () { apprShow(paper, apprFor(fsKey()) || { status: 'بانتظار الاعتماد' }); })
-        .catch(function (err) { N.toast(err.message, 'bad'); }).then(function () { b.disabled = false; });
-    };
+    document.getElementById('nf-reqap').onclick = function () { reqAppr(paper, F().adminVP, this); };
+    document.getElementById('nf-tocoord').onclick = function () { reqAppr(paper, (F().coordinators || [])[0], this); };
     document.getElementById('nf-approve').onclick = function () {
       var b = this; if (b.disabled || !CUR.ap) return;
-      var cells = vpCells(paper);
-      if (!cells.some(function (c) { return c.querySelector('.sgw'); })) { N.toast('أضيفي توقيعكِ في خانتكِ أولًا («✍ أضيفي توقيعي»)، ثم اعتمدي', 'bad', 6000); return; }
+      var cells = nameCells(paper, me().name);
+      // توقيعي يوضع في خانتي تلقائيًا عند الاعتماد (خانة التوقيع إن وُجدت، وإلا الخانة التي تحمل اسمي)
+      var sigCells = cells.filter(function (c) { return c.matches('td.sgn, td.sgn2, td.sgvp, .nf-sig td, .nf-appr'); });
+      var target = (sigCells.length ? sigCells : cells).filter(function (c) { return !c.querySelector('.sgw'); });
+      var placed = cells.some(function (c) { return c.querySelector('.sgw'); });
       b.disabled = true;
-      N.api('approveForm', { id: CUR.ap.id }).then(function (r) {
+      var pre = placed || !cells.length || !window.NamoosSig ? Promise.resolve() : NamoosSig.mine().then(function (sg) {
+        if (!sg) { b.disabled = false; NamoosSig.open(function (d) { target.slice(0, 1).forEach(function (c) { NamoosSig.place(c, d); }); fit(paper); }); throw new Error('احفظي توقيعكِ أولًا، ثم اضغطي «✔ اعتماد وتوقيع» مرة أخرى'); }
+        target.slice(0, 1).forEach(function (c) { c.setAttribute('data-as', '1'); NamoosSig.place(c, sg); }); fit(paper);
+      });
+      pre.then(function () { return N.api('approveForm', { id: CUR.ap.id }); }).then(function (r) {
         N.toast('✔ تم الاعتماد، وعادت الاستمارة موقّعة إلى أ. ' + CUR.ap.by, 'ok', 6000);
-        apprShow(paper, Object.assign({}, CUR.ap, { status: 'معتمدة', approver: me().name, approvedAt: r.approvedAt }));
-        return N.refresh && N.refresh();
+        var ap = CUR.ap; return (N.refresh ? N.refresh() : Promise.resolve()).then(function () { apprShow(paper, apprList(fsKey()).map(function (x) { return x.id === ap.id ? Object.assign({}, x, { status: 'معتمدة', approver: me().name, approvedAt: r.approvedAt }) : x; })); });
       }).catch(function (err) { N.toast(err.message, 'bad'); b.disabled = false; });
     };
     document.getElementById('nf-dl').onclick = function () {
@@ -700,7 +720,7 @@
         .catch(function () { N.toast('تعذّر تجهيز الملف، حاولي مرة أخرى', 'bad'); })
         .then(function () { b.disabled = false; b.textContent = lbl; });
     };
-    document.getElementById('nf-mailt').onclick = function () { var x = document.getElementById('nf-mail'); x.hidden = !x.hidden; };
+    var mt = document.getElementById('nf-mailt'); if (mt) mt.onclick = function () { var x = document.getElementById('nf-mail'); x.hidden = !x.hidden; };
     document.getElementById('nf-send').onclick = send;
   }
   window.addEventListener('afterprint', function () { document.body.classList.remove('nf-printing'); });
@@ -737,12 +757,11 @@
   }
   function send() {
     var btn = document.getElementById('nf-send'); if (btn.disabled) return;
-    var to = document.getElementById('nf-to').value;
-    if (!to) { N.toast('اختاري الجهة', 'bad'); return; }
+    var to = 'لجنة الضبط السلوكي';
     btn.disabled = true; btn.textContent = 'جارٍ تجهيز الاستمارة وإرسالها…';
     var paper = document.getElementById('nf-paper');
     toPdf(paper).then(function (pdf) {
-      return N.api('sendForm', { to: to, title: CUR.d.title + ' (نموذج ' + CUR.d.no + ')', student: CUR.o.student, section: CUR.o.section, caseId: CUR.o.id, note: document.getElementById('nf-note').value, pdf: pdf });
+      return N.api('sendForm', { committee: true, to: to, title: CUR.d.title + ' (نموذج ' + CUR.d.no + ')', student: CUR.o.student, section: CUR.o.section, caseId: CUR.o.id, note: document.getElementById('nf-note').value, pdf: pdf });
     }).then(function (r) {
       N.toast('✔ أُرسلت الاستمارة إلى ' + r.to + (r.cc ? ' مع نسخة للنائبة الإدارية ومديرة المدرسة' : ''), 'ok', 6000);
       close();
