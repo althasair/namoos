@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.18.0';
+var VERSION = '2.19.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -82,7 +82,7 @@ function out_(o) {
 }
 
 var PUBLIC = { login: 1, ping: 1 };
-var WRITES = { requestApproval: 1, approveForm: 1, saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+var WRITES = { fixStageDoc: 1, requestApproval: 1, approveForm: 1, saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
   recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
   recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
@@ -1280,7 +1280,7 @@ API.documentCase = function (me, req) {
 };
 
 function canFixCase_(me, c) {
-  if (me.role === 'admin') return true;
+  if (me.role === 'admin' || me.role === 'coordinator') return true; // منسقة شؤون الطالبات: تعديل وحذف أي إجراء خاطئ
   if (c.by === me.name) return true;
   return me.role === 'supervisor' && sectionsFor_(me).indexOf(c.section) >= 0;
 }
@@ -1392,7 +1392,7 @@ API.recordTardy = function (me, req) {
   return { added: tRows.length, skipped: skipped, ids: ids, cases: made, tardy: tardyFor_(me).slice(-300).reverse() };
 };
 function canFixTardy_(me, r) {
-  return me.role === 'admin' || str_(r['سجّلتها']) === me.name || (me.role === 'supervisor' && sectionsFor_(me).indexOf(str_(r['الشعبة'])) >= 0);
+  return me.role === 'admin' || me.role === 'coordinator' || str_(r['سجّلتها']) === me.name || (me.role === 'supervisor' && sectionsFor_(me).indexOf(str_(r['الشعبة'])) >= 0);
 }
 API.deleteTardy = function (me, req) {
   var r = tardyRows_().filter(function (x) { return str_(x['المعرف']) === str_(req.id); })[0];
@@ -1782,7 +1782,7 @@ API.markLateArrival = function (me, req) {
 
 /** قرار المشرفة لعدة طالبات دفعة واحدة */
 API.decideAbsence = function (me, req) {
-  if (me.role !== 'supervisor' && me.role !== 'admin') throw new Error('القرار للمشرفة الإدارية');
+  if (me.role !== 'supervisor' && me.role !== 'admin' && me.role !== 'coordinator') throw new Error('القرار للمشرفة الإدارية');
   var items = req.items || [];
   if (!items.length) throw new Error('لا توجد قرارات للحفظ');
   var P = absPolicy_();
@@ -1790,7 +1790,7 @@ API.decideAbsence = function (me, req) {
   items.forEach(function (it) {
     var a = all.filter(function (x) { return x.id === str_(it.id); })[0];
     if (!a) throw new Error('السجل غير موجود');
-    if (absFor_(me, [a]).length === 0) throw new Error('الشعبة ليست ضمن شعبكِ');
+    if (me.role !== 'coordinator' && absFor_(me, [a]).length === 0) throw new Error('الشعبة ليست ضمن شعبكِ');
     var d = str_(it.decision);
     if (ABS_DECISIONS.indexOf(d) < 0) throw new Error('اختاري القرار لكل طالبة');
     if (d === 'بعذر' && !P.excuses.some(function (e) { return e.name === str_(it.excuse); })) throw new Error('اختاري نوع العذر المقبول حسب المادة 3.4.1.4 — ' + a.student);
@@ -1847,9 +1847,26 @@ function notifyAbsStage_(a) {
 }
 
 function canFixAbs_(me, a) {
-  if (me.role === 'admin' || a.by === me.name) return true;
+  if (me.role === 'admin' || me.role === 'coordinator' || a.by === me.name) return true;
   return me.role === 'supervisor' && absFor_(me, [a]).length > 0;
 }
+/** منسقة شؤون الطالبات والإدارة: تعديل توثيق المشرفة أو مسحه (حالة سلوكية/تأخير أو سجل غياب) — لا يُحذف شيء غير ما تختاره */
+API.fixStageDoc = function (me, req) {
+  if (me.role !== 'coordinator' && me.role !== 'admin') throw new Error('هذه الصلاحية لمنسقة شؤون الطالبات والإدارة');
+  var kind = str_(req.kind), id = str_(req.id), row;
+  if (kind === 'case') row = caseRows_().filter(function (x) { return str_(x['رقم الحالة']) === id; })[0];
+  else if (kind === 'abs') row = absRows_().filter(function (x) { return str_(x['المعرف']) === id; })[0];
+  if (!row) throw new Error('السجل غير موجود');
+  var p = STAGE_PREFIX.supervisor, ch = {};
+  if (req.clear) { ch[p + ': تاريخ التنفيذ'] = ''; ch[p + ': التواصل مع ولي الأمر'] = ''; ch[p + ': ملاحظات'] = ''; ch[p + ': من وثّقت'] = ''; }
+  else {
+    var d = str_(req.date); if (!d) throw new Error('اختاري تاريخ التنفيذ'); checkDate_(d);
+    ch[p + ': تاريخ التنفيذ'] = d; ch[p + ': التواصل مع ولي الأمر'] = str_(req.contact); ch[p + ': ملاحظات'] = str_(req.notes);
+  }
+  update_(kind === 'case' ? SH.cases : SH.abs, row, ch);
+  flush_();
+  return { ok: true };
+};
 API.deleteAbsence = function (me, req) {
   var a = absData_().filter(function (x) { return x.id === str_(req.id); })[0];
   if (!a) throw new Error('السجل غير موجود');

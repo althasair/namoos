@@ -1182,6 +1182,7 @@
     var r = S.me.role, me = S.me.name;
     if (r === 'admin') return true;
     if (kind === 'trec') return r === 'teacher';
+    if (r === 'coordinator') return kind === 'case' || kind === 'abs' || kind === 'tardy'; // منسقة شؤون الطالبات: تعديل وحذف أي إجراء
     if (kind === 'case') return o.by === me || (r === 'supervisor' && (S.boot.sections || []).indexOf(o.section) >= 0);
     if (kind === 'abs') return o.by === me || r === 'supervisor';
     if (kind === 'tardy') return true;
@@ -1211,11 +1212,21 @@
         var cur = kind === 'case' ? o.violation : o.violation;
         h += '<div class="field"><label class="lbl" for="fx-v">المخالفة</label><select class="inp" id="fx-v">' + (b.violations || []).map(function (v) { return '<option' + (v.label === cur ? ' selected' : '') + '>' + esc(v.label) + '</option>'; }).join('') + '</select></div>';
       }
-      if (kind === 'abs' && (S.me.role === 'supervisor' || S.me.role === 'admin') && o.kind !== 'late') {
+      if (kind === 'abs' && (S.me.role === 'supervisor' || S.me.role === 'admin' || S.me.role === 'coordinator') && o.kind !== 'late') {
         h += '<div class="field"><label class="lbl" for="fx-d">قرار المشرفة</label><select class="inp" id="fx-d"><option value="">— دون تغيير —</option>' + ['بدون عذر', 'بعذر', 'عذر قيد الاستلام'].map(function (d) { return '<option' + (d === o.decision ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select></div>' +
           '<div class="field"><label class="lbl" for="fx-e">نوع العذر (عند «بعذر»)</label><select class="inp" id="fx-e"><option value="">—</option>' + (AB().excuses || []).map(function (x) { return '<option' + (x === o.excuse ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div>';
       }
       h += '<div class="field" style="grid-column:1/-1"><button class="btn wide" type="submit">حفظ التعديل</button></div></form>';
+    }
+    var sd = (kind === 'case' || kind === 'abs') && (S.me.role === 'coordinator' || S.me.role === 'admin') && o.doc && o.doc.supervisor && o.doc.supervisor.date ? o.doc.supervisor : null;
+    if (sd) {
+      var cts = ((AB() && AB().contacts) || ['هاتفيًا', 'رسالة نصية', 'هاتفيًا ورسالة نصية', 'حضر ولي الأمر', 'لم يرد ولي الأمر']).slice();
+      if (sd.contact && cts.indexOf(sd.contact) < 0) cts.unshift(sd.contact);
+      h += '<form class="card grid g2" id="fx-sup"><h3 style="margin:0;grid-column:1/-1">توثيق المشرفة' + (sd.who ? ' (أ. ' + esc(sd.who) + ')' : '') + '</h3>' +
+        '<div class="field"><label class="lbl" for="fx-sd">تاريخ التنفيذ</label><select class="inp" id="fx-sd">' + datesOptions(sd.date) + '</select></div>' +
+        '<div class="field"><label class="lbl" for="fx-sc">التواصل مع ولي الأمر</label><select class="inp" id="fx-sc"><option value="">—</option>' + cts.map(function (x) { return '<option' + (x === sd.contact ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field" style="grid-column:1/-1"><label class="lbl" for="fx-sn">الملاحظات</label><textarea class="inp" id="fx-sn" rows="2">' + esc(sd.notes || '') + '</textarea></div>' +
+        '<div class="field" style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap"><button class="btn" type="submit">حفظ تعديل توثيق المشرفة</button><button class="btn sec fx-del" type="button" id="fx-sclr">🗑 مسح توثيق المشرفة</button></div></form>';
     }
     if (kind === 'case' && myDocDone(kind, o)) h += '<div class="card"><h3 style="margin:0 0 8px">تعديل توثيقي</h3>' + caseForm(o, st) + '</div>';
     if (kind === 'abs' && myDocDone(kind, o)) h += '<div class="card"><h3 style="margin:0 0 8px">تعديل توثيقي</h3>' + absForm(o, st) + '</div>';
@@ -1228,6 +1239,11 @@
     bindCaseForms(body, function () { fxClose(); });
     bindAbsForms(body, function () { fxClose(); });
     var tb = $('#fx-tdocb'); if (tb) tb.onclick = function () { api('guardianFor', { id: o.id }).then(function (g) { docTeacher($('#fx-tdoc'), o, g.guardian, null); }).catch(fail); };
+    var sf = $('#fx-sup');
+    if (sf) {
+      sf.onsubmit = function (e) { e.preventDefault(); api('fixStageDoc', { kind: kind, id: o.id, date: $('#fx-sd').value, contact: $('#fx-sc').value, notes: $('#fx-sn').value }).then(function () { fxDone('✔ تم تعديل توثيق المشرفة'); }).catch(fail); };
+      $('#fx-sclr').onclick = function () { if (!confirm('مسح توثيق المشرفة لهذا السجل؟ يعود الإجراء مطلوبًا منها.')) return; api('fixStageDoc', { kind: kind, id: o.id, clear: true }).then(function () { fxDone('✔ تم مسح توثيق المشرفة'); }).catch(fail); };
+    }
     var cf = $('#fx-core');
     if (cf) cf.onsubmit = function (e) {
       e.preventDefault();
