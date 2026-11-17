@@ -459,3 +459,6 @@ td.sg-has .sg-txt{visibility:hidden}
 .mltiles.mlclick button.on{outline:2px solid #13235B;outline-offset:1px}
 .mltiles.mlclick button:hover{filter:brightness(.97)}
 .mlflt{margin:8px 0;padding:8px 12px;background:#fff8e1;border:1px solid #f0d27a;border-radius:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+.mylog h3.mlgh{margin:16px 0 6px;font-size:15px;border-right:4px solid #13235B;padding-right:8px}.mylog h3.mlgh span{color:#667;font-weight:400}
+@media print{.mylog h3.mlgh{break-after:avoid}}

@@ -981,6 +981,12 @@
     logView(el, S.me, { cases: S.boot.cases || [], abs: S.boot.abs && S.boot.abs.records || [], tardy: S.boot.tardy || [], teacher: S.boot.records || [] }, F,
       '<h2 class="pt">طباعة إجراءاتي</h2><p class="sub">كل الإجراءات المطلوبة منكِ حسب السياسة وما نفّذتِه، لفترة تختارينها.</p>', function () { vMyLog(el); });
   }
+  /* تقسيم الإجراءات: الغياب، التأخير الصباحي، الزي المدرسي، المخالفات السلوكية الأخرى — كلٌّ في جدول مستقل */
+  function mlGroups(rows) {
+    var G = [['abs', 'الغياب'], ['tardy', 'التأخير الصباحي'], ['uni', 'الزي المدرسي'], ['beh', 'المخالفات السلوكية الأخرى']];
+    var cat = function (r) { if (r.g === 'غياب') return 'abs'; var w = String(r.what || ''); if (/التأخير الصباحي|التأخر عن الطابور/.test(w)) return 'tardy'; if (/الزي/.test(w)) return 'uni'; return 'beh'; };
+    return G.map(function (g) { return { title: g[1], rows: rows.filter(function (r) { return cat(r) === g[0]; }) }; }).filter(function (g) { return g.rows.length; });
+  }
   function logView(el, me, src, F, headHtml, rerender) {
     var st = me.role;
     var stat = function (s, d) {
@@ -1052,9 +1058,9 @@
       }).join('') + (tard !== null ? '<div><b>' + tard + '</b>تأخير صباحي سُجّل</div>' : '') + '</div>' +
       (F.stf && F.stf !== 'all' ? '<div class="noprint mlflt">تعرضين الآن: <b>' + { ok: 'ما نُفّذ في الوقت', late: 'ما نُفّذ بعد المهلة', bad: 'ما لم يُنفّذ', wait: 'ما ينتظر التنفيذ' }[F.stf] + '</b> (' + rows.length + ') — لكل طالبة المطلوب منكِ في عمود «المطلوب حسب السياسة». <button type="button" class="btn sm sec" data-stf="all">عرض الكل</button></div>' : '') +
       '<p>' + esc(summary) + '</p>' +
-      (rows.length ? '<div class="tw"><table class="t mlt"><thead><tr><th>م</th><th>التاريخ</th><th>الطالبة</th><th>الشعبة</th><th>البند</th><th>المطلوب حسب السياسة</th><th>ما تم تنفيذه</th><th>تاريخ التنفيذ</th><th>الحالة</th></tr></thead><tbody>' +
-        rows.map(function (r, i) { return '<tr><td>' + (i + 1) + '</td><td class="nw">' + ar(r.date) + '</td><td class="nw">' + esc(nm3(r.student)) + '</td><td class="nw">' + esc(r.section) + '</td><td>' + esc(r.what) + (r.rep ? '<div class="sm">' + r.rep + '</div>' : '') + '</td><td class="sm">' + esc(r.req) + '</td><td>' + esc(r.did || '—') + '</td><td class="nw">' + (r.on ? ar(r.on) : '—') + '</td><td class="nw"><span class="mls ' + r.st[0] + '">' + r.st[1] + '</span></td></tr>'; }).join('') +
-        '</tbody></table></div>' : '<div class="empty">لا توجد إجراءات مطلوبة في هذه الفترة.</div>') +
+      (rows.length ? mlGroups(rows).map(function (g) { return '<h3 class="mlgh">' + g.title + ' <span>(' + g.rows.length + ')</span></h3>' +
+        '<div class="tw"><table class="t mlt"><thead><tr><th>م</th><th>التاريخ</th><th>الطالبة</th><th>الشعبة</th><th>البند</th><th>المطلوب حسب السياسة</th><th>ما تم تنفيذه</th><th>تاريخ التنفيذ</th><th>الحالة</th></tr></thead><tbody>' +
+        g.rows.map(function (r, i) { return '<tr><td>' + (i + 1) + '</td><td class="nw">' + ar(r.date) + '</td><td class="nw">' + esc(nm3(r.student)) + '</td><td class="nw">' + esc(r.section) + '</td><td>' + esc(r.what) + (r.rep ? '<div class="sm">' + r.rep + '</div>' : '') + '</td><td class="sm">' + esc(r.req) + '</td><td>' + esc(r.did || '—') + '</td><td class="nw">' + (r.on ? ar(r.on) : '—') + '</td><td class="nw"><span class="mls ' + r.st[0] + '">' + r.st[1] + '</span></td></tr>'; }).join('') + '</tbody></table></div>'; }).join('') : '<div class="empty">لا توجد إجراءات مطلوبة في هذه الفترة.</div>') +
       '<div class="mlme"><b>' + esc(me.roleLabel) + ':</b> أ. ' + esc(nm3(me.name)) + '<span>التوقيع: ..............................</span></div>' +
       '<div class="sig"><div><b>النائبة الإدارية</b>أ. وداد الكربي</div><div><b>نائب المديرة للشؤون الأكاديمية</b>أ. آسيا الذبياني</div><div><b>مديرة المدرسة</b>أ. شيخة الرميحي</div></div>' +
       '</article>';
