@@ -1025,13 +1025,16 @@
       });
     }
     if (F.only) rows = rows.filter(function (r) { return r.st[0] === 'wait' || r.st[0] === 'bad'; });
+    var allRows = rows;
     var tard = st === 'supervisor' && F.kind !== 'abs' ? (src.tardy || []).filter(function (x) { return x.by === me.name && inR(x.date); }).length : null;
     rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
-    var cnt = function (k) { return rows.filter(function (r) { return r.st[0] === k; }).length; };
+    var cnt = function (k) { return allRows.filter(function (r) { return r.st[0] === k; }).length; };
+    // الضغط على أي مربع (لم يُنفّذ، قيد الانتظار…) يعرض طالباته فقط مع المطلوب منكِ لكل واحدة
+    if (F.stf) rows = rows.filter(function (r) { return F.stf === 'all' || r.st[0] === F.stf; });
     var nDone = cnt('ok') + cnt('late');
     var pct = nDone ? Math.round(100 * cnt('ok') / nDone) : 0;
     var period = F.from === F.to ? arFull(F.from) : 'من ' + ar(F.from) + ' ' + F.from.slice(0, 4) + ' إلى ' + ar(F.to) + ' ' + F.to.slice(0, 4);
-    var summary = 'تم خلال الفترة ' + period + ' طلب ' + rows.length + ' إجراء من ' + me.roleLabel + ' وفق سياسة إدارة السلوك ومتابعة الحضور، نُفّذ منها ' + nDone + ' إجراءً (' + cnt('ok') + ' في الوقت المحدد و' + cnt('late') + ' بعد المهلة)' +
+    var summary = 'تم خلال الفترة ' + period + ' طلب ' + allRows.length + ' إجراء من ' + me.roleLabel + ' وفق سياسة إدارة السلوك ومتابعة الحضور، نُفّذ منها ' + nDone + ' إجراءً (' + cnt('ok') + ' في الوقت المحدد و' + cnt('late') + ' بعد المهلة)' +
       (cnt('bad') ? '، ولم يُنفّذ ' + cnt('bad') + ' إجراءً تجاوز المهلة' : '') + (cnt('wait') ? '، ويوجد ' + cnt('wait') + ' إجراءً قيد الانتظار' : '') + (cnt('prior') ? '، و' + cnt('prior') + ' سجلًا سابقًا منقولًا دون توثيق فعلي' : '') + '. ' +
       (nDone ? 'وبلغت نسبة الالتزام بالمهلة ' + pct + '%.' : '') + (tard !== null ? ' كما تم تسجيل ' + tard + ' حالة تأخير صباحي.' : '');
     el.innerHTML = '<div class="noprint">' + headHtml +
@@ -1044,7 +1047,10 @@
       '<article class="report mylog">' +
       '<h1>مدرسة الشيماء الثانوية للبنات</h1><div style="text-align:center;font-weight:700;margin-top:6px">سجل الإجراءات المنفّذة وفق سياسة إدارة السلوك ومتابعة الحضور</div>' +
       '<div class="mlhead"><span><b>الاسم:</b> أ. ' + esc(nm3(me.name)) + '</span><span><b>الصفة:</b> ' + esc(me.roleLabel) + '</span><span><b>الفترة:</b> ' + esc(period) + '</span></div>' +
-      '<div class="mltiles"><div><b>' + rows.length + '</b>إجراء مطلوب</div><div class="ok"><b>' + cnt('ok') + '</b>في الوقت</div><div class="late"><b>' + cnt('late') + '</b>بعد المهلة</div><div class="bad"><b>' + cnt('bad') + '</b>لم يُنفّذ</div><div><b>' + cnt('wait') + '</b>قيد الانتظار</div>' + (tard !== null ? '<div><b>' + tard + '</b>تأخير صباحي سُجّل</div>' : '') + '</div>' +
+      '<div class="mltiles mlclick">' + [['all', '', allRows.length, 'إجراء مطلوب'], ['ok', 'ok', cnt('ok'), 'في الوقت'], ['late', 'late', cnt('late'), 'بعد المهلة'], ['bad', 'bad', cnt('bad'), 'لم يُنفّذ'], ['wait', '', cnt('wait'), 'قيد الانتظار']].map(function (x) {
+        return '<button type="button" class="' + x[1] + ((F.stf || 'all') === x[0] ? ' on' : '') + '" data-stf="' + x[0] + '" title="اضغطي لعرض الطالبات"><b>' + x[2] + '</b>' + x[3] + '</button>';
+      }).join('') + (tard !== null ? '<div><b>' + tard + '</b>تأخير صباحي سُجّل</div>' : '') + '</div>' +
+      (F.stf && F.stf !== 'all' ? '<div class="noprint mlflt">تعرضين الآن: <b>' + { ok: 'ما نُفّذ في الوقت', late: 'ما نُفّذ بعد المهلة', bad: 'ما لم يُنفّذ', wait: 'ما ينتظر التنفيذ' }[F.stf] + '</b> (' + rows.length + ') — لكل طالبة المطلوب منكِ في عمود «المطلوب حسب السياسة». <button type="button" class="btn sm sec" data-stf="all">عرض الكل</button></div>' : '') +
       '<p>' + esc(summary) + '</p>' +
       (rows.length ? '<div class="tw"><table class="t mlt"><thead><tr><th>م</th><th>التاريخ</th><th>الطالبة</th><th>الشعبة</th><th>البند</th><th>المطلوب حسب السياسة</th><th>ما تم تنفيذه</th><th>تاريخ التنفيذ</th><th>الحالة</th></tr></thead><tbody>' +
         rows.map(function (r, i) { return '<tr><td>' + (i + 1) + '</td><td class="nw">' + ar(r.date) + '</td><td class="nw">' + esc(nm3(r.student)) + '</td><td class="nw">' + esc(r.section) + '</td><td>' + esc(r.what) + (r.rep ? '<div class="sm">' + r.rep + '</div>' : '') + '</td><td class="sm">' + esc(r.req) + '</td><td>' + esc(r.did || '—') + '</td><td class="nw">' + (r.on ? ar(r.on) : '—') + '</td><td class="nw"><span class="mls ' + r.st[0] + '">' + r.st[1] + '</span></td></tr>'; }).join('') +
@@ -1054,6 +1060,7 @@
       '</article>';
     var upd = function () { F.from = $('#mf').value || F.from; F.to = $('#mt').value || F.to; if (F.to < F.from) F.to = F.from; F.kind = $('#mk').value; F.prior = $('#mp').checked; F.only = $('#mo').checked; rerender(true); };
     ['#mf', '#mt', '#mk', '#mp', '#mo'].forEach(function (k) { $(k).onchange = upd; });
+    $$('[data-stf]', el).forEach(function (b) { b.onclick = function () { F.stf = b.dataset.stf === 'all' ? '' : b.dataset.stf; rerender(true); }; });
     $('#mprint').onclick = function () { window.print(); };
   }
 

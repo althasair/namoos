@@ -324,7 +324,7 @@ body.nf-open{overflow:hidden}
 .mlchk{display:flex;gap:6px;align-items:center;font-size:14px;padding-bottom:10px}
 .mylog .mlhead{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;border:1px solid #DADFE3;border-radius:8px;padding:8px 12px;margin:14px 0;font-size:14px}
 .mltiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin:10px 0}
-.mltiles div{border:1px solid #DADFE3;border-radius:8px;text-align:center;padding:8px 4px;font-size:12px;background:#FAFBFB}
+.mltiles div,.mltiles button{border:1px solid #DADFE3;border-radius:8px;text-align:center;padding:8px 4px;font-size:12px;background:#FAFBFB}
 .mltiles b{display:block;font-size:20px;color:#2A3236}
 .mltiles .ok{background:#E9F5EF}.mltiles .late{background:#FBF3E6}.mltiles .bad{background:#FBEDEC}
 .mlt{font-size:13px}.mlt td{vertical-align:top;line-height:1.6}.mlt td.nw{white-space:nowrap}.mlt td.sm{font-size:11.5px;color:#55636A}
@@ -454,3 +454,8 @@ td.sg-has .sg-txt{visibility:hidden}
 .nf-apst{background:#eaf6ee;border:1px solid #9ccfae;color:#14532d;border-radius:8px;padding:6px 12px;margin:6px 0;font-weight:700}
 .msig{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.msig img{max-height:90px;max-width:320px;background:#fff;border:1px dashed #bbb;border-radius:8px;padding:6px}
 .card.apr{margin-bottom:10px}
+
+.mltiles.mlclick button{font:inherit;cursor:pointer;border:1px solid transparent;text-align:inherit}
+.mltiles.mlclick button.on{outline:2px solid #13235B;outline-offset:1px}
+.mltiles.mlclick button:hover{filter:brightness(.97)}
+.mlflt{margin:8px 0;padding:8px 12px;background:#fff8e1;border:1px solid #f0d27a;border-radius:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
