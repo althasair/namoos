@@ -629,7 +629,13 @@
     order.forEach(function (n) { var a = by[n]; out.push(a.status === 'معتمدة' ? st('ok', '✔', 'أ. ' + (a.approver || n), 'تم الاعتماد — ' + e(dt(a.approvedAt))) : st('wait', '⏳', 'أ. ' + n, 'قيد الاعتماد منذ ' + e(dt(a.at)) + (a.remindedAt ? ' • ذُكّرت ' + e(dt(a.remindedAt)) : ''))); });
     nxt.forEach(function (n, i) { out.push(fwdNow && !i ? st('wait', '⏳', 'أ. ' + n, 'قيد الاعتماد') : st('next', '◻', 'أ. ' + n, 'تصلها بعد الاعتماد')); });
     var done = order.every(function (n) { return by[n].status === 'معتمدة'; }) && !nxt.length;
-    return '<div class="atrail">' + out.join('<span class="arr">←</span>') + (done ? '<span class="atr all">✔ اكتمل الاعتماد</span>' : '') + '</div>';
+    // جملة توضح أين صار النموذج الآن
+    var okN = order.filter(function (n) { return by[n].status === 'معتمدة'; }).map(function (n) { return 'أ. ' + (by[n].approver || n); });
+    var pend = order.filter(function (n) { return by[n].status !== 'معتمدة'; }).concat(fwdNow && nxt[0] ? [nxt[0]] : [])[0];
+    var msg = done ? '✔ اكتمل الاعتماد: اعتمدته ' + okN.join(' ثم ') + '، والنموذج محفوظ وجاهز للطباعة والتحميل.'
+      : okN.length ? '✔ تم اعتماده من ' + okN.join(' ثم ') + ' وتم نقله إلى أ. ' + pend + ' — قيد الاعتماد.'
+      : '✔ تم اعتماد طلبكم وإرساله إلى أ. ' + pend + ' — قيد الاعتماد.';
+    return '<div class="atrail">' + out.join('<span class="arr">←</span>') + (done ? '<span class="atr all">✔ اكتمل الاعتماد</span>' : '') + '</div><div class="amsg">' + e(msg) + '</div>';
   }
   function apprShow(paper, list) {
     var st = document.getElementById('nf-apst'); if (!st || !CUR) return;
@@ -819,5 +825,6 @@
         '<span class="fchip off" title="غير مطلوب في هذه المرحلة">' + DEF[id].title + '</span>';
     }).join('');
   }
-  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, chips: chips, _build: function (id, o) { return DEF[id].build(o); }, _open: function (id, kind, oid, ap) { return open(id, kind, oid, ap); }, trail: trail };
+  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, chips: chips, _build: function (id, o) { return DEF[id].build(o); }, _open: function (id, kind, oid, ap) { return open(id, kind, oid, ap); }, trail: trail,
+    download: function (id, kind, oid) { open(id, kind, oid); setTimeout(function () { var b = document.getElementById('nf-dl'); if (b) b.click(); }, 1200); } };
 })();

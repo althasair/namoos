@@ -479,3 +479,5 @@ td.sg-has .sg-txt{visibility:hidden}
 .list .arrec .qdec{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0}
 .list .arrec .qdec .opt{width:auto;display:inline-flex;padding:5px 14px;border-radius:999px;margin:0;justify-content:center}
 .list .arrec .qdec .qde{width:auto;min-width:150px}
+
+.amsg{font-size:13px;font-weight:700;color:#14532d;margin:2px 0 4px}

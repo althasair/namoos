@@ -291,6 +291,7 @@
       return '<div class="card apr"><div class="row" style="justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start"><div style="min-width:0;flex:1"><b>' + esc(a.student) + '</b> <span class="muted">' + esc(a.section) + '</span> — ' + esc(a.title) +
         '<div class="muted" style="font-size:13px">من أ. ' + esc(a.by) + ' إلى أ. ' + esc(a.to) + ' — ' + dt(a.at) + (a.status === 'معتمدة' ? ' • ✔ اعتُمدت ' + dt(a.approvedAt) : ' • ⏳ لم يتم الإجراء بعد') + '</div>' + (window.NamoosForms && NamoosForms.trail ? NamoosForms.trail(keyRows(a.key)) : '') + (act ? reqTxt(a) : '') + '</div>' +
         '<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn' + (act ? '' : ' sec') + '" type="button" data-apr="' + esc(a.id) + '">' + (act ? '✔ فتح والاعتماد بالتوقيع' : '🖨 فتح الاستمارة') + '</button>' +
+        '<button class="btn sec" type="button" data-apdl="' + esc(a.id) + '">⬇ تحميل نسخة</button>' +
         (rem ? '<button class="btn sec" type="button" data-rem="' + esc(a.id) + '">🔔 تذكير أ. ' + esc(a.to) + '</button>' : '') + '</div></div></div>';
     };
     var sec = function (t, l, act, empty) { return '<h3>' + t + ' (' + l.length + ')</h3>' + (l.length ? l.map(function (a) { return card(a, act); }).join('') : '<p class="muted">' + (empty || 'لا يوجد.') + '</p>'); };
@@ -307,6 +308,9 @@
     $$('[data-apr]', el).forEach(function (b) { b.onclick = function () {
       var a = all.filter(function (x) { return x.id === b.dataset.apr; })[0]; if (!a || !window.NamoosForms) return;
       NamoosForms._open(a.form, a.kind, a.caseId, a);
+    }; });
+    $$('[data-apdl]', el).forEach(function (b) { b.onclick = function () {
+      var a = all.filter(function (x) { return x.id === b.dataset.apdl; })[0]; if (a && window.NamoosForms) NamoosForms.download(a.form, a.kind, a.caseId);
     }; });
     $$('[data-rem]', el).forEach(function (b) { b.onclick = function () {
       b.disabled = true; api('remindApproval', { id: b.dataset.rem }).then(function () { toast('🔔 أُرسل التذكير', 'ok'); return refresh(true); }).then(function () { view('approvals'); }).catch(function (e) { b.disabled = false; fail(e); });
