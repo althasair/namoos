@@ -210,6 +210,7 @@
       shell();
       setBadges(b.unread, b.tasks.length);
       if (b.tasks.length || b.unread) showTasksModal();
+      absConfirmRemind(b.tasks.length || b.unread || apprPending().length ? 900 : 0);
       if (apprPending().length) setTimeout(showApprModal, b.tasks.length || b.unread ? 400 : 0);
       startPoll();
     }).catch(function (e) { if (S.token) renderLogin(e.message); });
@@ -325,6 +326,26 @@
       $('#bkauto').onchange = function () { var on = this.checked; api('setAutoBackup', { on: on }).then(function (r2) { toast(on ? '✔ فُعّلت النسخة الأسبوعية التلقائية' : 'أُوقفت النسخة التلقائية', 'ok'); draw(r2); }).catch(fail); };
     };
     api('backups', {}, true).then(draw).catch(function (e) { var x = $('#bkx'); if (x) x.textContent = e.message; });
+  }
+  /* تذكير المشرفة بالغياب المبدئي (بدون عذر حتى التأكيد): نعم ← تحدد الآن، لا ← تذكير لاحق */
+  function absProv() { var A = S.boot && S.boot.abs; return S.me.role === 'supervisor' && A ? (A.records || []).filter(function (a) { return a.provisional; }) : []; }
+  var absRemT = null;
+  function absConfirmRemind(delay) {
+    clearTimeout(absRemT);
+    var snooze = 0; try { snooze = +localStorage.getItem('nm_absrem') || 0; } catch (e) {}
+    var wait = Math.max(delay || 0, snooze - Date.now());
+    absRemT = setTimeout(function () {
+      var L = absProv(); if (!L.length || document.getElementById('acm')) return;
+      var old = L.filter(function (a) { return a.decLate; }).length;
+      var m = document.createElement('div'); m.className = 'modal'; m.id = 'acm';
+      m.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="acmh"><h2 id="acmh">🔔 تذكير: غياب لم يُؤكَّد</h2>' +
+        '<p>لديكِ <b>' + L.length + '</b> ' + (L.length === 1 ? 'طالبة غيابها مسجّل' : L.length === 2 ? 'طالبتان غيابهما مسجّل' : 'طالبات غيابهن مسجّل') + ' مبدئيًا <b>بدون عذر</b> ولم يُؤكَّد بعد' + (old ? '، منها <b>' + old + '</b> تجاوزت المهلة' : '') + '.</p>' +
+        '<p>هل تحتاجين إلى تحديد حالة الغياب (بعذر أو بدون عذر مؤكد)؟</p>' +
+        '<div class="row" style="gap:10px"><button class="btn" id="acy" type="button">نعم، أحددها الآن</button><button class="btn sec" id="acn" type="button">لا، ذكّريني لاحقًا</button></div></div>';
+      document.body.appendChild(m);
+      $('#acy').onclick = function () { m.remove(); var t = document.getElementById('tm'); if (t) t.remove(); setSec('abs', 'absTasks'); };
+      $('#acn').onclick = function () { m.remove(); var t = Date.now() + 3 * 3600 * 1000; try { localStorage.setItem('nm_absrem', t); } catch (e) {} absConfirmRemind(3 * 3600 * 1000); };
+    }, wait);
   }
   function showApprModal() {
     if (document.getElementById('apm')) return;
@@ -794,7 +815,7 @@
     var items = [];
     myOpenCases().forEach(function (c) { var tr = /التأخير الصباحي|التأخر عن الطابور/.test(c.violation || ''); items.push({ k: tr ? 'tardy' : 'beh', o: c, isA: false, s: c.stages[st] }); });
     absOpen().forEach(function (a) { items.push({ k: 'abs', o: a, isA: true, s: a.stages[st] }); });
-    var A = AB(), und = st === 'supervisor' ? A.records.filter(function (a) { return a.kind === 'undecided'; }) : [];
+    var A = AB(), und = st === 'supervisor' ? A.records.filter(function (a) { return a.provisional; }) : [];
     var dg = {}; und.forEach(function (a) { var g = a.section + '|' + a.date; (dg[g] = dg[g] || []).push(a); });
     Object.keys(dg).forEach(function (g) { var arr = dg[g]; items.push({ k: 'dec', g: g, arr: arr, s: { due: arr[0].decDue, late: arr.some(function (a) { return a.decLate; }) } }); });
     var cnt = { tardy: 0, abs: 0, beh: 0, dec: 0 }; items.forEach(function (x) { cnt[x.k]++; });
@@ -1985,21 +2006,22 @@
   }
   function vAbsTasks(el) {
     var A = AB(), isSup = S.me.role === 'supervisor';
-    var und = isSup ? A.records.filter(function (a) { return a.kind === 'undecided'; }) : [];
+    var und = isSup ? A.records.filter(function (a) { return a.provisional; }) : [];
     var groups = {};
     und.forEach(function (a) { var g = a.section + '|' + a.date; (groups[g] = groups[g] || []).push(a); });
     var gkeys = Object.keys(groups).sort(function (x, y) { return x.split('|')[1] < y.split('|')[1] ? -1 : 1; });
     var open = absOpen();
     el.innerHTML = '<div><h2 class="pt">' + (isSup ? 'وارد الغياب' : 'مهام الغياب') + '</h2><p class="sub">' + (isSup ? 'أولًا: حددي قرار كل غياب وأخطري ولي الأمر. ثانيًا: نفّذي إجراء السياسة حسب رقم اليوم بدون عذر.' : 'حالات الغياب بدون عذر التي جاء دوركِ فيها حسب السياسة، والمتأخرة أولًا.') + '</p></div>' + TASK_INTRO +
-      (gkeys.length ? '<h3 style="margin:4px 0">① قرارات الغياب (' + und.length + ')</h3>' + gkeys.map(function (g) {
+      (gkeys.length ? '<h3 style="margin:4px 0">① تأكيد الغياب (' + und.length + ')</h3><p class="sub" style="margin:0 0 6px">كل غياب يُسجَّل مبدئيًا «بدون عذر» حتى تؤكّديه أو تغيّريه إلى «بعذر». اضغطي «✔ مؤكد» للطالبة التي ثبت غيابها بدون عذر.</p>' + gkeys.map(function (g) {
         var arr = groups[g], late = arr.some(function (a) { return a.decLate; });
         return '<form class="card dec" data-g="' + esc(g) + '" style="gap:10px;display:flex;flex-direction:column' + (late ? ';border-color:#EDB1AC' : '') + '"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center"><b>الشعبة ' + esc(arr[0].section) + ' — ' + arFull(arr[0].date) + '</b>' +
           (late ? '<span class="chip red">⛔ متأخر — آخر موعد ' + ar(arr[0].decDue) + '</span>' : '<span class="chip ap">آخر موعد: ' + arFull(arr[0].decDue) + '</span>') +
-          '<button type="button" class="btn sm sec" data-allu="' + esc(g) + '">الكل بدون عذر</button></div>' +
+          '<button type="button" class="btn sm sec" data-allu="' + esc(g) + '">✔ تأكيد الكل: بدون عذر</button></div>' +
           arr.map(function (a) {
             return '<div class="decrow" data-id="' + esc(a.id) + '"><div><b>' + esc(a.student) + '</b><div class="sub">' + (a.guardian ? esc(a.guardian) + ' • ' : '') + telAll(a.phones, a.phone) + ' • الحصة ' + esc(a.period) + ' • أ. ' + esc(a.by) + '</div></div>' +
               '<select class="inp" name="d"><option value="">— القرار —</option>' + A.decisions.map(function (x) { return '<option>' + x + '</option>'; }).join('') + '</select>' +
               '<select class="inp hidden" name="e"><option value="">— نوع العذر (المادة 3.4.1.4) —</option>' + A.excuses.map(function (x) { return '<option>' + esc(x) + '</option>'; }).join('') + '</select>' +
+              '<button type="button" class="btn sm" data-conf="' + esc(a.id) + '">✔ مؤكد (بدون عذر)</button>' +
               '<details><summary class="sub" style="cursor:pointer;color:var(--tq)">💬 رسالة ولي الأمر جاهزة</summary>' + smsTools(a) + '</details></div>';
           }).join('') + '<button class="btn wide" type="submit">حفظ القرارات</button></form>';
       }).join('') : '') +
@@ -2008,7 +2030,12 @@
         (gkeys.length ? '' : '<div class="empty card"><span class="tg">' + T3 + '</span>لا توجد مهام غياب مطلوبة منكِ الآن</div>')) + '</div>' + waitingOthers(A.records || [], true);
     bindCopy(el, A.records);
     $$('.decrow select[name=d]', el).forEach(function (s) { s.onchange = function () { $('select[name=e]', s.parentNode).classList.toggle('hidden', s.value !== 'بعذر'); }; });
-    $$('[data-allu]', el).forEach(function (b) { b.onclick = function () { $$('select[name=d]', b.closest('form')).forEach(function (s) { s.value = 'بدون عذر'; s.onchange(); }); }; });
+    $$('[data-allu]', el).forEach(function (b) { b.onclick = function () { $$('select[name=d]', b.closest('form')).forEach(function (s) { s.value = 'بدون عذر'; s.onchange(); }); b.closest('form').requestSubmit(); }; });
+    $$('[data-conf]', el).forEach(function (b) { b.onclick = function () {
+      b.disabled = true; api('decideAbsence', { items: [{ id: b.dataset.conf, decision: 'بدون عذر', excuse: '' }] }).then(function (r) {
+        S.boot.abs = Object.assign(S.boot.abs, r.abs); toast('✔ تأكّد: غياب بدون عذر', 'ok'); vAbsTasks(el); refresh(true);
+      }).catch(function (e) { b.disabled = false; fail(e); });
+    }; });
     $$('form.dec', el).forEach(function (f) {
       f.onsubmit = function (e) {
         e.preventDefault();
@@ -2077,7 +2104,7 @@
   function vAbsLog(el) {
     var f = S.filter.abs || 'all', q = S.filter.aq || '';
     var all = AB().records.filter(function (a) { return a.kind !== 'dup'; });
-    var flt = { all: function () { return true; }, undecided: function (a) { return a.kind === 'undecided'; }, U: function (a) { return a.kind === 'U'; },
+    var flt = { all: function () { return true; }, undecided: function (a) { return !!a.provisional; }, U: function (a) { return a.kind === 'U'; },
       wait: function (a) { return a.kind === 'U' && a.status.code !== 'done'; }, late: function (a) { return a.status.code === 'late'; }, E: function (a) { return a.kind === 'E'; }, P: function (a) { return a.kind === 'P'; } };
     var tabs = S.me.role === 'supervisor' || S.me.role === 'admin' ? [['all', 'الكل'], ['undecided', 'بانتظار القرار'], ['U', 'بدون عذر'], ['wait', 'إجراءات معلقة'], ['late', 'متأخرة'], ['P', 'قيد العذر'], ['E', 'بعذر']] : [['all', 'الكل'], ['wait', 'معلقة'], ['late', 'متأخرة']];
     var list = all.filter(flt[f]).filter(function (a) { return !q || norm(a.student + ' ' + a.section + ' ' + a.id).indexOf(norm(q)) >= 0; });

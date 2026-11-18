@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.21.0';
+var VERSION = '2.22.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -1675,7 +1675,8 @@ function absData_() {
     seen[dk] = 1;
     // القرار الفعلي حسب السياسة
     var exc = P.excuses.filter(function (e) { return e.name === a.excuse; })[0];
-    if (!a.decision) a.kind = 'undecided';
+    // التسجيل المبدئي: «بدون عذر» حتى تؤكده المشرفة أو تغيّره إلى «بعذر»
+    if (!a.decision) { a.kind = 'U'; a.provisional = true; a.flag = '⏳ مبدئي: بدون عذر حتى تأكيد المشرفة'; }
     else if (a.decision === 'بدون عذر') a.kind = 'U';
     else if (a.decision === 'بعذر') {
       if (exc && exc.only12 && a.grade !== '12') { a.kind = 'U'; a.flag = '⚠ العذر خاص بطالبات الثاني عشر — احتُسب بدون عذر'; }
@@ -1684,7 +1685,8 @@ function absData_() {
       a.excuseDue = nthSchoolDayAfter_(a.date, excuseDays);
       if (t > a.excuseDue) { a.kind = 'U'; a.flag = '⚠ انتهت مهلة العذر (' + arDate_(a.excuseDue) + ') — احتُسب بدون عذر'; }
       else a.kind = 'P';
-    } else a.kind = 'undecided';
+    } else { a.kind = 'U'; a.provisional = true; a.flag = '⏳ مبدئي: بدون عذر حتى تأكيد المشرفة'; }
+    if (a.provisional) { a.decDue = deadline_(startDay_(a.date, a.createdDay)); a.decLate = t > a.decDue; }
     if (a.kind === 'undecided') {
       a.decDue = deadline_(startDay_(a.date, a.createdDay));
       a.decLate = t > a.decDue;
@@ -1713,7 +1715,7 @@ function absPublic_(a) {
   return { id: a.id, date: a.date, section: a.section, student: a.student, period: a.period, by: a.by, kind: a.kind, flag: a.flag,
     decision: a.decision, excuse: a.excuse, decNotes: a.decNotes, decBy: a.decBy, excuseDue: a.excuseDue || '', decDue: a.decDue || '', decLate: !!a.decLate,
     n: a.n, key: a.key, req: a.req, text: a.text, elig: a.elig || '', doc: a.doc, stages: a.stages, status: a.status, next: a.next || '',
-    guardian: stu.guardian || '', phone: stu.phone || '', phones: stu.phones || [], qid: stu.qid || '', nat: stu.nat || '', lateArrival: a.lateArrival, confirmedBy: a.confirmedBy, supervisors: a.supervisors, social: a.social };
+    guardian: stu.guardian || '', phone: stu.phone || '', phones: stu.phones || [], qid: stu.qid || '', nat: stu.nat || '', lateArrival: a.lateArrival, provisional: !!a.provisional, confirmedBy: a.confirmedBy, supervisors: a.supervisors, social: a.social };
 }
 
 /** من يرى السجل */
@@ -1740,13 +1742,13 @@ function absTasks_(me, list) {
   var mine = absFor_(me, list);
   if (me.role === 'supervisor' || me.role === 'admin') {
     var groups = {};
-    mine.filter(function (a) { return a.kind === 'undecided' && (me.role === 'supervisor' || a.decLate); }).forEach(function (a) {
+    mine.filter(function (a) { return a.provisional && (me.role === 'supervisor' || a.decLate); }).forEach(function (a) {
       var g = a.section + '|' + a.date; (groups[g] = groups[g] || []).push(a);
     });
     if (me.role === 'supervisor') Object.keys(groups).forEach(function (g) {
       var arr = groups[g], late = arr.some(function (a) { return a.decLate; });
       out.push({ type: 'absDecide', sec: 'abs', id: 'D:' + g, title: 'قرار غياب الشعبة ' + arr[0].section + ' — ' + arDate_(arr[0].date),
-        sub: arr.length + (arr.length === 1 ? ' طالبة' : ' طالبات') + ' • حددي: بعذر أم بدون عذر' + (late ? ' • ⛔ متأخر' : ''), late: late });
+        sub: arr.length + (arr.length === 1 ? ' طالبة' : ' طالبات') + ' • مبدئيًا بدون عذر: أكّدي أو غيّري إلى بعذر' + (late ? ' • ⛔ متأخر' : ''), late: late });
     });
   }
   var st = me.role;
@@ -2013,7 +2015,7 @@ API.absDashboard = function (me, req) {
       owners.forEach(function (o) { addC(o, ROLE_LABEL[st], s.compliance); });
     });
   });
-  counted.filter(function (a) { return a.kind === 'undecided'; }).forEach(function (a) { addC(a.supervisors.join('، '), 'مشرفة إدارية (القرار)', a.decLate ? 3 : 4); });
+  counted.filter(function (a) { return a.provisional; }).forEach(function (a) { addC(a.supervisors.join('، '), 'مشرفة إدارية (القرار)', a.decLate ? 3 : 4); });
   var months = ['2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-06'].map(function (m) {
     var x = all.filter(function (a) { return a.kind !== 'late' && a.date.slice(0, 7) === m; });
     return { m: m, total: x.length, U: x.filter(function (a) { return a.kind === 'U'; }).length };
@@ -2022,7 +2024,7 @@ API.absDashboard = function (me, req) {
   return {
     period: { from: from, to: to },
     tiles: { students: studs.length, schoolDays: sd, total: counted.length, U: U.length, E: counted.filter(function (a) { return a.kind === 'E'; }).length,
-      P: counted.filter(function (a) { return a.kind === 'P'; }).length, undecided: counted.filter(function (a) { return a.kind === 'undecided'; }).length,
+      P: counted.filter(function (a) { return a.kind === 'P'; }).length, undecided: counted.filter(function (a) { return a.provisional; }).length,
       lateArrivals: L.filter(function (a) { return a.kind === 'late'; }).length,
       absentStudents: Object.keys(countBy(counted, function (a) { return a.student + '|' + a.section; })).length,
       rate: studs.length && sd ? Math.round(1000 * counted.length / (studs.length * sd)) / 10 : 0,
