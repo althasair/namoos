@@ -615,6 +615,22 @@
   function apprList(key) { return ((N.S.boot && N.S.boot.approvals) || []).filter(function (a) { return a.key === key; }); }
   function apprFor(key) { var l = apprList(key); return l.filter(function (a) { return a.to === me().name && a.status === 'بانتظار الاعتماد'; })[0] || l[0] || null; }
   var dt = function (x) { return String(x || '').replace('T', ' ').slice(0, 16); };
+  /* مسار الاعتماد (كما في سنابل): ✔ المرسِلة ← ✔/⏳ كل جهة ← ◻ الجهات التالية */
+  function trail(L) {
+    L = (L || []).slice().sort(function (a, b) { return a.at < b.at ? -1 : 1; });
+    if (!L.length) return '';
+    var by = {}; L.forEach(function (a) { by[a.to] = a; });
+    var order = []; L.forEach(function (a) { if (order.indexOf(a.to) < 0) order.push(a.to); });
+    var last = by[order[order.length - 1]];
+    var nxt = String((last && last.next) || '').split('،').filter(function (n) { return n && order.indexOf(n) < 0; });
+    var fwdNow = last && last.status === 'معتمدة'; // اعتُمدت الخطوة الأخيرة وأُحيلت تلقائيًا للتالية
+    var st = function (cls, ic, who, sub) { return '<span class="atr ' + cls + '"><i>' + ic + '</i><b>' + e(who) + '</b><small>' + sub + '</small></span>'; };
+    var out = [st('ok', '✔', 'أ. ' + L[0].by, 'أرسلت واعتمدت — ' + e(dt(L[0].at)))];
+    order.forEach(function (n) { var a = by[n]; out.push(a.status === 'معتمدة' ? st('ok', '✔', 'أ. ' + (a.approver || n), 'تم الاعتماد — ' + e(dt(a.approvedAt))) : st('wait', '⏳', 'أ. ' + n, 'قيد الاعتماد منذ ' + e(dt(a.at)) + (a.remindedAt ? ' • ذُكّرت ' + e(dt(a.remindedAt)) : ''))); });
+    nxt.forEach(function (n, i) { out.push(fwdNow && !i ? st('wait', '⏳', 'أ. ' + n, 'قيد الاعتماد') : st('next', '◻', 'أ. ' + n, 'تصلها بعد الاعتماد')); });
+    var done = order.every(function (n) { return by[n].status === 'معتمدة'; }) && !nxt.length;
+    return '<div class="atrail">' + out.join('<span class="arr">←</span>') + (done ? '<span class="atr all">✔ اكتمل الاعتماد</span>' : '') + '</div>';
+  }
   function apprShow(paper, list) {
     var st = document.getElementById('nf-apst'); if (!st || !CUR) return;
     if (list) CUR.aps = list; else if (!CUR.aps) CUR.aps = apprList(fsKey());
@@ -622,17 +638,19 @@
     // آخر حالة لكل مستلمة
     var by = {}; L.forEach(function (a) { var k = a.to || ''; if (!by[k] || (a.status === 'معتمدة') || a.at > by[k].at) by[k] = a; });
     var items = Object.keys(by).map(function (k) { return by[k]; });
-    st.innerHTML = items.map(function (a) {
-      return a.status === 'معتمدة' ? '<div>✔ اعتمدتها أ. ' + e(a.approver || a.to) + ' — ' + e(dt(a.approvedAt)) + '</div>' : '<div class="w">⏳ أُرسلت إلى أ. ' + e(a.to) + ' للاعتماد منذ ' + e(dt(a.at)) + ' — لم يتم الإجراء بعد</div>';
-    }).join('');
+    st.innerHTML = trail(L);
     st.hidden = !items.length;
     CUR.ap = items.filter(function (a) { return a.to === mine && a.status === 'بانتظار الاعتماد'; })[0] || null;
     var coord = (F().coordinators || [])[0] || '', vp = F().adminVP || '';
     var pendTo = function (n) { return items.some(function (a) { return a.to === n && a.status === 'بانتظار الاعتماد'; }); };
     var okBy = function (n) { return items.some(function (a) { return a.to === n && a.status === 'معتمدة'; }); };
-    var tc = document.getElementById('nf-tocoord'), rq = document.getElementById('nf-reqap'), apb = document.getElementById('nf-approve');
-    if (tc) { tc.hidden = !coord || mine === coord || okBy(coord) || me().role === 'teacher'; tc.textContent = pendTo(coord) ? '⏳ عند شؤون الطالبات — إعادة الإرسال' : '📨 إرسال لشؤون الطالبات للاعتماد'; }
-    if (rq) { rq.hidden = !vp || mine === vp || okBy(vp) || me().role === 'teacher'; rq.textContent = pendTo(vp) ? '⏳ عند النائبة الإدارية — إعادة الإرسال' : '✅ إرسال للنائبة الإدارية للاعتماد'; }
+    var tc = document.getElementById('nf-tocoord'), rq = document.getElementById('nf-reqap'), apb = document.getElementById('nf-approve'), rm = document.getElementById('nf-remind');
+    var myPend = items.filter(function (a) { return a.status === 'بانتظار الاعتماد' && (a.by === mine || me().role === 'admin') && a.to !== mine; })[0] || null;
+    CUR.rem = myPend;
+    if (rm) { rm.hidden = !myPend; if (myPend) rm.textContent = '🔔 تذكير أ. ' + myPend.to + ' بالاعتماد'; }
+    var inFlow = items.length > 0;
+    if (tc) tc.hidden = !coord || mine === coord || inFlow || me().role === 'teacher';
+    if (rq) rq.hidden = !vp || mine === vp || inFlow || me().role === 'teacher';
     if (apb) apb.hidden = !CUR.ap;
     // توقيع كل من اعتمدت (المحفوظ لحظة اعتمادها) يظهر في خانتها لكل من يفتح الاستمارة
     if (window.NamoosSig) items.forEach(function (a) {
@@ -641,10 +659,10 @@
     });
     fit(paper);
   }
-  function reqAppr(paper, to, b) {
+  function reqAppr(paper, chain, b) {
     if (b.disabled) return; b.disabled = true; fsSave(true);
-    N.api('requestApproval', { to: to, key: fsKey(), form: CUR.id, kind: CUR.kind, caseId: CUR.o.id, title: CUR.d.title, student: CUR.o.student, section: CUR.o.section })
-      .then(function (r) { N.toast('✔ أُرسلت الاستمارة إلى أ. ' + r.to + ' للاعتماد داخل المنصة؛ ستعود إليكِ موقّعة بعد اعتمادها', 'ok', 6000); return N.refresh && N.refresh(); })
+    N.api('requestApproval', { chain: chain, key: fsKey(), form: CUR.id, kind: CUR.kind, caseId: CUR.o.id, title: CUR.d.title, student: CUR.o.student, section: CUR.o.section })
+      .then(function (r) { N.toast('✔ اعتمدتِها وأُرسلت إلى أ. ' + r.to + ' للاعتماد' + (r.next && r.next.length ? '، ثم تنتقل تلقائيًا إلى أ. ' + r.next.join(' ثم أ. ') : '') + '. تتابعين مسارها هنا.', 'ok', 7000); return N.refresh && N.refresh(); })
       .then(function () { apprShow(paper, apprList(fsKey())); })
       .catch(function (err) { N.toast(err.message, 'bad'); }).then(function () { b.disabled = false; });
   }
@@ -669,7 +687,7 @@
     if (!m) { m = document.createElement('div'); m.id = 'nf-modal'; document.body.appendChild(m); }
     m.innerHTML = '<div class="nf-back"></div><div class="nf-dlg" role="dialog" aria-modal="true" aria-label="معاينة الاستمارة">' +
       '<div class="nf-bar"><b>معاينة: ' + d.title + ' — ' + e(o.student) + '</b>' +
-      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn sec" id="nf-tocoord" type="button" hidden>📨 إرسال لشؤون الطالبات للاعتماد</button><button class="btn sec" id="nf-reqap" type="button" hidden>✅ إرسال للنائبة الإدارية للاعتماد</button>' + (me().role === 'coordinator' || me().role === 'admin' ? '<button class="btn sec" id="nf-mailt" type="button">✉ إرسال إلى لجنة الضبط السلوكي</button>' : '') + '<button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
+      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn sec" id="nf-tocoord" type="button" hidden>📨 إرسال لشؤون الطالبات للاعتماد</button><button class="btn sec" id="nf-reqap" type="button" hidden>✅ إرسال للنائبة الإدارية للاعتماد</button><button class="btn sec" id="nf-remind" type="button" hidden>🔔 تذكير بالاعتماد</button>' + (me().role === 'coordinator' || me().role === 'admin' ? '<button class="btn sec" id="nf-mailt" type="button">✉ إرسال إلى لجنة الضبط السلوكي</button>' : '') + '<button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
       '<div class="nf-mail" id="nf-mail" hidden><div class="field"><label class="lbl">إلى</label><div class="inp" style="background:#f6f6f6">لجنة الضبط السلوكي (بالبريد الإلكتروني، والاستمارة مرفقة PDF)</div></div>' +
       '<div class="nf-cc">نسخة تلقائيًا: <b>الأخصائية الاجتماعية للشعبة' + (socOf(o.section) ? ' (' + e(socOf(o.section)) + ')' : '') + '</b> و<b>النائبة الإدارية' + (F().adminVP ? ' (' + e(F().adminVP) + ')' : '') + '</b> و<b>مديرة المدرسة' + (F().principal ? ' (' + e(F().principal) + ')' : '') + '</b> — والاستمارة مرفقة PDF</div>' +
       '<div class="field"><label class="lbl" for="nf-note">ملاحظة (اختياري)</label><input class="inp" id="nf-note"></div>' +
@@ -695,8 +713,13 @@
     m.querySelector('.nf-back').onclick = close;
     document.getElementById('nf-print').onclick = function () { fsSave(true); fit(paper); document.body.classList.add('nf-printing'); setTimeout(function () { window.print(); }, 60); };
     apprShow(paper);
-    document.getElementById('nf-reqap').onclick = function () { reqAppr(paper, F().adminVP, this); };
-    document.getElementById('nf-tocoord').onclick = function () { reqAppr(paper, (F().coordinators || [])[0], this); };
+    document.getElementById('nf-reqap').onclick = function () { reqAppr(paper, [F().adminVP], this); };
+    document.getElementById('nf-tocoord').onclick = function () { reqAppr(paper, [(F().coordinators || [])[0], F().adminVP], this); };
+    document.getElementById('nf-remind').onclick = function () {
+      var b = this; if (b.disabled || !CUR.rem) return; b.disabled = true;
+      N.api('remindApproval', { id: CUR.rem.id }).then(function () { N.toast('🔔 أُرسل تذكير إلى أ. ' + CUR.rem.to, 'ok'); return N.refresh && N.refresh(); })
+        .then(function () { apprShow(paper, apprList(fsKey())); }).catch(function (err) { N.toast(err.message, 'bad'); }).then(function () { b.disabled = false; });
+    };
     document.getElementById('nf-approve').onclick = function () {
       var b = this; if (b.disabled || !CUR.ap) return;
       var cells = nameCells(paper, me().name);
@@ -710,7 +733,7 @@
         target.slice(0, 1).forEach(function (c) { c.setAttribute('data-as', '1'); NamoosSig.place(c, sg); }); fit(paper);
       });
       pre.then(function () { return N.api('approveForm', { id: CUR.ap.id }); }).then(function (r) {
-        N.toast('✔ تم الاعتماد، وعادت الاستمارة موقّعة إلى أ. ' + CUR.ap.by, 'ok', 6000);
+        N.toast('✔ تم الاعتماد' + (r.forwardedTo ? '، وأُحيلت تلقائيًا إلى أ. ' + r.forwardedTo : '، واكتمل اعتماد الاستمارة وعادت موقّعة إلى أ. ' + CUR.ap.by), 'ok', 6000);
         var ap = CUR.ap; return (N.refresh ? N.refresh() : Promise.resolve()).then(function () { apprShow(paper, apprList(fsKey()).map(function (x) { return x.id === ap.id ? Object.assign({}, x, { status: 'معتمدة', approver: me().name, approvedAt: r.approvedAt }) : x; })); });
       }).catch(function (err) { N.toast(err.message, 'bad'); b.disabled = false; });
     };
@@ -796,5 +819,5 @@
         '<span class="fchip off" title="غير مطلوب في هذه المرحلة">' + DEF[id].title + '</span>';
     }).join('');
   }
-  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, chips: chips, _build: function (id, o) { return DEF[id].build(o); }, _open: function (id, kind, oid, ap) { return open(id, kind, oid, ap); } };
+  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, chips: chips, _build: function (id, o) { return DEF[id].build(o); }, _open: function (id, kind, oid, ap) { return open(id, kind, oid, ap); }, trail: trail };
 })();

@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.20.0';
+var VERSION = '2.21.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -82,7 +82,7 @@ function out_(o) {
 }
 
 var PUBLIC = { login: 1, ping: 1 };
-var WRITES = { backupNow: 1, setAutoBackup: 1, fixStageDoc: 1, requestApproval: 1, approveForm: 1, saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+var WRITES = { remindApproval: 1, backupNow: 1, setAutoBackup: 1, fixStageDoc: 1, requestApproval: 1, approveForm: 1, saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
   recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
   recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
@@ -868,11 +868,11 @@ API.formState = function (me, req) {
 /* ===== اعتماد الاستمارات: الموظفة تطلب الاعتماد ← النائبة الإدارية تعتمد بتوقيعها ← تعود للطالبة/الموظفة موقّعة =====
  * توقيع النائبة يُنسخ في سجل الاعتماد لحظة اعتمادها هي بنفسها (موافقتها على وضعه في تلك الاستمارة فقط). */
 var APPR_SHEET = 'طلبات الاعتماد';
-var APPR_COLS = ['المعرف', 'وقت الطلب', 'المفتاح', 'طلبتها', 'صفتها', 'الاستمارة', 'الطالبة', 'الشعبة', 'رقم الحالة', 'نوع السجل', 'رمز الاستمارة', 'الحالة', 'المعتمدة', 'وقت الاعتماد', 'التوقيع', 'إلى'];
+var APPR_COLS = ['المعرف', 'وقت الطلب', 'المفتاح', 'طلبتها', 'صفتها', 'الاستمارة', 'الطالبة', 'الشعبة', 'رقم الحالة', 'نوع السجل', 'رمز الاستمارة', 'الحالة', 'المعتمدة', 'وقت الاعتماد', 'التوقيع', 'إلى', 'التالي', 'آخر تذكير'];
 function apprSheet_() {
   var sh = ss_().getSheetByName(APPR_SHEET);
   if (!sh) { sh = ss_().insertSheet(APPR_SHEET); sh.getRange(1, 1, 1, APPR_COLS.length).setValues([APPR_COLS]); }
-  else if (str_(sh.getRange(1, APPR_COLS.length).getValue()) !== 'إلى') sh.getRange(1, APPR_COLS.length).setValue('إلى');
+  else if (str_(sh.getRange(1, APPR_COLS.length).getValue()) !== APPR_COLS[APPR_COLS.length - 1]) sh.getRange(1, 16, 1, 3).setValues([APPR_COLS.slice(15)]);
   return sh;
 }
 function vpName_() { var vp = usersByRole_('admin').filter(function (u) { return u.roleAr === 'النائب الإداري'; })[0]; return vp ? vp.name : ''; }
@@ -881,18 +881,19 @@ function apprAll_() {
   if (n < 2) return [];
   return sh.getRange(2, 1, n - 1, APPR_COLS.length).getValues().map(function (r, i) {
     return { row: i + 2, id: str_(r[0]), at: str_(r[1]), key: str_(r[2]), by: str_(r[3]), byRole: str_(r[4]), title: str_(r[5]), student: str_(r[6]),
-      section: str_(r[7]), caseId: str_(r[8]), kind: str_(r[9]), form: str_(r[10]), status: str_(r[11]), approver: str_(r[12]), approvedAt: str_(r[13]), sig: str_(r[14]), to: str_(r[15]) || vpName_() };
+      section: str_(r[7]), caseId: str_(r[8]), kind: str_(r[9]), form: str_(r[10]), status: str_(r[11]), approver: str_(r[12]), approvedAt: str_(r[13]), sig: str_(r[14]), to: str_(r[15]) || vpName_(), next: str_(r[16]), remindedAt: str_(r[17]) };
   });
 }
 function isVP_(me) { return me.role === 'admin' && me.roleAr === 'النائب الإداري'; }
 function apprPublic_(a, withSig) {
   return { id: a.id, at: a.at, key: a.key, by: a.by, title: a.title, student: a.student, section: a.section, caseId: a.caseId, kind: a.kind, form: a.form,
-    status: a.status, approver: a.approver, approvedAt: a.approvedAt, to: a.to, sig: withSig && a.status === 'معتمدة' ? a.sig : undefined };
+    status: a.status, approver: a.approver, approvedAt: a.approvedAt, to: a.to, next: a.next, remindedAt: a.remindedAt, sig: withSig && a.status === 'معتمدة' ? a.sig : undefined };
 }
 /* طلبات الاعتماد داخل المنصة: ما أُرسل إليّ، وما أرسلته أنا، والإدارة (النائبة الإدارية ومديرة المدرسة والنائبة الأكاديمية) ترى كل ما لم يُعتمد بعد للمتابعة */
 function approvalsFor_(me) {
-  var all = apprAll_(), adm = me.role === 'admin';
-  return all.filter(function (a) { return a.to === me.name || a.by === me.name || (adm && (a.status === 'بانتظار الاعتماد' || a.approvedAt >= addDaysIso_(today_(), -30))); })
+  var all = apprAll_(), adm = me.role === 'admin', keys = {};
+  all.forEach(function (a) { if (a.to === me.name || a.by === me.name) keys[a.key] = 1; }); // كل خطوات المسار للاستمارات التي تخصّني
+  return all.filter(function (a) { return keys[a.key] || (adm && (a.status === 'بانتظار الاعتماد' || a.approvedAt >= addDaysIso_(today_(), -30))); })
     .slice(-300).map(function (a) { return apprPublic_(a, false); }).reverse();
 }
 function addDaysIso_(d, n) { var x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return Utilities.formatDate(x, TZ, 'yyyy-MM-dd'); }
@@ -904,19 +905,35 @@ API.requestApproval = function (me, req) {
   if (me.role === 'teacher' || me.role === 'daily') throw new Error('غير مسموح');
   var key = str_(req.key);
   if (!key) throw new Error('الاستمارة غير محددة');
-  var toName = str_(req.to) || vpName_();
+  // مسار الاعتماد (كما في سنابل): المرسِلة ✔ ← شؤون الطالبات ← النائبة الإدارية؛ عند اعتماد كل جهة تنتقل تلقائيًا للتالية
+  var chain = (req.chain && req.chain.length ? req.chain : [str_(req.to) || vpName_()]).map(str_).filter(function (n, i, a) { return n && n !== me.name && a.indexOf(n) === i; });
+  if (!chain.length) throw new Error('حدّدي جهة الاعتماد');
+  var toName = chain[0];
   var vp = users_().filter(function (u) { return u.name === toName && u.role !== 'teacher' && u.role !== 'daily'; })[0];
   if (!vp) throw new Error('لم أجد المستلمة «' + toName + '» في المستخدمين');
   if (vp.name === me.name) throw new Error('لا يمكن إرسال الاعتماد لنفسكِ');
   var sh = apprSheet_(), prev = apprAll_().filter(function (a) { return a.key === key && a.to === vp.name && a.status === 'بانتظار الاعتماد'; })[0];
   var row = ['اع-' + Utilities.getUuid().slice(0, 8), now_(), key, me.name, ROLE_LABEL[me.role] || '', str_(req.title), str_(req.student), str_(req.section),
-    str_(req.caseId), str_(req.kind), str_(req.form), 'بانتظار الاعتماد', '', '', '', vp.name];
+    str_(req.caseId), str_(req.kind), str_(req.form), 'بانتظار الاعتماد', '', '', '', vp.name, chain.slice(1).join('،'), ''];
   if (prev) { row[0] = prev.id; sh.getRange(prev.row, 1, 1, APPR_COLS.length).setValues([row]); }
   else sh.appendRow(row);
   append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': now_(), 'من': me.name, 'إلى': vp.name,
     'الموضوع': 'يرجى الاعتماد: ' + str_(req.title) + ' — ' + str_(req.student), 'النص': 'يرجى اعتماد ' + str_(req.title) + ' للطالبة ' + str_(req.student) + (req.section ? ' (' + str_(req.section) + ')' : '') + ' وتوقيعها وتنفيذ الإجراء المطلوب منكِ.\nتجدينها في «طلبات الاعتماد».',
     'الحالة': str_(req.caseId), 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
-  return { ok: true, id: row[0], to: vp.name };
+  return { ok: true, id: row[0], to: vp.name, next: chain.slice(1) };
+};
+/** تذكير بالاعتماد: المرسِلة (أو الإدارة) تذكّر المستلمة بطلب لم يُعتمد بعد */
+API.remindApproval = function (me, req) {
+  var a = apprAll_().filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!a) throw new Error('لم أجد الطلب');
+  if (a.by !== me.name && me.role !== 'admin') throw new Error('التذكير لمن أرسلت الطلب');
+  if (a.status !== 'بانتظار الاعتماد') throw new Error('تم اعتماد الطلب');
+  var t = now_();
+  apprSheet_().getRange(a.row, 18).setValue(t);
+  append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': t, 'من': me.name, 'إلى': a.to,
+    'الموضوع': '🔔 تذكير بالاعتماد: ' + a.title + ' — ' + a.student, 'النص': 'تذكير: ' + a.title + ' للطالبة ' + a.student + (a.section ? ' (' + a.section + ')' : '') + ' بانتظار اعتمادكِ منذ ' + a.at.replace('T', ' ').slice(0, 16) + '.\nتجدينها في «طلبات الاعتماد».',
+    'الحالة': a.caseId, 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
+  return { ok: true, remindedAt: t };
 };
 API.approveForm = function (me, req) {
   var a = apprAll_().filter(function (x) { return x.id === str_(req.id); })[0];
@@ -927,10 +944,22 @@ API.approveForm = function (me, req) {
   if (!sig) throw new Error('أضيفي توقيعكِ أولًا من «توقيعي»، ثم اعتمدي');
   var t = now_();
   apprSheet_().getRange(a.row, 12, 1, 4).setValues([['معتمدة', me.name, t, sig]]);
+  // الانتقال التلقائي للجهة التالية في المسار (مثلًا: بعد شؤون الطالبات ← النائبة الإدارية)
+  var nx = a.next ? a.next.split('،').filter(String) : [], fwd = '';
+  if (nx.length) {
+    var nu = users_().filter(function (u) { return u.name === nx[0]; })[0];
+    if (nu) {
+      fwd = nu.name;
+      apprSheet_().appendRow(['اع-' + Utilities.getUuid().slice(0, 8), t, a.key, a.by, a.byRole, a.title, a.student, a.section, a.caseId, a.kind, a.form, 'بانتظار الاعتماد', '', '', '', nu.name, nx.slice(1).join('،'), '']);
+      append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': t, 'من': a.by, 'إلى': nu.name,
+        'الموضوع': 'يرجى الاعتماد: ' + a.title + ' — ' + a.student, 'النص': 'يرجى اعتماد ' + a.title + ' للطالبة ' + a.student + (a.section ? ' (' + a.section + ')' : '') + '.\nأرسلتها أ. ' + a.by + ' واعتمدتها أ. ' + me.name + '.\nتجدينها في «طلبات الاعتماد».',
+        'الحالة': a.caseId, 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
+    }
+  }
   append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': t, 'من': me.name, 'إلى': a.by,
-    'الموضوع': '✔ تم اعتماد ' + a.title + ' — ' + a.student, 'النص': 'تم اعتماد ' + a.title + ' للطالبة ' + a.student + ' وتوقيعها.\nافتحي الاستمارة من الحالة، وستجدينها موقّعة وجاهزة للطباعة.',
+    'الموضوع': '✔ اعتمدت أ. ' + me.name + ' ' + a.title + ' — ' + a.student, 'النص': 'اعتمدت أ. ' + me.name + ' ' + a.title + ' للطالبة ' + a.student + ' ووقّعتها.' + (fwd ? '\nوأُحيلت تلقائيًا إلى أ. ' + fwd + ' للاعتماد.' : '\nاكتمل الاعتماد؛ افتحي الاستمارة من الحالة وستجدينها موقّعة وجاهزة للطباعة.'),
     'الحالة': a.caseId, 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
-  return { ok: true, approvedAt: t };
+  return { ok: true, approvedAt: t, forwardedTo: fwd };
 };
 API.saveFormState = function (me, req) {
   if (me.role === 'teacher' || me.role === 'daily') throw new Error('غير مسموح');
