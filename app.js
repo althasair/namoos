@@ -2194,19 +2194,35 @@
   if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); }); }
   // تنبيه التحديث: الصفحة المفتوحة طوال اليوم لا ترى التعديلات الجديدة — نفحص كل 5 دقائق ونعرض زر «تحديث»
   (function () {
-    var cur = 'namoos-v62'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
+    var cur = 'namoos-v63'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
     var ver = function () { return fetch('sw.js?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { var m = t.match(/namoos-v\d+/); return m ? m[0] : ''; }); };
     var show = function () {
       if (document.getElementById('upd-bar')) return;
       var b = document.createElement('div'); b.id = 'upd-bar'; b.className = 'upd-bar noprint'; b.setAttribute('role', 'status');
       b.innerHTML = '<span>🔄 يوجد تحديث جديد للمنصة — يرجى التحديث</span><button type="button">تحديث الآن</button>';
       b.querySelector('button').onclick = function () {
+        this.disabled = true; this.textContent = 'جارٍ التحديث…';
+        try { sessionStorage.setItem('nm_upd_try', JSON.stringify({ v: newV, t: Date.now() })); } catch (e) {}
+        // تحديث فعلي: مسح النسخ المحفوظة وجلب ملفات الواجهة من الخادم مباشرة، ثم إعادة التحميل
+        var files = ['./', 'index.html', 'app.js', 'forms.js', 'sig.js', 'style.css', 'sw.js', 'config.js'];
+        var clear = window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
+        var refetch = Promise.all(files.map(function (u) { return fetch(u, { cache: 'reload' }).catch(function () {}); }));
+        var sw = navigator.serviceWorker && navigator.serviceWorker.getRegistration ? navigator.serviceWorker.getRegistration().then(function (r) { return r && r.update(); }).catch(function () {}) : Promise.resolve();
         var go = function () { location.reload(); };
-        if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(function (r) { return r && r.update(); }).then(go, go); else go();
+        Promise.all([clear, refetch, sw]).then(go, go);
+        setTimeout(go, 6000);
       };
       document.body.appendChild(b);
     };
-    var check = function () { ver().then(function (v) { if (v && v !== cur) show(); }).catch(function () {}); };
+    var newV = '';
+    var check = function () { ver().then(function (v) {
+      if (!v || v === cur) { try { sessionStorage.removeItem('nm_upd_try'); } catch (e) {} return; }
+      newV = v;
+      // منع الدوران: إن حدّثنا للتو لهذه النسخة ولم تصل بعد (تأخر الخادم)، لا نعيد الشريط قبل 10 دقائق
+      var tr = null; try { tr = JSON.parse(sessionStorage.getItem('nm_upd_try') || 'null'); } catch (e) {}
+      if (tr && tr.v === v && Date.now() - tr.t < 10 * 60 * 1000) return;
+      show();
+    }).catch(function () {}); };
     check(); setInterval(check, 2 * 60 * 1000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
   })();
