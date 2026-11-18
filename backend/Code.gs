@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.23.0';
+var VERSION = '2.23.1';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -873,15 +873,27 @@ function apprSheet_() {
   var sh = ss_().getSheetByName(APPR_SHEET);
   if (!sh) { sh = ss_().insertSheet(APPR_SHEET); sh.getRange(1, 1, 1, APPR_COLS.length).setValues([APPR_COLS]); }
   else if (str_(sh.getRange(1, APPR_COLS.length).getValue()) !== APPR_COLS[APPR_COLS.length - 1]) sh.getRange(1, 16, 1, 3).setValues([APPR_COLS.slice(15)]);
+  apprTextFmt_(sh);
   return sh;
+}
+/* Google Sheets يحوّل النصوص تلقائيًا: «12-4» تصير تاريخ 4 ديسمبر، والوقت يصير تاريخًا كاملًا بالإنجليزية — نعيدها كما كُتبت */
+function apprVal_(v, sec) {
+  if (v instanceof Date) return sec ? Utilities.formatDate(v, TZ, 'M-d') : Utilities.formatDate(v, TZ, "yyyy-MM-dd'T'HH:mm:ss");
+  return str_(v);
+}
+function apprTextFmt_(sh) { // أعمدة الورقة نصًا عاديًا حتى لا تتحول الشعبة أو الوقت مرة أخرى
+  var pr = PropertiesService.getScriptProperties();
+  if (pr.getProperty('apprFmt') === '1') return;
+  sh.getRange(1, 1, sh.getMaxRows(), APPR_COLS.length).setNumberFormat('@');
+  pr.setProperty('apprFmt', '1');
 }
 function vpName_() { var vp = usersByRole_('admin').filter(function (u) { return u.roleAr === 'النائب الإداري'; })[0]; return vp ? vp.name : ''; }
 function apprAll_() {
   var sh = apprSheet_(), n = sh.getLastRow();
   if (n < 2) return [];
   return sh.getRange(2, 1, n - 1, APPR_COLS.length).getValues().map(function (r, i) {
-    return { row: i + 2, id: str_(r[0]), at: str_(r[1]), key: str_(r[2]), by: str_(r[3]), byRole: str_(r[4]), title: str_(r[5]), student: str_(r[6]),
-      section: str_(r[7]), caseId: str_(r[8]), kind: str_(r[9]), form: str_(r[10]), status: str_(r[11]), approver: str_(r[12]), approvedAt: str_(r[13]), sig: str_(r[14]), to: str_(r[15]) || vpName_(), next: str_(r[16]), remindedAt: str_(r[17]) };
+    return { row: i + 2, id: str_(r[0]), at: apprVal_(r[1]), key: str_(r[2]), by: str_(r[3]), byRole: str_(r[4]), title: str_(r[5]), student: str_(r[6]),
+      section: apprVal_(r[7], true), caseId: str_(r[8]), kind: str_(r[9]), form: str_(r[10]), status: str_(r[11]), approver: str_(r[12]), approvedAt: apprVal_(r[13]), sig: str_(r[14]), to: str_(r[15]) || vpName_(), next: str_(r[16]), remindedAt: apprVal_(r[17]) };
   });
 }
 function isVP_(me) { return me.role === 'admin' && me.roleAr === 'النائب الإداري'; }
