@@ -288,11 +288,15 @@
     var keyRows = function (k) { return all.filter(function (x) { return x.key === k; }); };
     var card = function (a, act) {
       var rem = !act && a.status === 'بانتظار الاعتماد' && (a.by === me || adm) && a.to !== me;
+      var kr = keyRows(a.key), wdId = (a.by === me || adm) && kr.some(function (x) { return x.status === 'بانتظار الاعتماد'; }) ? a.id : '';
+      var rvId = a.status === 'معتمدة' && a.approver === me && !kr.some(function (x) { return x.at > a.at && x.status === 'معتمدة' && x.id !== a.id; }) ? a.id : '';
       return '<div class="card apr"><div class="row" style="justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start"><div style="min-width:0;flex:1"><b>' + esc(a.student) + '</b> <span class="muted">' + esc(a.section) + '</span> — ' + esc(a.title) +
         '<div class="muted" style="font-size:13px">من أ. ' + esc(a.by) + ' إلى أ. ' + esc(a.to) + ' — ' + dt(a.at) + (a.status === 'معتمدة' ? ' • ✔ اعتُمدت ' + dt(a.approvedAt) : ' • ⏳ لم يتم الإجراء بعد') + '</div>' + (window.NamoosForms && NamoosForms.trail ? NamoosForms.trail(keyRows(a.key)) : '') + (act ? reqTxt(a) : '') + '</div>' +
         '<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn' + (act ? '' : ' sec') + '" type="button" data-apr="' + esc(a.id) + '">' + (act ? '✔ فتح والاعتماد بالتوقيع' : '🖨 فتح الاستمارة') + '</button>' +
         '<button class="btn sec" type="button" data-apdl="' + esc(a.id) + '">⬇ تحميل نسخة</button>' +
-        (rem ? '<button class="btn sec" type="button" data-rem="' + esc(a.id) + '">🔔 تذكير أ. ' + esc(a.to) + '</button>' : '') + '</div></div></div>';
+        (rem ? '<button class="btn sec" type="button" data-rem="' + esc(a.id) + '">🔔 تذكير أ. ' + esc(a.to) + '</button>' : '') +
+        (wdId && !act ? '<button class="btn sec" type="button" data-wd="' + esc(wdId) + '">↩ سحب الطلب</button>' : '') +
+        (rvId ? '<button class="btn sec" type="button" data-rv="' + esc(rvId) + '">↩ إلغاء اعتمادي</button>' : '') + '</div></div></div>';
     };
     var sec = function (t, l, act, empty) { return '<h3>' + t + ' (' + l.length + ')</h3>' + (l.length ? l.map(function (a) { return card(a, act); }).join('') : '<p class="muted">' + (empty || 'لا يوجد.') + '</p>'); };
     var toMe = all.filter(function (a) { return a.to === me && a.status === 'بانتظار الاعتماد'; });
@@ -312,6 +316,12 @@
     $$('[data-apdl]', el).forEach(function (b) { b.onclick = function () {
       var a = all.filter(function (x) { return x.id === b.dataset.apdl; })[0]; if (a && window.NamoosForms) NamoosForms.download(a.form, a.kind, a.caseId);
     }; });
+    [['data-wd', 'withdrawApproval', 'سحب طلب الاعتماد', '↩ سُحب الطلب'], ['data-rv', 'revokeApproval', 'إلغاء اعتمادكِ', '↩ أُلغي اعتمادكِ']].forEach(function (z) {
+      $$('[' + z[0] + ']', el).forEach(function (b) { b.onclick = function () {
+        if (!confirm(z[2] + '؟')) return; b.disabled = true;
+        api(z[1], { id: b.getAttribute(z[0]) }).then(function () { toast(z[3], 'ok'); return refresh(true); }).then(function () { view('approvals'); }).catch(function (e) { b.disabled = false; fail(e); });
+      }; });
+    });
     $$('[data-rem]', el).forEach(function (b) { b.onclick = function () {
       b.disabled = true; api('remindApproval', { id: b.dataset.rem }).then(function () { toast('🔔 أُرسل التذكير', 'ok'); return refresh(true); }).then(function () { view('approvals'); }).catch(function (e) { b.disabled = false; fail(e); });
     }; });
@@ -2184,7 +2194,7 @@
   if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); }); }
   // تنبيه التحديث: الصفحة المفتوحة طوال اليوم لا ترى التعديلات الجديدة — نفحص كل 5 دقائق ونعرض زر «تحديث»
   (function () {
-    var cur = 'namoos-v61'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
+    var cur = 'namoos-v62'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
     var ver = function () { return fetch('sw.js?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { var m = t.match(/namoos-v\d+/); return m ? m[0] : ''; }); };
     var show = function () {
       if (document.getElementById('upd-bar')) return;

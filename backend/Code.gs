@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.22.0';
+var VERSION = '2.23.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -82,7 +82,7 @@ function out_(o) {
 }
 
 var PUBLIC = { login: 1, ping: 1 };
-var WRITES = { remindApproval: 1, backupNow: 1, setAutoBackup: 1, fixStageDoc: 1, requestApproval: 1, approveForm: 1, saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
+var WRITES = { withdrawApproval: 1, revokeApproval: 1, remindApproval: 1, backupNow: 1, setAutoBackup: 1, fixStageDoc: 1, requestApproval: 1, approveForm: 1, saveFormState: 1, saveSignature: 1, deleteSignature: 1, sendForm: 1, editTeacher: 1, editCase: 1, editTardy: 1, editAbsence: 1, recordTeacher: 1, updateTeacher: 1, deleteTeacher: 1, createCase: 1, documentCase: 1, deleteCase: 1,
   recordTardy: 1, deleteTardy: 1, sendMessage: 1, markRead: 1,
   recordAbsence: 1, markLateArrival: 1, decideAbsence: 1, documentAbsence: 1, deleteAbsence: 1 };
 
@@ -891,15 +891,16 @@ function apprPublic_(a, withSig) {
 }
 /* طلبات الاعتماد داخل المنصة: ما أُرسل إليّ، وما أرسلته أنا، والإدارة (النائبة الإدارية ومديرة المدرسة والنائبة الأكاديمية) ترى كل ما لم يُعتمد بعد للمتابعة */
 function approvalsFor_(me) {
-  var all = apprAll_(), adm = me.role === 'admin', keys = {};
+  var all = apprLive_(), adm = me.role === 'admin', keys = {};
   all.forEach(function (a) { if (a.to === me.name || a.by === me.name) keys[a.key] = 1; }); // كل خطوات المسار للاستمارات التي تخصّني
   return all.filter(function (a) { return keys[a.key] || (adm && (a.status === 'بانتظار الاعتماد' || a.approvedAt >= addDaysIso_(today_(), -30))); })
     .slice(-300).map(function (a) { return apprPublic_(a, false); }).reverse();
 }
 function addDaysIso_(d, n) { var x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return Utilities.formatDate(x, TZ, 'yyyy-MM-dd'); }
+function apprLive_() { return apprAll_().filter(function (a) { return a.status === 'بانتظار الاعتماد' || a.status === 'معتمدة'; }); }
 function approvalOf_(key) {
   if (!key) return [];
-  return apprAll_().filter(function (a) { return a.key === key; }).map(function (a) { return apprPublic_(a, true); });
+  return apprLive_().filter(function (a) { return a.key === key; }).map(function (a) { return apprPublic_(a, true); });
 }
 API.requestApproval = function (me, req) {
   if (me.role === 'teacher' || me.role === 'daily') throw new Error('غير مسموح');
@@ -921,6 +922,44 @@ API.requestApproval = function (me, req) {
     'الموضوع': 'يرجى الاعتماد: ' + str_(req.title) + ' — ' + str_(req.student), 'النص': 'يرجى اعتماد ' + str_(req.title) + ' للطالبة ' + str_(req.student) + (req.section ? ' (' + str_(req.section) + ')' : '') + ' وتوقيعها وتنفيذ الإجراء المطلوب منكِ.\nتجدينها في «طلبات الاعتماد».',
     'الحالة': str_(req.caseId), 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
   return { ok: true, id: row[0], to: vp.name, next: chain.slice(1) };
+};
+/** سحب طلب الاعتماد: المرسِلة (أو الإدارة) تسحب الطلب ما دام لم يكتمل — يعود زر «اعتماد» عندها */
+API.withdrawApproval = function (me, req) {
+  var all = apprAll_(), a = all.filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!a) throw new Error('لم أجد الطلب');
+  if (a.by !== me.name && me.role !== 'admin') throw new Error('السحب لمن أرسلت الطلب');
+  var rows = all.filter(function (x) { return x.key === a.key && x.status === 'بانتظار الاعتماد'; });
+  if (!rows.length) throw new Error('لا يوجد طلب قيد الاعتماد لسحبه');
+  var t = now_();
+  rows.forEach(function (x) {
+    apprSheet_().getRange(x.row, 12).setValue('مسحوبة');
+    append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': t, 'من': me.name, 'إلى': x.to,
+      'الموضوع': '↩ سُحب طلب الاعتماد: ' + x.title + ' — ' + x.student, 'النص': 'سحبت أ. ' + me.name + ' طلب اعتماد ' + x.title + ' للطالبة ' + x.student + '، فلم يعد بانتظاركِ.',
+      'الحالة': x.caseId, 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
+  });
+  // كل خطوات هذا المسار (حتى المعتمدة) تُغلق، ويبدأ مسار جديد عند الاعتماد مرة أخرى
+  all.filter(function (x) { return x.key === a.key && x.status === 'معتمدة'; }).forEach(function (x) { apprSheet_().getRange(x.row, 12).setValue('معتمدة (مسار مسحوب)'); });
+  return { ok: true };
+};
+/** إلغاء اعتمادي: من اعتمدت (شؤون الطالبات مثلًا) تلغي اعتمادها فتعود الاستمارة إليها، ويُسحب ما أُحيل للجهة التالية ما دامت لم تعتمد */
+API.revokeApproval = function (me, req) {
+  var all = apprAll_(), a = all.filter(function (x) { return x.id === str_(req.id); })[0];
+  if (!a) throw new Error('لم أجد الطلب');
+  if (a.status !== 'معتمدة' || (a.approver !== me.name && me.role !== 'admin')) throw new Error('الإلغاء لمن اعتمدت');
+  var later = all.filter(function (x) { return x.key === a.key && x.row > a.row && (x.status === 'بانتظار الاعتماد' || x.status === 'معتمدة'); });
+  if (later.some(function (x) { return x.status === 'معتمدة'; })) throw new Error('اعتمدتها الجهة التالية؛ لا يمكن إلغاء الاعتماد الآن');
+  var t = now_();
+  later.forEach(function (x) {
+    apprSheet_().getRange(x.row, 12).setValue('مسحوبة');
+    append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': t, 'من': me.name, 'إلى': x.to,
+      'الموضوع': '↩ أُلغي اعتماد: ' + x.title + ' — ' + x.student, 'النص': 'ألغت أ. ' + me.name + ' اعتمادها لـ ' + x.title + ' للطالبة ' + x.student + '، فلم يعد بانتظاركِ.',
+      'الحالة': x.caseId, 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
+  });
+  apprSheet_().getRange(a.row, 12, 1, 4).setValues([['بانتظار الاعتماد', '', '', '']]);
+  append_(SH.messages, COLS.messages, { 'المعرف': 'ر-' + Utilities.getUuid().slice(0, 8), 'الوقت': t, 'من': me.name, 'إلى': a.by,
+    'الموضوع': '↩ أُلغي الاعتماد: ' + a.title + ' — ' + a.student, 'النص': 'ألغت أ. ' + me.name + ' اعتمادها لـ ' + a.title + ' للطالبة ' + a.student + '، والاستمارة عندها قيد الاعتماد من جديد.',
+    'الحالة': a.caseId, 'مقروءة': '', 'النوع': 'اعتماد', 'الرابط': '' });
+  return { ok: true };
 };
 /** تذكير بالاعتماد: المرسِلة (أو الإدارة) تذكّر المستلمة بطلب لم يُعتمد بعد */
 API.remindApproval = function (me, req) {

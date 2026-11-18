@@ -557,10 +557,11 @@
   function buttons(kind, o) {
     var ids = guideFor(kind, o).concat(available(kind, o));
     if (!ids.length) return '';
+    var lines = ids.map(function (id) { var L = ((N.S.boot && N.S.boot.approvals) || []).filter(function (a) { return a.key === [id, kind, o.id].join('|'); }); return L.length ? trail(L, true).replace('<div class="amsg">', '<div class="amsg"><b>' + e(DEF[id].title) + ':</b> ') : ''; }).join('');
     return '<div class="nf-btns">' + ids.map(function (id) {
       var stg = DEF[id].st, flash = stg && me().role === stg && (myTurn(o, stg) || (stg === 'admin' && (myTurn(o, 'coordinator') || myTurn(o, 'admin')))) ? ' flash' : '';
       return '<button type="button" class="nf-pbtn' + flash + '" data-nform="' + id + '" data-nk="' + kind + '" data-nid="' + e(o.id) + '">🖨 ' + (id === 'g1' ? 'التعهد (نموذج ' + DEF[id].no + ')' : DEF[id].btnT ? DEF[id].btnT(o) : (DEF[id].btn || DEF[id].title) + ' (نموذج ' + DEF[id].no + ')') + '</button>';
-    }).join('') + '</div>';
+    }).join('') + '</div>' + (lines ? '<div class="nf-aplines">' + lines + '</div>' : '');
   }
 
   /* ---------- المعاينة والطباعة والإرسال ---------- */
@@ -616,7 +617,7 @@
   function apprFor(key) { var l = apprList(key); return l.filter(function (a) { return a.to === me().name && a.status === 'بانتظار الاعتماد'; })[0] || l[0] || null; }
   var dt = function (x) { return String(x || '').replace('T', ' ').slice(0, 16); };
   /* مسار الاعتماد (كما في سنابل): ✔ المرسِلة ← ✔/⏳ كل جهة ← ◻ الجهات التالية */
-  function trail(L) {
+  function trail(L, compact) {
     L = (L || []).slice().sort(function (a, b) { return a.at < b.at ? -1 : 1; });
     if (!L.length) return '';
     var by = {}; L.forEach(function (a) { by[a.to] = a; });
@@ -636,6 +637,7 @@
     var msg = done ? '✔ اكتمل الاعتماد: اعتمدته ' + okN.join(' ثم ') + '، والنموذج محفوظ وجاهز للطباعة والتحميل.'
       : okN.length ? '✔ تم اعتماده من ' + okN.join(' ثم ') + ' وتم نقله إلى ' + lbl(pend) + ' — قيد الاعتماد.'
       : '✔ تم الاعتماد وإرساله إلى ' + lbl(pend) + ' — قيد الاعتماد.';
+    if (compact) return '<div class="amsg">' + e(msg) + '</div>';
     return '<div class="atrail">' + out.join('<span class="arr">←</span>') + (done ? '<span class="atr all">✔ اكتمل الاعتماد</span>' : '') + '</div><div class="amsg">' + e(msg) + '</div>';
   }
   function apprShow(paper, list) {
@@ -658,6 +660,15 @@
     var inFlow = items.length > 0;
     if (rq) { var pc0 = policyChain(CUR.o); rq.hidden = !pc0.length || inFlow || me().role === 'teacher'; rq.title = pc0.length ? 'يُرسل تلقائيًا حسب السياسة إلى: ' + pc0.map(function (x) { return (ROLE_AR[x.st] || '') + ' (أ. ' + x.name + ')'; }).join(' ← ') : ''; }
     if (apb) apb.hidden = !CUR.ap;
+    var wd = document.getElementById('nf-withdraw'), rv = document.getElementById('nf-revoke');
+    var reqBy = L.length ? L.slice().sort(function (a, b) { return a.at < b.at ? -1 : 1; })[0].by : '';
+    CUR.wd = items.filter(function (a) { return a.status === 'بانتظار الاعتماد'; })[0] || null;
+    if (wd) wd.hidden = !(CUR.wd && (reqBy === mine || me().role === 'admin'));
+    // إلغاء اعتمادي: اعتمدتُ أنا، والجهة التالية لم تعتمد بعد
+    var myOk = items.filter(function (a) { return a.status === 'معتمدة' && a.approver === mine; })[0];
+    var laterOk = myOk && items.some(function (a) { return a.at > myOk.at && a.status === 'معتمدة'; });
+    CUR.rv = myOk && !laterOk ? myOk : null;
+    if (rv) rv.hidden = !CUR.rv;
     // توقيع كل من اعتمدت (المحفوظ لحظة اعتمادها) يظهر في خانتها لكل من يفتح الاستمارة
     if (window.NamoosSig) items.forEach(function (a) {
       if (a.status !== 'معتمدة' || !a.sig || a.approver === mine) return;
@@ -704,8 +715,8 @@
     if (!m) { m = document.createElement('div'); m.id = 'nf-modal'; document.body.appendChild(m); }
     m.innerHTML = '<div class="nf-back"></div><div class="nf-dlg" role="dialog" aria-modal="true" aria-label="معاينة الاستمارة">' +
       '<div class="nf-bar"><b>معاينة: ' + d.title + ' — ' + e(o.student) + '</b>' +
-      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn" id="nf-reqap" type="button" hidden>✔ اعتماد</button><button class="btn sec" id="nf-remind" type="button" hidden>🔔 تذكير بالاعتماد</button><button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
-      '<div class="nf-apst" id="nf-apst" hidden></div><p class="nf-hint">' + (id === 'g1' ? 'نموذج رقم (1) كما في دليل فريق إدارة سلوك الطلبة 2026، تعبّأت بياناته تلقائيًا ولا يُعدَّل نصه. أضيفي توقيعكِ، ودعي الطالبة توقّع إلكترونيًا.' : 'الخانات الزرقاء تعبّأت تلقائيًا. يمكنكِ الكتابة في الخانات المنقطة والتأشير على المربعات قبل الطباعة.') + '</p>' +
+      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn" id="nf-reqap" type="button" hidden>✔ اعتماد</button><button class="btn sec" id="nf-remind" type="button" hidden>🔔 تذكير بالاعتماد</button><button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-withdraw" type="button" hidden>↩ سحب طلب الاعتماد</button><button class="btn sec" id="nf-revoke" type="button" hidden>↩ إلغاء اعتمادي</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div><div class="nf-apst" id="nf-apst" hidden></div></div>' +
+      '<p class="nf-hint">' + (id === 'g1' ? 'نموذج رقم (1) كما في دليل فريق إدارة سلوك الطلبة 2026، تعبّأت بياناته تلقائيًا ولا يُعدَّل نصه. أضيفي توقيعكِ، ودعي الطالبة توقّع إلكترونيًا.' : 'الخانات الزرقاء تعبّأت تلقائيًا. يمكنكِ الكتابة في الخانات المنقطة والتأشير على المربعات قبل الطباعة.') + '</p>' +
       '<div class="nf-stage"><article class="nf-paper' + (/^[gw]/.test(id) ? ' nf-gdoc' : '') + (d.pages > 1 ? ' nf-multi' : '') + '" id="nf-paper">' + d.build(o) + '</article></div></div>';
     m.hidden = false; document.body.classList.add('nf-open');
     var paper = document.getElementById('nf-paper');
@@ -727,6 +738,13 @@
     document.getElementById('nf-print').onclick = function () { fsSave(true); fit(paper); document.body.classList.add('nf-printing'); setTimeout(function () { window.print(); }, 60); };
     apprShow(paper);
     document.getElementById('nf-reqap').onclick = function () { reqAppr(paper, policyChain(CUR.o).map(function (x) { return x.name; }), this); };
+    var act = function (b, api, id, okMsg) {
+      if (b.disabled || !id) return; if (!confirm(b.textContent.replace('↩ ', '') + '؟')) return; b.disabled = true;
+      N.api(api, { id: id }).then(function () { N.toast(okMsg, 'ok', 5000); return N.refresh && N.refresh(); })
+        .then(function () { CUR.aps = null; apprShow(paper, apprList(fsKey())); }).catch(function (err) { N.toast(err.message, 'bad'); }).then(function () { b.disabled = false; });
+    };
+    document.getElementById('nf-withdraw').onclick = function () { act(this, 'withdrawApproval', CUR.wd && CUR.wd.id, '↩ سُحب طلب الاعتماد، ويمكنكِ الاعتماد من جديد متى شئتِ'); };
+    document.getElementById('nf-revoke').onclick = function () { act(this, 'revokeApproval', CUR.rv && CUR.rv.id, '↩ أُلغي اعتمادكِ، وعادت الاستمارة عندكِ قيد الاعتماد'); };
     document.getElementById('nf-remind').onclick = function () {
       var b = this; if (b.disabled || !CUR.rem) return; b.disabled = true;
       N.api('remindApproval', { id: CUR.rem.id }).then(function () { N.toast('🔔 أُرسل تذكير إلى أ. ' + CUR.rem.to, 'ok'); return N.refresh && N.refresh(); })
