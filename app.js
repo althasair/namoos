@@ -1823,7 +1823,7 @@
   // قرار الغياب السريع (المشرفة/الإدارة): بدون عذر أو بعذر — يمكن تغييره في أي وقت
   function quickDec(a) {
     var r = S.me.role;
-    if ((r !== 'supervisor' && r !== 'admin') || a.kind === 'late' || a.kind === 'dup') return '';
+    if ((r !== 'supervisor' && r !== 'admin' && r !== 'coordinator') || a.kind === 'late' || a.kind === 'dup') return '';
     var cur = a.decision || '';
     return '<div class="qdec noprint" data-qd="' + esc(a.id) + '"><span class="sub">قرار الغياب:</span>' +
       '<button type="button" class="opt" data-qdv="بدون عذر" aria-pressed="' + (cur === 'بدون عذر') + '">بدون عذر</button>' +
@@ -1907,7 +1907,8 @@
     if (!R.period) R.period = 'الأولى';
     R.sel = R.sel || {};
     var already = {};
-    A.records.concat(A.todayInSections || []).forEach(function (x) { if (x.section === R.section && (x.date || b.today) === R.date && !x.lateArrival) already[x.student] = 1; });
+    A.records.concat(A.todayInSections || []).forEach(function (x) { if (x.section === R.section && (x.date || b.today) === R.date && !x.lateArrival && (!already[x.student] || x.kind)) already[x.student] = x; });
+    var canDec = S.me.role === 'supervisor' || S.me.role === 'admin' || S.me.role === 'coordinator';
     el.innerHTML = '<div><h2 class="pt">تسجيل الغياب</h2><p class="sub">في منتصف الحصة: اختاري الشعبة، ثم أشّري على الغائبات واضغطي «تسجيل». يصل الغياب للمشرفة فورًا.</p></div>' + (canRetro ? modeSwitch('abs', 'day') : '') +
       step(1, 'الشعبة', '<div class="opts">' + A.sections.map(function (s) { return '<button class="opt" data-s="' + s + '" aria-pressed="' + (R.section === s) + '">' + s + '</button>'; }).join('') +
         (A.sections.length ? '' : '<div class="sub">لا توجد شعب مسندة لكِ في الجدول — تواصلي مع الإدارة</div>') + '</div>', R.section ? 'done' : '') +
@@ -1924,9 +1925,13 @@
       var draw = function () {
         var qn = norm($('#arq').value);
         $('#arl').innerHTML = (A.students[R.section] || []).filter(function (n) { return !qn || norm(n).indexOf(qn) >= 0; }).map(function (n) {
-          if (already[n]) return '<button type="button" disabled><span>' + esc(n) + '</span><span class="chip">مسجّلة</span></button>';
+          var ax = already[n];
+          // المشرفة/المنسقة/الإدارة: قرار الغياب (بعذر أو بدون عذر) من هنا مباشرة للطالبة المسجّلة
+          if (ax && canDec && ax.id && ax.kind) return '<div class="arrec"><div class="arn"><span>' + esc(n) + '</span>' + absChip(ax) + '</div>' + quickDec(ax) + '</div>';
+          if (ax) return '<button type="button" disabled><span>' + esc(n) + '</span><span class="chip">مسجّلة</span></button>';
           return '<button type="button" data-t="' + esc(n) + '" aria-pressed="' + !!R.sel[n] + '"><span>' + esc(n) + balChip(R.section, n, 'abs') + '</span><span>' + (R.sel[n] ? '✔' : '') + '</span></button>';
         }).join('');
+        bindQuickDec($('#arl'), function () { vAbsRec(el); });
         $$('[data-t]', $('#arl')).forEach(function (x) { x.onclick = function () { var n = x.dataset.t; if (R.sel[n]) delete R.sel[n]; else R.sel[n] = 1; draw(); var sv = $('#arsave'); sv.textContent = 'تسجيل الغياب (' + Object.keys(R.sel).length + ')'; sv.disabled = !Object.keys(R.sel).length; }; });
       };
       $('#arq').oninput = draw; draw();
