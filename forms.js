@@ -693,11 +693,7 @@
     if (!m) { m = document.createElement('div'); m.id = 'nf-modal'; document.body.appendChild(m); }
     m.innerHTML = '<div class="nf-back"></div><div class="nf-dlg" role="dialog" aria-modal="true" aria-label="معاينة الاستمارة">' +
       '<div class="nf-bar"><b>معاينة: ' + d.title + ' — ' + e(o.student) + '</b>' +
-      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn sec" id="nf-tocoord" type="button" hidden>📨 إرسال لشؤون الطالبات للاعتماد</button><button class="btn sec" id="nf-reqap" type="button" hidden>✅ إرسال للنائبة الإدارية للاعتماد</button><button class="btn sec" id="nf-remind" type="button" hidden>🔔 تذكير بالاعتماد</button>' + (me().role === 'coordinator' || me().role === 'admin' ? '<button class="btn sec" id="nf-mailt" type="button">✉ إرسال إلى لجنة الضبط السلوكي</button>' : '') + '<button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
-      '<div class="nf-mail" id="nf-mail" hidden><div class="field"><label class="lbl">إلى</label><div class="inp" style="background:#f6f6f6">لجنة الضبط السلوكي (بالبريد الإلكتروني، والاستمارة مرفقة PDF)</div></div>' +
-      '<div class="nf-cc">نسخة تلقائيًا: <b>الأخصائية الاجتماعية للشعبة' + (socOf(o.section) ? ' (' + e(socOf(o.section)) + ')' : '') + '</b> و<b>النائبة الإدارية' + (F().adminVP ? ' (' + e(F().adminVP) + ')' : '') + '</b> و<b>مديرة المدرسة' + (F().principal ? ' (' + e(F().principal) + ')' : '') + '</b> — والاستمارة مرفقة PDF</div>' +
-      '<div class="field"><label class="lbl" for="nf-note">ملاحظة (اختياري)</label><input class="inp" id="nf-note"></div>' +
-      '<button class="btn" id="nf-send" type="button">إرسال</button></div>' +
+      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn sec" id="nf-tocoord" type="button" hidden>📨 إرسال لشؤون الطالبات للاعتماد</button><button class="btn sec" id="nf-reqap" type="button" hidden>✅ إرسال للنائبة الإدارية للاعتماد</button><button class="btn sec" id="nf-remind" type="button" hidden>🔔 تذكير بالاعتماد</button><button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
       '<div class="nf-apst" id="nf-apst" hidden></div><p class="nf-hint">' + (id === 'g1' ? 'نموذج رقم (1) كما في دليل فريق إدارة سلوك الطلبة 2026، تعبّأت بياناته تلقائيًا ولا يُعدَّل نصه. أضيفي توقيعكِ، ودعي الطالبة توقّع إلكترونيًا.' : 'الخانات الزرقاء تعبّأت تلقائيًا. يمكنكِ الكتابة في الخانات المنقطة والتأشير على المربعات قبل الطباعة.') + '</p>' +
       '<div class="nf-stage"><article class="nf-paper' + (/^[gw]/.test(id) ? ' nf-gdoc' : '') + (d.pages > 1 ? ' nf-multi' : '') + '" id="nf-paper">' + d.build(o) + '</article></div></div>';
     m.hidden = false; document.body.classList.add('nf-open');
@@ -750,7 +746,7 @@
         .then(function () { b.disabled = false; b.textContent = lbl; });
     };
     var mt = document.getElementById('nf-mailt'); if (mt) mt.onclick = function () { var x = document.getElementById('nf-mail'); x.hidden = !x.hidden; };
-    document.getElementById('nf-send').onclick = send;
+    // أُلغي الإرسال بالبريد: الاعتماد يصل للمستلمة على حسابها داخل المنصة
   }
   window.addEventListener('afterprint', function () { document.body.classList.remove('nf-printing'); });
   function close() { fsSave(true); var m = document.getElementById('nf-modal'); if (m) { m.hidden = true; m.innerHTML = ''; } document.body.classList.remove('nf-open'); }
