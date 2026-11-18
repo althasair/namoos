@@ -632,9 +632,10 @@
     // جملة توضح أين صار النموذج الآن
     var okN = order.filter(function (n) { return by[n].status === 'معتمدة'; }).map(function (n) { return 'أ. ' + (by[n].approver || n); });
     var pend = order.filter(function (n) { return by[n].status !== 'معتمدة'; }).concat(fwdNow && nxt[0] ? [nxt[0]] : [])[0];
+    var lbl = function (n) { var u = (N.S.boot.staff || []).filter(function (x) { return x.name === n; })[0]; var r = n === F().adminVP ? 'النائبة الإدارية' : u ? ({ coordinator: 'شؤون الطالبات', social: 'الأخصائية الاجتماعية', psych: 'الأخصائية النفسية', supervisor: 'المشرفة', admin: 'الإدارة' })[u.role] : ''; return r ? r + ' (أ. ' + n + ')' : 'أ. ' + n; };
     var msg = done ? '✔ اكتمل الاعتماد: اعتمدته ' + okN.join(' ثم ') + '، والنموذج محفوظ وجاهز للطباعة والتحميل.'
-      : okN.length ? '✔ تم اعتماده من ' + okN.join(' ثم ') + ' وتم نقله إلى أ. ' + pend + ' — قيد الاعتماد.'
-      : '✔ تم اعتماد طلبكم وإرساله إلى أ. ' + pend + ' — قيد الاعتماد.';
+      : okN.length ? '✔ تم اعتماده من ' + okN.join(' ثم ') + ' وتم نقله إلى ' + lbl(pend) + ' — قيد الاعتماد.'
+      : '✔ تم الاعتماد وإرساله إلى ' + lbl(pend) + ' — قيد الاعتماد.';
     return '<div class="atrail">' + out.join('<span class="arr">←</span>') + (done ? '<span class="atr all">✔ اكتمل الاعتماد</span>' : '') + '</div><div class="amsg">' + e(msg) + '</div>';
   }
   function apprShow(paper, list) {
@@ -650,13 +651,12 @@
     var coord = (F().coordinators || [])[0] || '', vp = F().adminVP || '';
     var pendTo = function (n) { return items.some(function (a) { return a.to === n && a.status === 'بانتظار الاعتماد'; }); };
     var okBy = function (n) { return items.some(function (a) { return a.to === n && a.status === 'معتمدة'; }); };
-    var tc = document.getElementById('nf-tocoord'), rq = document.getElementById('nf-reqap'), apb = document.getElementById('nf-approve'), rm = document.getElementById('nf-remind');
+    var tc = null, rq = document.getElementById('nf-reqap'), apb = document.getElementById('nf-approve'), rm = document.getElementById('nf-remind');
     var myPend = items.filter(function (a) { return a.status === 'بانتظار الاعتماد' && (a.by === mine || me().role === 'admin') && a.to !== mine; })[0] || null;
     CUR.rem = myPend;
     if (rm) { rm.hidden = !myPend; if (myPend) rm.textContent = '🔔 تذكير أ. ' + myPend.to + ' بالاعتماد'; }
     var inFlow = items.length > 0;
-    if (tc) tc.hidden = !coord || mine === coord || inFlow || me().role === 'teacher';
-    if (rq) rq.hidden = !vp || mine === vp || inFlow || me().role === 'teacher';
+    if (rq) { var pc0 = policyChain(CUR.o); rq.hidden = !pc0.length || inFlow || me().role === 'teacher'; rq.title = pc0.length ? 'يُرسل تلقائيًا حسب السياسة إلى: ' + pc0.map(function (x) { return (ROLE_AR[x.st] || '') + ' (أ. ' + x.name + ')'; }).join(' ← ') : ''; }
     if (apb) apb.hidden = !CUR.ap;
     // توقيع كل من اعتمدت (المحفوظ لحظة اعتمادها) يظهر في خانتها لكل من يفتح الاستمارة
     if (window.NamoosSig) items.forEach(function (a) {
@@ -665,10 +665,21 @@
     });
     fit(paper);
   }
+  /* مسار الاعتماد من السياسة: الجهات المطلوبة في هذه الحالة بعد جهتي (منسقة شؤون الطالبات، الأخصائية الاجتماعية، النفسية، فريق إدارة السلوك)، وتنتهي بالنائبة الإدارية */
+  var ORDER = ['supervisor', 'coordinator', 'social', 'psych', 'admin'];
+  var ROLE_AR = { coordinator: 'شؤون الطالبات', social: 'الأخصائية الاجتماعية', psych: 'الأخصائية النفسية', admin: 'النائبة الإدارية' };
+  function policyChain(o) {
+    var staff = N.S.boot.staff || [], byR = function (r) { var u = staff.filter(function (x) { return x.role === r; })[0]; return u ? u.name : ''; };
+    var who = { coordinator: (F().coordinators || [])[0] || byR('coordinator'), social: o.social || byR('social'), psych: o.psych || byR('psych'), admin: F().adminVP };
+    var mine = ORDER.indexOf(me().role === 'admin' ? 'admin' : me().role), out = [];
+    ORDER.forEach(function (st, i) { if (i > mine && st !== 'supervisor' && o.req && o.req[st] && who[st]) out.push({ st: st, name: who[st] }); });
+    if (F().adminVP && !out.some(function (x) { return x.name === F().adminVP; })) out.push({ st: 'admin', name: F().adminVP });
+    return out.filter(function (x, i, a) { return x.name !== me().name && a.findIndex(function (y) { return y.name === x.name; }) === i; });
+  }
   function reqAppr(paper, chain, b) {
     if (b.disabled) return; b.disabled = true; fsSave(true);
     N.api('requestApproval', { chain: chain, key: fsKey(), form: CUR.id, kind: CUR.kind, caseId: CUR.o.id, title: CUR.d.title, student: CUR.o.student, section: CUR.o.section })
-      .then(function (r) { N.toast('✔ اعتمدتِها وأُرسلت إلى أ. ' + r.to + ' للاعتماد' + (r.next && r.next.length ? '، ثم تنتقل تلقائيًا إلى أ. ' + r.next.join(' ثم أ. ') : '') + '. تتابعين مسارها هنا.', 'ok', 7000); return N.refresh && N.refresh(); })
+      .then(function (r) { var pc = policyChain(CUR.o)[0]; N.toast('✔ تم الاعتماد وإرساله إلى ' + (pc && ROLE_AR[pc.st] ? ROLE_AR[pc.st] + ' (أ. ' + r.to + ')' : 'أ. ' + r.to), 'ok', 7000); return N.refresh && N.refresh(); })
       .then(function () { apprShow(paper, apprList(fsKey())); })
       .catch(function (err) { N.toast(err.message, 'bad'); }).then(function () { b.disabled = false; });
   }
@@ -693,7 +704,7 @@
     if (!m) { m = document.createElement('div'); m.id = 'nf-modal'; document.body.appendChild(m); }
     m.innerHTML = '<div class="nf-back"></div><div class="nf-dlg" role="dialog" aria-modal="true" aria-label="معاينة الاستمارة">' +
       '<div class="nf-bar"><b>معاينة: ' + d.title + ' — ' + e(o.student) + '</b>' +
-      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn sec" id="nf-tocoord" type="button" hidden>📨 إرسال لشؤون الطالبات للاعتماد</button><button class="btn sec" id="nf-reqap" type="button" hidden>✅ إرسال للنائبة الإدارية للاعتماد</button><button class="btn sec" id="nf-remind" type="button" hidden>🔔 تذكير بالاعتماد</button><button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
+      '<div class="nf-acts"><button class="btn" id="nf-print" type="button">🖨 طباعة</button><button class="btn sec" id="nf-dl" type="button">⬇ تحميل PDF</button><button class="btn" id="nf-reqap" type="button" hidden>✔ اعتماد</button><button class="btn sec" id="nf-remind" type="button" hidden>🔔 تذكير بالاعتماد</button><button class="btn" id="nf-approve" type="button" hidden>✔ اعتماد وتوقيع</button><button class="btn sec" id="nf-close" type="button">إغلاق</button></div></div>' +
       '<div class="nf-apst" id="nf-apst" hidden></div><p class="nf-hint">' + (id === 'g1' ? 'نموذج رقم (1) كما في دليل فريق إدارة سلوك الطلبة 2026، تعبّأت بياناته تلقائيًا ولا يُعدَّل نصه. أضيفي توقيعكِ، ودعي الطالبة توقّع إلكترونيًا.' : 'الخانات الزرقاء تعبّأت تلقائيًا. يمكنكِ الكتابة في الخانات المنقطة والتأشير على المربعات قبل الطباعة.') + '</p>' +
       '<div class="nf-stage"><article class="nf-paper' + (/^[gw]/.test(id) ? ' nf-gdoc' : '') + (d.pages > 1 ? ' nf-multi' : '') + '" id="nf-paper">' + d.build(o) + '</article></div></div>';
     m.hidden = false; document.body.classList.add('nf-open');
@@ -715,8 +726,7 @@
     m.querySelector('.nf-back').onclick = close;
     document.getElementById('nf-print').onclick = function () { fsSave(true); fit(paper); document.body.classList.add('nf-printing'); setTimeout(function () { window.print(); }, 60); };
     apprShow(paper);
-    document.getElementById('nf-reqap').onclick = function () { reqAppr(paper, [F().adminVP], this); };
-    document.getElementById('nf-tocoord').onclick = function () { reqAppr(paper, [(F().coordinators || [])[0], F().adminVP], this); };
+    document.getElementById('nf-reqap').onclick = function () { reqAppr(paper, policyChain(CUR.o).map(function (x) { return x.name; }), this); };
     document.getElementById('nf-remind').onclick = function () {
       var b = this; if (b.disabled || !CUR.rem) return; b.disabled = true;
       N.api('remindApproval', { id: CUR.rem.id }).then(function () { N.toast('🔔 أُرسل تذكير إلى أ. ' + CUR.rem.to, 'ok'); return N.refresh && N.refresh(); })
