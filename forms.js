@@ -370,19 +370,24 @@
       '<tr><td class="l">اسم ولي الأمر</td><td class="v">' + e(gn) + '</td><td class="l">صلة القرابة</td><td class="v">' + e(rel) + '</td><td class="l">رقم الهاتف</td><td class="v" dir="ltr">' + e(o.phone || '') + '</td></tr>' +
       '<tr><td class="l">التوقيع</td><td colspan="5" class="sgn sgs" data-gl="ولي الأمر">&nbsp;</td></tr>' +
       '<tr><td class="l">منسق شؤون الطلاب</td><td class="v sgn2" colspan="5">' + e(P.coord) + '</td></tr>' +
-      '<tr><td class="l">الاختصاصي الاجتماعي</td><td class="v sgn2" colspan="5">' + e(soc) + '</td></tr>' +
+      teamSocs(o).map(function (n) { return '<tr><td class="l">الاختصاصي الاجتماعي</td><td class="v sgn2" colspan="5">' + e(n) + '</td></tr>'; }).join('') +
       '<tr><td class="l">الاختصاصي النفسي</td><td class="v sgn2" colspan="5">' + e(psy) + '</td></tr>' +
+      '<tr><td class="l">المشرف الإداري</td><td class="v sgn2" colspan="5">' + e(teamSup()) + '</td></tr>' +
       '<tr><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v sgn2 sgvp" colspan="5">' + e(P.vp) + '</td></tr>' +
       '<tr><td class="l">يعتمد / مدير المدرسة</td><td class="v sgn2" colspan="5">' + e(P.pr) + '</td></tr></table>' +
       '<div class="nf-note">❖ في حال استدعاء ولي الأمر أكثر من مره ولم يحضر يتم إرسال رسالة نصية لولي الأمر بقرار فريق إدارة سلوك الطلبة</div>' + gFoot();
   }
-  function teamMembers() {
+  /* أعضاء ثابتون في كل اجتماعات الفريق: الأخصائية ياسمين ناصر (مع أخصائية الشعبة إن اختلفت) والمشرفة الإدارية مرام القديري */
+  function stName(p, d) { var u = (N.S.boot.staff || []).filter(function (x) { return String(x.name || '').indexOf(p) === 0; })[0]; return (u && u.name) || d; }
+  function teamSocs(o) { var y = stName('ياسمين', 'ياسمين ناصر'), L = []; [o && o.social, y].forEach(function (n) { if (n && L.indexOf(n) < 0) L.push(n); }); return L; }
+  function teamSup() { return stName('مرام', 'مرام القديري'); }
+  function teamMembers(o) {
     var P = people(), st = N.S.boot.staff || [], one = function (r) { return (st.filter(function (u) { return u.role === r; })[0] || {}).name || ''; };
-    return [['مدير المدرسة', P.pr], ['نائب المدير للشؤون الإدارية وشؤون الطلاب', P.vp], ['نائب المدير للشؤون الأكاديمية وشؤون الطلاب (عند الحاجة)', 'آسيا الذبياني'], ['منسق شؤون الطلبة', P.coord], ['المعلم (في حال ارتباطه بالمشكلة)', ''], ['الاختصاصي الاجتماعي', ''], ['الاختصاصي النفسي', one('psych')], ['المشرف الإداري', '']];
+    return [['مدير المدرسة', P.pr], ['نائب المدير للشؤون الإدارية وشؤون الطلاب', P.vp], ['نائب المدير للشؤون الأكاديمية وشؤون الطلاب (عند الحاجة)', 'آسيا الذبياني'], ['منسق شؤون الطلبة', P.coord], ['المعلم (في حال ارتباطه بالمشكلة)', '']].concat(teamSocs(o).map(function (n) { return ['الاختصاصي الاجتماعي', n]; })).concat([['الاختصاصي النفسي', one('psych')], ['المشرف الإداري', teamSup()]]);
   }
   /* نموذج (7) محضر اجتماع الفريق لمجموعة من الطلاب */
   function g7(o) {
-    var M = teamMembers(); M[5][1] = o.social || ''; M[7][1] = (o.supervisors || [])[0] || '';
+    var M = teamMembers(o);
     return gHead(7, 'محضر اجتماع فريق إدارة سلوك الطلبة لمجموعة من الطلاب') +
       '<table class="nf"><tr><td class="l">اليوم</td><td class="l">التاريخ</td><td class="l">الوقت</td><td class="l">المكان</td><td class="l">عدد الحضور</td><td class="l">عدد الغياب</td><td class="l">رقم الاجتماع</td></tr><tr><td class="v">' + wd(today()) + '</td><td class="v">' + dmy(today()) + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr></table>' +
       '<table class="nf"><tr><td class="l">م</td><td class="l">اسم الطالب</td><td class="l">الصف</td><td class="l">المخالفة</td></tr><tr><td>1</td><td class="v">' + e(o.student) + '</td><td class="v">' + e(o.section) + '</td><td class="v">' + e(vName(o)) + '</td></tr>' +
@@ -404,7 +409,7 @@
       '<div class="nf-box" style="text-align:right"><b>أولا:</b> بيان بعدم التزام الطالب باللوائح والنظم المدرسية ومخالفاته السابقة بالمجتمع المدرسي وأساليب تعديل السلوك التي اتخذت حياله وتوقيتاته الزمنية.<br><b>ثانيا:</b> قرار فريق إدارة سلوك الطلبة بالمدرسة في اجتماعه بتاريخ <span class="v">' + dmy(today()) + '</span><br>بناء على ما سبق وبعد الاطلاع على:<br>1. الدراسة الفردية الاجتماعية او النفسية للطالب والمقدمة من الاختصاصي الاجتماعي/ النفسي بالمدرسة.<br>2. ملف الطالب وما تضمن من إفادات خطية للطالب وذوي العلاقة.<br>3. الإجراءات التي اتبعت حيال الطالب إزاء مخالفته اللوائح والنظم المدرسية.<br>وبعد تيقن الفريق من تدرج الإجراءات طبقا لسياسة إدارة سلوك الطلبة 2026، وعدم التزام الطالب بكافة الإجراءات التي اتبعت حياله في إطار الجهود لتعديل سلوكه السلبي.<br>ونظرا لما بدر منه بتاريخ <span class="v">' + dmy(o.date) + '</span> فقد قررت الفريق الآتي:-</div>' +
       '<table class="nf"><tr><th>قرار أعضاء الفريق</th></tr><tr><td style="min-height:4em">' + numbered(dec.slice(0, 5)) + '</td></tr></table>' +
       '<table class="nf"><tr><th colspan="4">توقيع أعضاء الفريق</th></tr><tr><td class="l">م</td><td class="l">الاسم</td><td class="l">المسمى الوظيفي</td><td class="l">التوقيع</td></tr>' +
-      teamMembers().filter(function (m) { return m[1]; }).concat([['', ''], ['', '']]).slice(0, 6).map(function (m, i) { return '<tr><td>' + (i + 1) + '</td><td class="v">' + (m[1] ? e(m[1]) : ed('', '')) + '</td><td>' + (m[0] || ed('', '')) + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
+      teamMembers(o).filter(function (m) { return m[1]; }).concat([['', ''], ['', '']]).slice(0, 9).map(function (m, i) { return '<tr><td>' + (i + 1) + '</td><td class="v">' + (m[1] ? e(m[1]) : ed('', '')) + '</td><td>' + (m[0] || ed('', '')) + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
       '<div class="nf-note">❖ يتم طلب جميع الإجراءات الخاصة بالطالب من المشرف الإداري والإجراءات الوقائية مثل دراسة حالة ومتابعة الطالب من قبل الاختصاصي النفسي أو الاجتماعي.</div>' +
       '<div class="nf-appr">يعتمد،<br>رئيس الفريق<br>' + e(people().pr) + '<br>......................................</div>' + gFoot();
   }
@@ -486,7 +491,7 @@
       '<tr><td class="l">اسم ولي الأمر</td><td class="v">' + e(String(o.gName || '').replace(/\s*\([^)]*\)\s*$/, '')) + '</td><td class="l">التوقيع</td><td class="sgn sgs" data-gl="ولي الأمر">&nbsp;</td></tr>' +
       '<tr><td class="l">طريقة الإخطار</td><td colspan="3">' + bx('حضوريًا') + ' &nbsp; ' + bx('هاتفيًا') + ' &nbsp; ' + bx('رسالة نصية') + ' &nbsp; ' + bx('لم يحضر — أُرسلت رسالة نصية بالقرار') + '</td></tr></table>' +
       '<table class="nf"><tr><th colspan="3">أعضاء فريق إدارة سلوك الطلبة</th></tr><tr><td class="l">المسمى الوظيفي</td><td class="l">الاسم</td><td class="l">التوقيع</td></tr>' +
-      [['منسق شؤون الطلبة', P.coord], ['الاختصاصي الاجتماعي', soc], ['نائب المدير للشؤون الإدارية وشؤون الطلاب', P.vp]].map(function (m) { return '<tr><td>' + m[0] + '</td><td class="v">' + e(m[1]) + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
+      [['منسق شؤون الطلبة', P.coord]].concat(teamSocs(o).map(function (n) { return ['الاختصاصي الاجتماعي', n]; })).concat([['المشرف الإداري', teamSup()], ['نائب المدير للشؤون الإدارية وشؤون الطلاب', P.vp]]).map(function (m) { return '<tr><td>' + m[0] + '</td><td class="v">' + e(m[1]) + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
       '<div class="nf-appr">يعتمد،<br>مدير المدرسة / رئيس الفريق<br>' + e(P.pr) + '<br>......................................</div>' +
       '<div class="nf-foot">صيغة القرار مأخوذة من نصوص سياسة الغياب 2026 — لا يوجد له نموذج في دليل الفريق</div>';
   }
