@@ -485,3 +485,14 @@ td.sg-has .sg-txt{visibility:hidden}
 .nf-bar .nf-apst{flex-basis:100%;margin:6px 0 0;padding:6px 10px}
 .nf-aplines{margin-top:4px}
 .nf-aplines .amsg{font-size:12.5px;margin:2px 0}
+/* قوائم الإجراءات القابلة للإضافة */
+.nf-al{counter-reset:al;display:grid;gap:2px;text-align:right}
+.nf-alr{display:flex;align-items:baseline;gap:4px;counter-increment:al}
+.nf-aln::before{content:counter(al) "- "}
+.nf-alr .nf-ed{flex:1;min-width:0}
+.nf-aldel{border:none;background:none;color:#B3261E;font-size:15px;cursor:pointer;padding:0 4px;line-height:1}
+.nf-alc{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.nf-alsel{font-family:inherit;font-size:12px;max-width:100%;flex:1 1 220px;border:1px solid #C9D1D8;border-radius:8px;padding:3px 6px;background:#F4F8FB;color:#0B3D91}
+.nf-aladd{font-family:inherit;font-size:12px;font-weight:700;border:1px dashed #0B3D91;border-radius:8px;background:#fff;color:#0B3D91;padding:3px 10px;cursor:pointer}
+.nf-snap .nf-alc,.nf-snap .nf-aldel{display:none!important}
+@media print{.nf-alc,.nf-aldel{display:none!important}}

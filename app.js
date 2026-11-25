@@ -2194,7 +2194,7 @@
   if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); }); }
   // تنبيه التحديث: الصفحة المفتوحة طوال اليوم لا ترى التعديلات الجديدة — نفحص كل 5 دقائق ونعرض زر «تحديث»
   (function () {
-    var cur = 'namoos-v66'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
+    var cur = 'namoos-v67'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
     var ver = function () { return fetch('sw.js?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { var m = t.match(/namoos-v\d+/); return m ? m[0] : ''; }); };
     var show = function () {
       if (document.getElementById('upd-bar')) return;

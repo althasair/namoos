@@ -52,6 +52,38 @@
     return list.slice(0, 6).map(function (x, i) { return (i + 1) + '- <span class="v">' + e(x) + '</span>'; }).join('<br>');
   }
 
+
+  /* ---------- قوائم الإجراءات: قائمة منسدلة بكل الاحتمالات + إضافة أكثر من بند + كتابة حرة ---------- */
+  var ACT_CAT = [
+    ['إجراءات وقائية وتوعوية', ['النشر والتوعية في الطابور الصباحي', 'شرح الدليل التنظيمي لإدارة سلوك الطلبة', 'شرح سياسة إدارة سلوك الطلبة 2026 للطالبة', 'شرح سياسة الغياب 2026 للطالبة وولي الأمر', 'توعية أولياء الأمور بسياسة إدارة السلوك', 'توعية وإرشاد بسياسة إدارة سلوك الطلبة ونشرها في الأقسام', 'المتابعة المستمرة بالمرور على الصفوف وملاحظة الطلبة', 'الإذاعة المدرسية التوعوية', 'توزيع نشرات ومطويات توعوية', 'حصة توجيه وإرشاد جمعي', 'لقاء توعوي مع أولياء الأمور', 'نشر السياسة عبر مجموعات أولياء الأمور', 'تعزيز السلوك الإيجابي وتكريم الملتزمات', 'إشراك الطالبة في الأنشطة المدرسية']],
+    ['إجراءات المعلمة والمشرفة الإدارية', ['التنبيه الشفهي الانفرادي بأسلوب تربوي', 'التنبيه الخطي للطالبة', 'إشعار ولي الأمر هاتفيًا', 'إشعار ولي الأمر برسالة نصية', 'لم يرد ولي الأمر — تم إرسال رسالة نصية', 'تعهد خطي (1) للطالبة بعدم تكرار المخالفة', 'تعهد خطي (2) للطالبة بعدم تكرار المخالفة', 'تعهد خطي (3) للطالبة بعدم تكرار المخالفة', 'الإحالة إلى المشرفة الإدارية', 'الإحالة إلى منسقة شؤون الطالبات']],
+    ['إجراءات منسقة شؤون الطالبات', ['طلب استدعاء ولي الأمر خطيًا للحضور إلى المدرسة', 'الاجتماع بولي الأمر وتسليمه نسخة من السياسة', 'تعهد خطي لولي الأمر بالتزام الطالبة', 'إثبات واقعة', 'الإحالة إلى الأخصائية الاجتماعية', 'الإحالة إلى الأخصائية النفسية', 'الإحالة إلى فريق إدارة سلوك الطلبة']],
+    ['الإرشاد والدراسة (الأخصائيات)', ['توجيه وإرشاد فردي للطالبة', 'جلسات إرشادية فردية', 'دراسة حالة الطالبة', 'متابعة دراسة الحالة', 'وضع خطة علاجية لتعديل السلوك', 'عقد سلوكي مع الطالبة', 'التواصل مع ولي الأمر لمتابعة الطالبة', 'متابعة التحصيل الدراسي للطالبة', 'تقديم الخدمات الإرشادية لتعديل السلوك']],
+    ['قرارات فريق إدارة سلوك الطلبة والإدارة', ['استدعاء ولي الأمر لحضور اجتماع فريق إدارة سلوك الطلبة', 'توقيع ولي الأمر على تعهد خلال الاجتماع', 'تعهد نهائي للطالبة بالالتزام', 'فصل مؤقت للطالبة (فصل داخلي) يومًا واحدًا', 'فصل مؤقت للطالبة (فصل داخلي) ثلاثة أيام', 'إيقاف تعليمي وفق السياسة', 'احتساب التأخير يوم غياب بدون عذر', 'حرمان الطالبة من دخول اختبار منتصف الفصل الأول', 'حرمان الطالبة من دخول اختبار نهاية الفصل الأول', 'حرمان الطالبة من دخول اختبار منتصف الفصل الثاني', 'حرمان الطالبة من دخول اختبار نهاية الفصل الثاني', 'إشعار ولي الأمر بعدم أهلية الطالبة لدخول الاختبار', 'الإحالة إلى قسم حماية ورعاية الطلبة', 'متابعة الطالبة من المشرفة الإدارية', 'متابعة الطالبة من الأخصائية الاجتماعية أو النفسية']]
+  ];
+  function polActs(o) { var L = []; ['teacher', 'supervisor', 'coordinator', 'social', 'psych', 'admin'].forEach(function (st) { acts(o && o.text && o.text[st]).forEach(function (t) { t = t.replace(/^\(فريق إدارة السلوك\)\s*/, ''); if (L.indexOf(t) < 0) L.push(t); }); }); return L; }
+  function alRow(v) { return '<div class="nf-alr"><span class="nf-aln"></span>' + ed(v, 'اكتبي أو اختاري من القائمة') + '<button type="button" class="nf-aldel" title="حذف البند" aria-label="حذف البند">×</button></div>'; }
+  function alist(items, o, min) {
+    items = (items || []).filter(Boolean); min = min || 2; while (items.length < min) items.push('');
+    var pol = polActs(o), grp = function (t, L) { return '<optgroup label="' + e(t) + '">' + L.map(function (x) { return '<option>' + e(x) + '</option>'; }).join('') + '</optgroup>'; };
+    return '<div class="nf-al">' + items.map(alRow).join('') +
+      '<div class="nf-alc"><select class="nf-alsel" aria-label="إضافة إجراء من القائمة"><option value="">▾ اختاري إجراءً من القائمة لإضافته…</option>' + (pol.length ? grp('من السياسة لهذه الحالة', pol) : '') + ACT_CAT.map(function (g) { return grp(g[0], g[1]); }).join('') + '</select>' +
+      '<button type="button" class="nf-aladd">＋ إضافة بند</button></div></div>';
+  }
+  function alWire(paper) {
+    paper.addEventListener('change', function (ev) {
+      var sl = ev.target.closest('.nf-alsel'); if (!sl || !sl.value) return;
+      var al = sl.closest('.nf-al'), eds = al.querySelectorAll('.nf-alr .nf-ed'), empty = [].filter.call(eds, function (x) { return !x.textContent.trim(); })[0];
+      if (!empty) { al.querySelector('.nf-alc').insertAdjacentHTML('beforebegin', alRow('')); empty = al.querySelectorAll('.nf-alr .nf-ed'); empty = empty[empty.length - 1]; }
+      empty.textContent = sl.value; sl.value = ''; fit(paper); fsSave();
+    });
+    paper.addEventListener('click', function (ev) {
+      var a = ev.target.closest('.nf-aladd'), d = ev.target.closest('.nf-aldel');
+      if (a) { a.closest('.nf-alc').insertAdjacentHTML('beforebegin', alRow('')); var L = a.closest('.nf-al').querySelectorAll('.nf-alr .nf-ed'); L[L.length - 1].focus(); fit(paper); fsSave(); }
+      if (d) { var al = d.closest('.nf-al'); if (al.querySelectorAll('.nf-alr').length > 1) d.closest('.nf-alr').remove(); else d.closest('.nf-alr').querySelector('.nf-ed').textContent = ''; fit(paper); fsSave(); }
+    });
+  }
+
   /* ---------- نموذج 10: تحويل حالة سلوكية ---------- */
   function f10(c) {
     var sup = realWho(c.doc && c.doc.supervisor && c.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (c.supervisors || [])[0] || '');
@@ -286,7 +318,7 @@
   function g1(o) {
     var P = people(), sup = realWho(o.doc && o.doc.supervisor && o.doc.supervisor.who) || (me().role === 'supervisor' ? me().name : (o.supervisors || [])[0] || '');
     var L = sameList(o, 3); while (L.length < 3) L.push(null);
-    // الإجراءات الوقائية المعتمدة في المدرسة (كما في الاستمارة الورقية) — ثابتة غير قابلة للتعديل
+    // الإجراءات الوقائية المعتمدة في المدرسة (كما في الاستمارة الورقية) — قائمة قابلة للإضافة والتعديل
     var pre = ['توعية أولياء الأمور بسياسة إدارة السلوك', 'توعية وإرشاد بسياسة إدارة سلوك الطلبة ونشرها في الأقسام', 'المتابعة المستمرة بالمرور على الصفوف وملاحظة الطلبة'];
     return gHead(1, 'تعهـــد طــــالب (المشرف الإداري)') +
       '<table class="nf"><tr><th colspan="8">بيانات المخالفة</th></tr>' + L.map(function (x) {
@@ -295,7 +327,7 @@
       '<div class="nf-box"><b>أتعهد أنا الطالب: <span class="v">' + e(o.student) + '</span></b><br>بالالتزام الكامل بلوائح ونظم المدرسة وعدم تكرار المخالفات التي سبق وقمت بها.<br>وفي حالة تكرار ذلك سوف تقوم إدارة المدرسة باتخاذ الإجراءات المتبعة حسب اللوائح والقوانين الخاصة بسياسة إدارة سلوك الطلبة 2026 بوزارة التربية والتعليم والتعليم العالي.</div>' +
       dayRow(today()) + '<table class="nf">' + stuRows(o, false) + '</table>' +
       '<table class="nf"><tr><th colspan="3">الإجراءات الوقائية التي تم اتخاذها مع الطالب</th></tr>' +
-      [0, 1, 2].map(function (i) { return '<tr><td colspan="3">' + (i + 1) + '- ' + e(pre[i]) + '</td></tr>'; }).join('') +
+      '<tr><td colspan="3" style="text-align:right">' + alist(pre, null, 3) + '</td></tr>' +
       '<tr><td class="l">توقيع الطالب</td><td class="l">رقم جوال ولي الأمر</td><td class="l">توقيع المشرف الإداري</td></tr>' +
       '<tr><td class="sgn sgs" data-who="' + e(o.student) + '">&nbsp;</td><td class="v" dir="ltr" style="text-align:center">' + e(o.phone || '') + '</td><td class="v sgn2" style="text-align:center">' + e(sup) + '</td></tr>' +
       '<tr><td class="l">منسق شؤون الطلاب</td><td class="v" colspan="2">' + e(P.coord) + '</td></tr>' +
@@ -310,7 +342,7 @@
       '<table class="nf">' + stuRows(o, true) +
       '<tr><td class="l">نوع الواقعة</td><td class="v">' + e(vName(o)) + '</td><td class="l">عدد مرات حدوثها</td><td class="v">' + (isAbs(o) ? o.n : o.rep) + '</td></tr>' +
       '<tr><td class="l">الموضوع</td><td colspan="3" style="height:5em;vertical-align:top">' + ed(isAbs(o) ? 'غياب الطالبة بدون عذر بتاريخ ' + dmy(o.date) : (o.violation + ' بتاريخ ' + dmy(o.date)), '') + '</td></tr>' +
-      '<tr><td class="l">الإجراءات الأولية التي تمت</td><td colspan="3" style="height:5em;vertical-align:top">' + (done ? '<span class="v">' + e(done) + '</span>' : numbered(pre)) + '</td></tr>' +
+      '<tr><td class="l">الإجراءات الأولية التي تمت</td><td colspan="3" style="height:5em;vertical-align:top">' + alist(done ? done.split(' • ') : pre, o) + '</td></tr>' +
       '<tr><td colspan="4">إخطار ولي الأمر بالواقعة والإجراء التالي لما بعد إثبات الواقعة: ' + bx('تم', !!(o.doc && o.doc.supervisor && o.doc.supervisor.contact)) + ' &nbsp;&nbsp; ' + bx('لم يتم') + '</td></tr>' +
       '<tr><td class="l" colspan="2">اسم الطالب</td><td class="l" colspan="2">التوقيع</td></tr><tr><td class="v" colspan="2">' + e(o.student) + '</td><td colspan="2" class="sgn sgs" data-who="' + e(o.student) + '">&nbsp;</td></tr></table>' +
       '<div class="nf-rec"><b>توصيات إدارة المدرسة</b><div class="ln2">' + ed('', '') + '</div></div>' +
@@ -353,8 +385,8 @@
       '<table class="nf"><tr><th colspan="4">بيانـــات الطالـــب</th></tr><tr><td class="l">اسم المدرسة</td><td class="v" colspan="3">مدرسة الشيماء الثانوية للبنات</td></tr>' + stuRows(o, false).replace(/^<tr><th[^]*?<\/tr>/, '') + '</table>' +
       '<table class="nf"><tr><th colspan="2">تقرير المشكلة</th></tr>' +
       '<tr><td class="l">عرض المشكلة<br><small>(مرفق نموذج بحث حالة)</small></td><td style="height:6em;vertical-align:top">' + ed(vName(o) + ' — ' + (isAbs(o) ? 'الغياب بدون عذر رقم ' + o.n : 'للمرة ' + ord(o.rep)) + (d.notes && !/^سجل سابق/.test(d.notes) ? '. ' + d.notes : ''), '') + '</td></tr>' +
-      '<tr><td class="l">الإجراءات العلاجية<br><small>(مرفق)</small></td><td style="height:6em;vertical-align:top">' + ed([d.action, d2.date && !/^سجل سابق/.test(d2.notes || '') ? d2.action + (d2.notes ? ': ' + d2.notes : '') : ''].filter(Boolean).join(' • '), '') + '</td></tr>' +
-      '<tr><td class="l">التوصيات لفريق إدارة سلوك الطلبة</td><td style="height:6em;vertical-align:top">' + ed('', '') + '</td></tr></table>' +
+      '<tr><td class="l">الإجراءات العلاجية<br><small>(مرفق)</small></td><td style="height:6em;vertical-align:top">' + alist([d.action, d2.date && !/^سجل سابق/.test(d2.notes || '') ? d2.action + (d2.notes ? ': ' + d2.notes : '') : ''], o) + '</td></tr>' +
+      '<tr><td class="l">التوصيات لفريق إدارة سلوك الطلبة</td><td style="height:6em;vertical-align:top">' + alist([], o) + '</td></tr></table>' +
       '<table class="nf"><tr><td class="l">اسم الاختصاصي النفسي / الاجتماعي</td><td class="l">التوقيع</td></tr><tr><td class="v sgn2" style="text-align:center">' + e(who) + '</td><td class="sgn">&nbsp;</td></tr></table>' +
       '<div class="nf-note">❖ يتم طلب هذا التقرير من قبل فريق إدارة سلوك الطلبة</div>' + gFoot();
   }
@@ -398,9 +430,8 @@
       '<table class="nf"><tr><td class="l">اليوم</td><td class="l">التاريخ</td><td class="l">الوقت</td><td class="l">المكان</td><td class="l">عدد الحضور</td><td class="l">عدد الغياب</td><td class="l">رقم الاجتماع</td></tr><tr><td class="v">' + wd(today()) + '</td><td class="v">' + dmy(today()) + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr></table>' +
       '<table class="nf"><tr><td class="l">م</td><td class="l">اسم الطالب</td><td class="l">الصف</td><td class="l">المخالفة</td></tr><tr><td>1</td><td class="v">' + e(o.student) + '</td><td class="v">' + e(o.section) + '</td><td class="v">' + e(vName(o)) + '</td></tr>' +
       [2, 3, 4].map(function (i) { return '<tr><td>' + i + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr>'; }).join('') + '</table>' +
-      '<table class="nf"><tr><th colspan="3">أعضاء فريق إدارة سلوك الطلبة</th></tr><tr><td class="l">م</td><td class="l">الاسم</td><td class="l">المسمى الوظيفي</td></tr>' + M.map(function (m, i) { return '<tr><td>' + (i + 1) + '</td><td class="v">' + (m[1] ? e(m[1]) : ed('', '')) + '</td><td>' + m[0] + '</td></tr>'; }).join('') + '</table>' +
-      '<table class="nf"><tr><th>عرض المشكلة</th></tr><tr><td style="height:3em">' + ed(probText(o), '') + '</td></tr><tr><th>الإجراءات العلاجية السابقة</th></tr><tr><td>1- ' + ed(actDone(o), '') + '<br>2- ' + ed('', '') + '</td></tr><tr><th>القرارات التي اتخذت</th></tr><tr><td>' + numbered(teamActs(o).slice(0, 4)) + '</td></tr></table>' +
-      '<table class="nf"><tr><th colspan="3">توقيع أعضاء الفريق</th></tr><tr><td class="l">م</td><td class="l">الاسم</td><td class="l">التوقيع</td></tr>' + [1, 2, 3, 4, 5, 6, 7].map(function (i) { return '<tr><td>' + i + '</td><td>' + ed('', '') + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
+      '<table class="nf"><tr><th colspan="4">أعضاء فريق إدارة سلوك الطلبة</th></tr><tr><td class="l">م</td><td class="l">الاسم</td><td class="l">المسمى الوظيفي</td><td class="l">التوقيع</td></tr>' + M.map(function (m, i) { return '<tr><td>' + (i + 1) + '</td><td class="v">' + (m[1] ? e(m[1]) : ed('', '')) + '</td><td>' + m[0] + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
+      '<table class="nf"><tr><th>عرض المشكلة</th></tr><tr><td style="height:3em">' + ed(probText(o), '') + '</td></tr><tr><th>الإجراءات العلاجية السابقة</th></tr><tr><td style="text-align:right">' + alist(actDone(o).split(' • '), o) + '</td></tr><tr><th>القرارات التي اتخذت</th></tr><tr><td style="text-align:right">' + alist(teamActs(o), o) + '</td></tr></table>' +
       '<div class="nf-note">❖ يتم طلب جميع الإجراءات الخاصة بالطالب من المشرف الإداري والإجراءات الوقائية مثل دراسة ومتابعة الطالب من قبل الاختصاصي النفسي أو الاجتماعي</div>' +
       '<div class="nf-appr">يعتمد،<br>رئيس الفريق<br>' + e(people().pr) + '<br>......................................</div>' + gFoot();
   }
@@ -413,7 +444,7 @@
       '<table class="nf"><tr><td class="l">م</td><td class="l">التاريخ</td><td class="l">المخالفة</td><td class="l">الإجراء المتخذ</td></tr>' + L.map(function (x, i) {
         return '<tr><td>' + (i + 1) + '</td><td class="v">' + (x ? dmy(x.date) : '') + '</td><td class="v">' + (x ? e(x.v) + ' (' + ord(x.rep) + ')' : '') + '</td><td class="v">' + (x ? e(x.act || '') : '') + '</td></tr>'; }).join('') + '</table>' +
       '<div class="nf-box" style="text-align:right"><b>أولا:</b> بيان بعدم التزام الطالب باللوائح والنظم المدرسية ومخالفاته السابقة بالمجتمع المدرسي وأساليب تعديل السلوك التي اتخذت حياله وتوقيتاته الزمنية.<br><b>ثانيا:</b> قرار فريق إدارة سلوك الطلبة بالمدرسة في اجتماعه بتاريخ <span class="v">' + dmy(today()) + '</span><br>بناء على ما سبق وبعد الاطلاع على:<br>1. الدراسة الفردية الاجتماعية او النفسية للطالب والمقدمة من الاختصاصي الاجتماعي/ النفسي بالمدرسة.<br>2. ملف الطالب وما تضمن من إفادات خطية للطالب وذوي العلاقة.<br>3. الإجراءات التي اتبعت حيال الطالب إزاء مخالفته اللوائح والنظم المدرسية.<br>وبعد تيقن الفريق من تدرج الإجراءات طبقا لسياسة إدارة سلوك الطلبة 2026، وعدم التزام الطالب بكافة الإجراءات التي اتبعت حياله في إطار الجهود لتعديل سلوكه السلبي.<br>ونظرا لما بدر منه بتاريخ <span class="v">' + dmy(o.date) + '</span> فقد قررت الفريق الآتي:-</div>' +
-      '<table class="nf"><tr><th>قرار أعضاء الفريق</th></tr><tr><td style="min-height:4em">' + numbered(dec.slice(0, 5)) + '</td></tr></table>' +
+      '<table class="nf"><tr><th>قرار أعضاء الفريق</th></tr><tr><td style="min-height:4em;text-align:right">' + alist(dec, o) + '</td></tr></table>' +
       '<table class="nf"><tr><th colspan="4">توقيع أعضاء الفريق</th></tr><tr><td class="l">م</td><td class="l">الاسم</td><td class="l">المسمى الوظيفي</td><td class="l">التوقيع</td></tr>' +
       teamMembers(o).filter(function (m) { return m[1]; }).concat([['', ''], ['', '']]).slice(0, 9).map(function (m, i) { return '<tr><td>' + (i + 1) + '</td><td class="v">' + (m[1] ? e(m[1]) : ed('', '')) + '</td><td>' + (m[0] || ed('', '')) + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
       '<div class="nf-note">❖ يتم طلب جميع الإجراءات الخاصة بالطالب من المشرف الإداري والإجراءات الوقائية مثل دراسة حالة ومتابعة الطالب من قبل الاختصاصي النفسي أو الاجتماعي.</div>' +
@@ -591,11 +622,18 @@
   function fsKey() { return CUR ? [CUR.id, CUR.kind, CUR.o.id].join('|') : ''; }
   function fsGet(paper) {
     return JSON.stringify({ cb: [].map.call(paper.querySelectorAll('.nf-cb'), function (x) { return x.classList.contains('on') ? 1 : 0; }),
+      al: [].map.call(paper.querySelectorAll('.nf-al'), function (x) { return x.querySelectorAll('.nf-alr').length; }),
       ed: [].map.call(paper.querySelectorAll('.nf-ed'), function (x) { return x.innerText.replace(/\u00a0/g, ' ').trim(); }) });
   }
   function fsApply(paper, raw) {
     var d; try { d = JSON.parse(raw); } catch (e) { return false; }
     if (!d) return false;
+    var als = paper.querySelectorAll('.nf-al');
+    if ((d.al || []).length === als.length) [].forEach.call(als, function (al, i) {
+      var rows = al.querySelectorAll('.nf-alr'), want = d.al[i] || 1;
+      for (var k = rows.length; k < want; k++) al.querySelector('.nf-alc').insertAdjacentHTML('beforebegin', alRow(''));
+      for (k = rows.length - 1; k >= want; k--) rows[k].remove();
+    });
     var cbs = paper.querySelectorAll('.nf-cb'), eds = paper.querySelectorAll('.nf-ed');
     if ((d.cb || []).length === cbs.length) [].forEach.call(cbs, function (x, i) { var on = !!d.cb[i]; x.classList.toggle('on', on); x.textContent = on ? '☑' : '☐'; x.setAttribute('aria-checked', on); });
     if ((d.ed || []).length === eds.length) [].forEach.call(eds, function (x, i) { x.textContent = d.ed[i] || ''; });
@@ -739,6 +777,7 @@
     });
     paper.addEventListener('keydown', function (ev) { if ((ev.key === ' ' || ev.key === 'Enter') && ev.target.classList.contains('nf-cb')) { ev.preventDefault(); ev.target.click(); } });
     paper.addEventListener('input', function () { fit(paper); fsSave(); });
+    alWire(paper);
     paper.addEventListener('click', function (ev) { if (ev.target.closest('.nf-cb')) fsSave(); });
     // ما حُفظ سابقًا: من هذا الجهاز فورًا، ثم من الخادم (يظهر للجميع)
     fsLast = ''; fsDirty = false; var key0 = fsKey();
