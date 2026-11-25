@@ -100,6 +100,14 @@
     cell.classList.add('sg-has'); cell.appendChild(w);
     w.querySelector('.sgx').onclick = function (ev) { ev.stopPropagation(); w.remove(); cell.classList.remove('sg-has'); cell.removeAttribute('data-as'); };
   }
+  function myName() { return N && N.S && N.S.me ? String(N.S.me.name || '').trim() : ''; }
+  function rowOk(cell) {
+    var tr = cell.closest('tr'); if (!tr || cell.classList.contains('sgn2')) return true;
+    var t = (tr.textContent || '').replace(/✍ [^✍]*/g, ''), me = myName();
+    if (me && t.indexOf(me) >= 0) return true;
+    var staff = (N && N.S && N.S.boot && N.S.boot.staff) || [];
+    return !staff.some(function (u) { return u.name && u.name !== me && t.indexOf(u.name) >= 0; });
+  }
   function decorate(root, selectors, after) {
     if (!root || !N) return;
     root.querySelectorAll(selectors).forEach(function (cell) {
@@ -107,14 +115,17 @@
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'sgadd nf-noprint noprint';
       if (cell.classList.contains('sgs')) {
-        // خانة توقيع الطالبة: توقيع إلكتروني على الشاشة، وليس توقيع المستخدمة
-        b.textContent = '✍ توقيع الطالبة إلكترونيًا';
+        // خانة توقيع الطالبة أو ولي الأمر: توقيع إلكتروني على الشاشة، وليس توقيع المستخدمة
+        var gl = cell.getAttribute('data-gl') || 'الطالبة';
+        b.textContent = '✍ توقيع ' + gl + ' إلكترونيًا';
         b.onclick = function (ev) {
           ev.preventDefault(); ev.stopPropagation();
-          pad(function (d) { place(cell, d); if (after) after(); }, { title: 'توقيع الطالبة', name: cell.getAttribute('data-who') || '' });
+          pad(function (d) { place(cell, d); if (after) after(); }, { title: 'توقيع ' + gl, name: cell.getAttribute('data-who') || '' });
         };
         cell.appendChild(b); return;
       }
+      // خانة في صف يحمل اسم موظفة أخرى: لا يوضع فيها توقيعي
+      if (!rowOk(cell)) return;
       b.textContent = '✍ أضيفي توقيعي';
       b.onclick = function (ev) {
         ev.preventDefault(); ev.stopPropagation();
@@ -133,6 +144,10 @@
     var n = String(name).trim();
     get().then(function (s) {
       if (!s) return;
+      root.querySelectorAll('td.sgn').forEach(function (cell) { // خانة توقيع في صف يحمل اسمي
+        if (cell.querySelector('.sgw') || cell.classList.contains('sgs')) return;
+        var tr = cell.closest('tr'); if (tr && (tr.textContent || '').replace(/✍ [^✍]*/g, '').indexOf(n) >= 0) { cell.setAttribute('data-as', '1'); place(cell, s); }
+      });
       root.querySelectorAll('td.sgn2, .nf-sig td, .nf-appr, .report .sig > div, .mylog .mlme').forEach(function (cell) {
         if (cell.querySelector('.sgw') || cell.getAttribute('data-as') || cell.classList.contains('sgs')) return;
         var t = (cell.textContent || '').replace(/✍ [^✍]*$/, '');

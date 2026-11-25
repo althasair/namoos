@@ -368,12 +368,12 @@
       '<table class="nf"><tr><th colspan="6">بيانات ولي الأمر</th></tr>' +
       '<tr><td class="l">ولي أمر الطالب</td><td class="v" colspan="5">' + e(o.student) + '</td></tr>' +
       '<tr><td class="l">اسم ولي الأمر</td><td class="v">' + e(gn) + '</td><td class="l">صلة القرابة</td><td class="v">' + e(rel) + '</td><td class="l">رقم الهاتف</td><td class="v" dir="ltr">' + e(o.phone || '') + '</td></tr>' +
-      '<tr><td class="l">التوقيع</td><td colspan="5" class="sgn">&nbsp;</td></tr>' +
-      '<tr><td class="l">منسق شؤون الطلاب</td><td class="v" colspan="5">' + e(P.coord) + '</td></tr>' +
-      '<tr><td class="l">الاختصاصي الاجتماعي</td><td class="v" colspan="5">' + e(soc) + '</td></tr>' +
-      '<tr><td class="l">الاختصاصي النفسي</td><td class="v" colspan="5">' + e(psy) + '</td></tr>' +
-      '<tr><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v" colspan="5">' + e(P.vp) + '</td></tr>' +
-      '<tr><td class="l">يعتمد / مدير المدرسة</td><td class="v" colspan="5">' + e(P.pr) + '</td></tr></table>' +
+      '<tr><td class="l">التوقيع</td><td colspan="5" class="sgn sgs" data-gl="ولي الأمر">&nbsp;</td></tr>' +
+      '<tr><td class="l">منسق شؤون الطلاب</td><td class="v sgn2" colspan="5">' + e(P.coord) + '</td></tr>' +
+      '<tr><td class="l">الاختصاصي الاجتماعي</td><td class="v sgn2" colspan="5">' + e(soc) + '</td></tr>' +
+      '<tr><td class="l">الاختصاصي النفسي</td><td class="v sgn2" colspan="5">' + e(psy) + '</td></tr>' +
+      '<tr><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v sgn2 sgvp" colspan="5">' + e(P.vp) + '</td></tr>' +
+      '<tr><td class="l">يعتمد / مدير المدرسة</td><td class="v sgn2" colspan="5">' + e(P.pr) + '</td></tr></table>' +
       '<div class="nf-note">❖ في حال استدعاء ولي الأمر أكثر من مره ولم يحضر يتم إرسال رسالة نصية لولي الأمر بقرار فريق إدارة سلوك الطلبة</div>' + gFoot();
   }
   function teamMembers() {
@@ -462,7 +462,7 @@
     }
     return head + body +
       '<table class="nf"><tr><td class="l">الطالب</td><td class="v" colspan="3">' + e(o.student) + '</td></tr>' +
-      '<tr><td class="l">توقيع ولي الأمر</td><td class="sgn">&nbsp;</td><td>اليوم: ..............</td><td>التاريخ: &nbsp;&nbsp; / &nbsp;&nbsp; /</td></tr>' +
+      '<tr><td class="l">توقيع ولي الأمر</td><td class="sgn sgs" data-gl="ولي الأمر">&nbsp;</td><td>اليوم: ..............</td><td>التاريخ: &nbsp;&nbsp; / &nbsp;&nbsp; /</td></tr>' +
       '<tr><td class="l">منسق شؤون الطلبة</td><td class="v sgn2">' + e(P.coord) + '</td><td class="l">نائب المدير للشؤون الإدارية وشؤون الطلاب</td><td class="v sgn2">' + e(P.vp) + '</td></tr>' +
       '<tr><td class="l">مدير المدرسة</td><td class="v sgn2" colspan="3">' + e(P.pr) + '</td></tr></table>' +
       '<div class="nf-w3n"><b><u>ملاحظة:</u></b> في حال رفض ولي الأمر <u>التوقيع أو الحضور</u> يتم اعتماده من قبل كل من المشرف الإداري ومنسق شؤون الطلبة والنائب الإداري ومدير المدرسة وإرسال <u>رسالة نصية لولي الأمر</u> تثبت ذلك.</div></div>';
@@ -483,7 +483,7 @@
         'بناءً على سياسة إدارة سلوك الطلبة 2026 (إجراءات الغياب بدون عذر)، وبعد استنفاد الإجراءات السابقة، يُحاط ولي أمر الطالب علمًا بأنه في حال تجاوز غياب الطالب بدون عذر رسمي الحد المسموح به فإن الطالب يصبح غير مؤهل لدخول <span class="v">' + e(I.exam || '..............') + '</span>.' :
         'بناءً على سياسة إدارة سلوك الطلبة 2026 (إجراءات الغياب بدون عذر)، ونظرًا لتغيّب الطالب بدون عذر رسمي (<span class="v">' + cnt + '</span>) أيام، وبعد استنفاد الإجراءات السابقة، فقد قرر فريق إدارة سلوك الطلبة في اجتماعه بتاريخ <span class="v">' + dmy(today()) + '</span> عدم أهلية الطالب لدخول <span class="v">' + e(I.exam || '..............') + '</span> وإخطار ولي الأمر بذلك.') + '</div>' +
       '<table class="nf"><tr><th colspan="4">إقرار ولي الأمر</th></tr><tr><td colspan="4" style="line-height:1.9">أقر أنا ولي أمر الطالب: <span class="v">' + e(o.student) + '</span> بعلمي بما ورد أعلاه، وأتعهد بالتزام الطالب بالدوام المدرسي.</td></tr>' +
-      '<tr><td class="l">اسم ولي الأمر</td><td class="v">' + e(String(o.gName || '').replace(/\s*\([^)]*\)\s*$/, '')) + '</td><td class="l">التوقيع</td><td class="sgn">&nbsp;</td></tr>' +
+      '<tr><td class="l">اسم ولي الأمر</td><td class="v">' + e(String(o.gName || '').replace(/\s*\([^)]*\)\s*$/, '')) + '</td><td class="l">التوقيع</td><td class="sgn sgs" data-gl="ولي الأمر">&nbsp;</td></tr>' +
       '<tr><td class="l">طريقة الإخطار</td><td colspan="3">' + bx('حضوريًا') + ' &nbsp; ' + bx('هاتفيًا') + ' &nbsp; ' + bx('رسالة نصية') + ' &nbsp; ' + bx('لم يحضر — أُرسلت رسالة نصية بالقرار') + '</td></tr></table>' +
       '<table class="nf"><tr><th colspan="3">أعضاء فريق إدارة سلوك الطلبة</th></tr><tr><td class="l">المسمى الوظيفي</td><td class="l">الاسم</td><td class="l">التوقيع</td></tr>' +
       [['منسق شؤون الطلبة', P.coord], ['الاختصاصي الاجتماعي', soc], ['نائب المدير للشؤون الإدارية وشؤون الطلاب', P.vp]].map(function (m) { return '<tr><td>' + m[0] + '</td><td class="v">' + e(m[1]) + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
