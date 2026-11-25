@@ -385,6 +385,12 @@
     var P = people(), st = N.S.boot.staff || [], one = function (r) { return (st.filter(function (u) { return u.role === r; })[0] || {}).name || ''; };
     return [['مدير المدرسة', P.pr], ['نائب المدير للشؤون الإدارية وشؤون الطلاب', P.vp], ['نائب المدير للشؤون الأكاديمية وشؤون الطلاب (عند الحاجة)', 'آسيا الذبياني'], ['منسق شؤون الطلبة', P.coord], ['المعلم (في حال ارتباطه بالمشكلة)', '']].concat(teamSocs(o).map(function (n) { return ['الاختصاصي الاجتماعي', n]; })).concat([['الاختصاصي النفسي', one('psych')], ['المشرف الإداري', teamSup()]]);
   }
+  /* عرض المشكلة تلقائيًا حسب نوع الحالة (قابل للتعديل) */
+  function probText(o) {
+    if (isAbs(o)) { var n = Math.max(uRecs(o).length, Number(o.n) || 0); return 'تجاوزت الطالبة الحد المسموح به للغياب بدون عذر وفق سياسة الغياب 2026، إذ بلغ عدد أيام غيابها بدون عذر (' + n + ') ' + (n > 2 && n < 11 ? 'أيام' : 'يومًا') + '، رغم الإجراءات العلاجية السابقة.'; }
+    if (/^التأخير الصباحي/.test(o.violation || '')) return 'تكرار التأخير الصباحي للطالبة للمرة ' + ord(o.rep) + '، وتجاوزها الحد المسموح به وفق سياسة إدارة سلوك الطلبة 2026، رغم الإجراءات العلاجية السابقة.';
+    return 'تكرار الطالبة مخالفة «' + (o.violation || '') + '» للمرة ' + ord(o.rep) + '، رغم الإجراءات العلاجية السابقة وفق سياسة إدارة سلوك الطلبة 2026.';
+  }
   /* نموذج (7) محضر اجتماع الفريق لمجموعة من الطلاب */
   function g7(o) {
     var M = teamMembers(o);
@@ -393,7 +399,7 @@
       '<table class="nf"><tr><td class="l">م</td><td class="l">اسم الطالب</td><td class="l">الصف</td><td class="l">المخالفة</td></tr><tr><td>1</td><td class="v">' + e(o.student) + '</td><td class="v">' + e(o.section) + '</td><td class="v">' + e(vName(o)) + '</td></tr>' +
       [2, 3, 4].map(function (i) { return '<tr><td>' + i + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td><td>' + ed('', '') + '</td></tr>'; }).join('') + '</table>' +
       '<table class="nf"><tr><th colspan="3">أعضاء فريق إدارة سلوك الطلبة</th></tr><tr><td class="l">م</td><td class="l">الاسم</td><td class="l">المسمى الوظيفي</td></tr>' + M.map(function (m, i) { return '<tr><td>' + (i + 1) + '</td><td class="v">' + (m[1] ? e(m[1]) : ed('', '')) + '</td><td>' + m[0] + '</td></tr>'; }).join('') + '</table>' +
-      '<table class="nf"><tr><th>عرض المشكلة</th></tr><tr><td style="height:3em">' + ed('', '') + '</td></tr><tr><th>الإجراءات العلاجية السابقة</th></tr><tr><td>1- ' + ed(actDone(o), '') + '<br>2- ' + ed('', '') + '</td></tr><tr><th>القرارات التي اتخذت</th></tr><tr><td>' + numbered(teamActs(o).slice(0, 4)) + '</td></tr></table>' +
+      '<table class="nf"><tr><th>عرض المشكلة</th></tr><tr><td style="height:3em">' + ed(probText(o), '') + '</td></tr><tr><th>الإجراءات العلاجية السابقة</th></tr><tr><td>1- ' + ed(actDone(o), '') + '<br>2- ' + ed('', '') + '</td></tr><tr><th>القرارات التي اتخذت</th></tr><tr><td>' + numbered(teamActs(o).slice(0, 4)) + '</td></tr></table>' +
       '<table class="nf"><tr><th colspan="3">توقيع أعضاء الفريق</th></tr><tr><td class="l">م</td><td class="l">الاسم</td><td class="l">التوقيع</td></tr>' + [1, 2, 3, 4, 5, 6, 7].map(function (i) { return '<tr><td>' + i + '</td><td>' + ed('', '') + '</td><td class="sgn">&nbsp;</td></tr>'; }).join('') + '</table>' +
       '<div class="nf-note">❖ يتم طلب جميع الإجراءات الخاصة بالطالب من المشرف الإداري والإجراءات الوقائية مثل دراسة ومتابعة الطالب من قبل الاختصاصي النفسي أو الاجتماعي</div>' +
       '<div class="nf-appr">يعتمد،<br>رئيس الفريق<br>' + e(people().pr) + '<br>......................................</div>' + gFoot();
