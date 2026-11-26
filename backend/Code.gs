@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.24.0';
+var VERSION = '2.24.1';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -1020,6 +1020,22 @@ API.saveFormState = function (me, req) {
   var sh = formSheet_(), r = formRow_(key), row = [key, d, now_(), me.name];
   if (r) sh.getRange(r, 1, 1, 4).setValues([row]); else sh.appendRow(row);
   return { ok: true };
+};
+
+/* ===== الإجراء الورقي لكل استمارة (للتقرير الشهري): هل عُبّئت، وهل اعتُمدت ===== */
+API.paperStatus = function (me, req) {
+  if (me.role !== 'admin' && me.role !== 'coordinator') throw new Error('هذه الصفحة للمنسقة والإدارة');
+  var filled = {}, appr = {}, sh = formSheet_(), n = sh.getLastRow();
+  if (n >= 2) sh.getRange(2, 1, n - 1, 4).getValues().forEach(function (r) {
+    var k = str_(r[0]), d = str_(r[1]); if (!k) return;
+    var has = false; try { var j = JSON.parse(d); has = (j.cb || []).some(Boolean) || (j.ed || []).some(function (x) { return String(x || '').trim(); }); } catch (e) { has = !!d; }
+    filled[k] = { at: apprVal_(r[2]), by: str_(r[3]), has: has };
+  });
+  apprLive_().forEach(function (a) {
+    var x = appr[a.key] = appr[a.key] || { pending: 0, done: 0, last: '' };
+    if (a.status === 'بانتظار الاعتماد') x.pending++; else { x.done++; x.last = a.approver || x.last; }
+  });
+  return { filled: filled, appr: appr };
 };
 
 var NO_REPLY = 'لم يرد ولي الأمر — تم إرسال رسالة نصية';

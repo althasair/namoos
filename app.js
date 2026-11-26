@@ -1622,6 +1622,43 @@
    *  التقرير الشهري
    * ===================================================== */
   function num(n, one, two, few, many) { return n === 0 ? 'لا ' + few : n === 1 ? one : n === 2 ? two : n <= 10 ? n + ' ' + few : n + ' ' + many; }
+  /* التقرير الشهري ← المخالفات بالأسماء: كل مخالفة باسم الطالبة، وهل عُمل إجراؤها الورقي (الاستمارات المطلوبة: معتمدة / قيد الاعتماد / معبّأة / لم تُعمل) */
+  function reportNames(m) {
+    var box = $('#rx'); box.innerHTML = '<div class="empty">جارٍ التحميل…</div>';
+    var list = (S.boot.cases || []).filter(function (c) { return String(c.date || '').slice(0, 7) === m; })
+      .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.student).localeCompare(String(b.student), 'ar'); });
+    api('paperStatus', {}, true).then(function (P) {
+      var st = function (f) {
+        var a = P.appr[f.key], x = P.filled[f.key];
+        if (a && a.done && !a.pending) return ['ok', '✔ معتمدة'];
+        if (a && a.pending) return ['ap', '⏳ قيد الاعتماد'];
+        if (x && x.has) return ['tq', '✎ معبّأة'];
+        return ['red', '✖ لم تُعمل'];
+      };
+      var rows = list.map(function (c) {
+        var F = window.NamoosForms ? NamoosForms.required('case', c) : [], S2 = F.map(st);
+        var ok = S2.filter(function (x) { return x[0] !== 'red'; }).length;
+        var all = !F.length ? 'na' : ok === F.length ? 'yes' : ok ? 'part' : 'no';
+        return { c: c, F: F, S: S2, all: all };
+      });
+      var cnt = function (k) { return rows.filter(function (r) { return r.all === k; }).length; };
+      var flt = S.namesFlt || 'all';
+      var lab = { yes: ['ok', 'نعم'], part: ['ap', 'جزئي'], no: ['red', 'لا'], na: ['', 'لا تتطلب'] };
+      box.innerHTML = '<div class="card"><h3 style="margin:0 0 6px">المخالفات بالأسماء — ' + monthLabel(m) + '</h3>' +
+        '<p class="sub" style="margin:0 0 10px">كل مخالفة باسم الطالبة، ومقابلها الاستمارات الورقية المطلوبة لها حسب السياسة، وهل عُملت.</p>' +
+        '<div class="noprint" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">' +
+        [['all', 'الكل (' + rows.length + ')'], ['yes', '✔ يوجد إجراء ورقي (' + cnt('yes') + ')'], ['part', '◐ جزئي (' + cnt('part') + ')'], ['no', '✖ لا يوجد (' + cnt('no') + ')'], ['na', 'لا تتطلب استمارة (' + cnt('na') + ')']].map(function (b) {
+          return '<button class="chip' + (flt === b[0] ? ' dark' : '') + '" data-nflt="' + b[0] + '" style="border:none;cursor:pointer">' + b[1] + '</button>'; }).join('') + '</div>' +
+        (rows.length ? '<div class="tw"><table class="t"><thead><tr><th>م</th><th>التاريخ</th><th>الطالبة</th><th>الشعبة</th><th>المخالفة</th><th>المرة</th><th>الإجراء الورقي المطلوب</th><th>يوجد إجراء ورقي؟</th></tr></thead><tbody>' +
+          rows.filter(function (r) { return flt === 'all' || r.all === flt; }).map(function (r, i) {
+            var c = r.c, L = lab[r.all];
+            return '<tr><td>' + (i + 1) + '</td><td style="white-space:nowrap">' + esc(String(c.date || '').split('-').reverse().join('/')) + '</td><td style="white-space:nowrap">' + esc(c.student) + '</td><td dir="ltr" style="text-align:right">' + esc(c.section) + '</td><td>' + esc(c.violation) + '</td><td>' + esc(c.rep || '') + '</td><td>' +
+              (r.F.length ? r.F.map(function (f, k) { return '<div style="display:flex;gap:6px;align-items:center;justify-content:space-between;margin:2px 0"><span>' + esc(f.title) + '</span><span class="chip ' + r.S[k][0] + '">' + r.S[k][1] + '</span></div>'; }).join('') : '<span class="sub">—</span>') +
+              '</td><td><span class="chip ' + L[0] + '">' + L[1] + '</span></td></tr>';
+          }).join('') + '</tbody></table></div>' : '<div class="empty">لا توجد مخالفات مسجّلة في هذا الشهر.</div>') + '</div>';
+      $$('[data-nflt]').forEach(function (b) { b.onclick = function () { S.namesFlt = b.dataset.nflt; reportNames(m); }; });
+    }).catch(function (er) { box.innerHTML = '<div class="empty">' + esc(er && er.message || 'تعذّر التحميل') + '</div>'; });
+  }
   function vReport(el) {
     var cur = (S.boot.today || '').slice(0, 7);
     var avail = SCHOOL_MONTHS.filter(function (x) { return x <= cur; });
@@ -1631,8 +1668,8 @@
     if (avail.indexOf(m) < 0) m = avail[avail.length - 1];
     var sel = (S.reportMonths || avail.slice(-3)).filter(function (x) { return avail.indexOf(x) >= 0; });
     el.innerHTML = '<div class="noprint" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px"><div><h2 class="pt">التقرير الشهري</h2><p class="sub">يُكتب تلقائيًا من بيانات المنصة، وجاهز للطباعة.</p></div>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="modesw"><button data-rmode="one"' + (mode === 'one' ? ' class="on"' : '') + '>شهر واحد</button><button data-rmode="cmp"' + (mode === 'cmp' ? ' class="on"' : '') + '>مقارنة أشهر</button></div>' +
-      (mode === 'one' ? '<select class="inp" id="rm" style="width:auto">' + avail.map(function (x) { return '<option value="' + x + '"' + (x === m ? ' selected' : '') + '>' + monthLabel(x) + '</option>'; }).join('') + '</select>' : '') +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="modesw"><button data-rmode="one"' + (mode === 'one' ? ' class="on"' : '') + '>شهر واحد</button><button data-rmode="cmp"' + (mode === 'cmp' ? ' class="on"' : '') + '>مقارنة أشهر</button><button data-rmode="names"' + (mode === 'names' ? ' class="on"' : '') + '>📄 المخالفات بالأسماء</button></div>' +
+      (mode !== 'cmp' ? '<select class="inp" id="rm" style="width:auto">' + avail.map(function (x) { return '<option value="' + x + '"' + (x === m ? ' selected' : '') + '>' + monthLabel(x) + '</option>'; }).join('') + '</select>' : '') +
       '<button class="btn" id="rp">طباعة</button></div></div>' +
       (mode === 'cmp' ? '<div class="card noprint rmsel"><div class="sub" style="margin-bottom:8px">اختاري شهرين أو أكثر للمقارنة:</div><div class="rmchips">' + avail.map(function (x) {
         return '<label class="rmchip' + (sel.indexOf(x) >= 0 ? ' on' : '') + '"><input type="checkbox" value="' + x + '"' + (sel.indexOf(x) >= 0 ? ' checked' : '') + '>' + monthLabel(x) + '</label>'; }).join('') +
@@ -1651,6 +1688,7 @@
       if (sel.length >= 2) reportCompare(sel.sort()); else $('#rx').innerHTML = '<div class="empty">اختاري شهرين أو أكثر ثم اضغطي «اعرضي المقارنة».</div>';
       return;
     }
+    if (mode === 'names') { reportNames(m); return; }
     var i = SCHOOL_MONTHS.indexOf(m), prev = i > 0 ? SCHOOL_MONTHS[i - 1] : '';
     Promise.all([api('dashboard', monthRange(m)), prev ? api('dashboard', monthRange(prev), true) : Promise.resolve(null),
       api('absDashboard', monthRange(m), true), prev ? api('absDashboard', monthRange(prev), true) : Promise.resolve(null)]).then(function (res) {
@@ -2194,7 +2232,7 @@
   if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); }); }
   // تنبيه التحديث: الصفحة المفتوحة طوال اليوم لا ترى التعديلات الجديدة — نفحص كل 5 دقائق ونعرض زر «تحديث»
   (function () {
-    var cur = 'namoos-v69'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
+    var cur = 'namoos-v70'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
     var ver = function () { return fetch('sw.js?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { var m = t.match(/namoos-v\d+/); return m ? m[0] : ''; }); };
     var show = function () {
       if (document.getElementById('upd-bar')) return;

@@ -597,6 +597,32 @@
     }
     return out;
   }
+  /* كل الاستمارات الورقية المطلوبة لحالة (بغض النظر عن صفة المستخدمة) — للتقرير الشهري */
+  function required(kind, o) {
+    var out = [];
+    if (!o) return out;
+    Object.keys(GUIDE).forEach(function (id) {
+      var g = GUIDE[id];
+      if (kind === 'abs' && o.kind !== 'U') return;
+      if (kind === 'abs' && id === 'g2') return;
+      if (kind !== 'abs' && g.absOnly) return;
+      if (id === 'g5p' && out.indexOf('g5s') >= 0 && !reached(o, 'psych')) return;
+      try { if (g.when(o)) out.push(id); } catch (err) {}
+    });
+    if (o.req) {
+      if (kind === 'case') {
+        var tdy = /^(التأخير الصباحي|التأخر عن الطابور)/.test(o.violation || '');
+        var toSpec = tdy ? (o.req.social || o.req.psych || /الإحالة إلى الاختصاصي|الإحالة إلى الأخصائي/.test(txt(o, 'supervisor') + txt(o, 'coordinator'))) : (o.req.social || o.req.psych || Number(o.rep) >= 3);
+        if (toSpec && reached(o, 'supervisor')) out.push('f10');
+        if (o.req.social && reached(o, 'social')) out.push('f5c');
+        if (tdy && o.req.social && /دراسة حالة/.test(txt(o, 'social'))) out.push('f6');
+      } else {
+        if (o.kind === 'U' && o.req.social) out.push('f9');
+        if (o.req.social && reached(o, 'social')) out.push('f5a');
+      }
+    }
+    return out.map(function (id) { return { id: id, key: [id, kind, o.id].join('|'), title: (DEF[id] || {}).title || id }; });
+  }
   function buttons(kind, o) {
     var ids = guideFor(kind, o).concat(available(kind, o));
     if (!ids.length) return '';
@@ -900,6 +926,6 @@
         '<span class="fchip off" title="غير مطلوب في هذه المرحلة">' + DEF[id].title + '</span>';
     }).join('');
   }
-  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, chips: chips, _build: function (id, o) { return DEF[id].build(o); }, _open: function (id, kind, oid, ap) { return open(id, kind, oid, ap); }, trail: trail,
+  window.NamoosForms = { init: function (ctx) { N = ctx; }, buttons: buttons, required: required, chips: chips, _build: function (id, o) { return DEF[id].build(o); }, _open: function (id, kind, oid, ap) { return open(id, kind, oid, ap); }, trail: trail,
     download: function (id, kind, oid) { open(id, kind, oid); setTimeout(function () { var b = document.getElementById('nf-dl'); if (b) b.click(); }, 1200); } };
 })();

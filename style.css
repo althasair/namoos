@@ -496,3 +496,6 @@ td.sg-has .sg-txt{visibility:hidden}
 .nf-aladd{font-family:inherit;font-size:12px;font-weight:700;border:1px dashed #0B3D91;border-radius:8px;background:#fff;color:#0B3D91;padding:3px 10px;cursor:pointer}
 .nf-snap .nf-alc,.nf-snap .nf-aldel{display:none!important}
 @media print{.nf-alc,.nf-aldel{display:none!important}}
+.modesw{display:inline-flex;gap:4px;padding:4px;border-radius:14px;background:var(--sil-l,#EEF1F3);flex-wrap:wrap}
+.modesw button{font-family:inherit;font-size:13px;font-weight:700;border:none;border-radius:10px;padding:7px 12px;background:transparent;color:var(--ink,#131C25);cursor:pointer}
+.modesw button.on{background:var(--char,#131C25);color:#fff}
