@@ -8,7 +8,7 @@
  */
 
 var TZ = 'Asia/Qatar';
-var VERSION = '2.23.1';
+var VERSION = '2.24.0';
 
 /* ============================================================
  *  أسماء الأوراق والأعمدة
@@ -1591,7 +1591,7 @@ API.markRead = function (me, req) {
  *  لوحة التحكم والتقرير الشهري (الإدارة)
  * ============================================================ */
 API.dashboard = function (me, req) {
-  if (me.role !== 'admin' && me.role !== 'supervisor') throw new Error('لوحة التحكم للإدارة');
+  if (me.role !== 'admin' && me.role !== 'supervisor' && me.role !== 'coordinator') throw new Error('لوحة التحكم للإدارة');
   var data = allData_();
   var secs = sectionsFor_(me);
   var inSec = function (s) { return secs.indexOf(s) >= 0; };
@@ -2039,7 +2039,7 @@ API.absStudents = function (me) {
 
 /** لوحة الغياب */
 API.absDashboard = function (me, req) {
-  if (me.role !== 'admin' && me.role !== 'supervisor') throw new Error('لوحة التحكم للإدارة');
+  if (me.role !== 'admin' && me.role !== 'supervisor' && me.role !== 'coordinator') throw new Error('لوحة التحكم للإدارة');
   var secs = sectionsFor_(me);
   var from = str_(req.from) || '0000', to = str_(req.to) || '9999';
   var all = absData_().filter(function (a) { return secs.indexOf(a.section) >= 0 && a.kind !== 'dup'; });

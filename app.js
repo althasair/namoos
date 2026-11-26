@@ -171,7 +171,7 @@
   var NAV = {
     teacher: [['record', 'تسجيل مخالفة'], ['mine', 'حالاتي', 'tasks'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     supervisor: [['board', 'تنظيم مهامي', 'board'], ['tasks', 'الوارد: ما سجّلتُه', 'tasksS'], ['tTasks', 'مخالفات المعلمات', 'tasksT'], ['outside', 'مخالفة خارج الصف'], ['tardy', 'التأخير الصباحي'], ['studFile', 'ملف الطالبات'], ['cases', 'كل الحالات'], ['dash', 'لوحة شعبي'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
-    coordinator: [['board', 'تنظيم مهامي', 'board'], ['tasks', 'المهام', 'tasks'], ['studFile', 'ملف الطالبات'], ['cases', 'كل الحالات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
+    coordinator: [['board', 'تنظيم مهامي', 'board'], ['report', 'التقرير الشهري'], ['tasks', 'المهام', 'tasks'], ['studFile', 'ملف الطالبات'], ['cases', 'كل الحالات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     social: [['board', 'تنظيم مهامي', 'board'], ['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     psych: [['board', 'تنظيم مهامي', 'board'], ['tasks', 'المهام', 'tasks'], ['cases', 'كل الحالات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     admin: [['dash', 'لوحة التحكم'], ['report', 'التقرير الشهري'], ['tasks', 'مهام الإدارة', 'tasks'], ['studFile', 'ملف الطالبات'], ['cases', 'كل الحالات'], ['outside', 'تسجيل مخالفة'], ['tardy', 'التأخير الصباحي'], ['staff', 'طباعة الإجراءات'], ['messages', 'الرسائل', 'messages']],
@@ -180,7 +180,7 @@
   var NAV_ABS = {
     teacher: [['absRec', 'تسجيل الغياب'], ['absMine', 'غياب سجّلته'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     supervisor: [['board', 'تنظيم مهامي', 'board'], ['absTasks', 'وارد الغياب', 'abstasks'], ['absRec', 'تسجيل الغياب'], ['studFile', 'ملف الطالبات'], ['absLog', 'سجل الغياب'], ['absStud', 'متابعة الطالبات'], ['absDash', 'لوحة الغياب'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
-    coordinator: [['board', 'تنظيم مهامي', 'board'], ['absTasks', 'مهام الغياب', 'abstasks'], ['studFile', 'ملف الطالبات'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
+    coordinator: [['board', 'تنظيم مهامي', 'board'], ['report', 'التقرير الشهري'], ['absTasks', 'مهام الغياب', 'abstasks'], ['studFile', 'ملف الطالبات'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['staff', 'إجراءات المشرفات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     social: [['board', 'تنظيم مهامي', 'board'], ['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     psych: [['board', 'تنظيم مهامي', 'board'], ['absTasks', 'مهام الغياب', 'abstasks'], ['absLog', 'حالات الغياب'], ['absStud', 'متابعة الطالبات'], ['myLog', 'طباعة إجراءاتي'], ['messages', 'الرسائل', 'messages']],
     daily: [['dTardy', 'حصيلة التأخير'], ['dAbs', 'حصيلة الغياب'], ['messages', 'الرسائل', 'messages']],
@@ -2194,7 +2194,7 @@
   if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); }); }
   // تنبيه التحديث: الصفحة المفتوحة طوال اليوم لا ترى التعديلات الجديدة — نفحص كل 5 دقائق ونعرض زر «تحديث»
   (function () {
-    var cur = 'namoos-v68'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
+    var cur = 'namoos-v69'; // رقم نسخة الواجهة المفتوحة الآن (يُرفع مع كل تحديث مع رقم sw.js)
     var ver = function () { return fetch('sw.js?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { var m = t.match(/namoos-v\d+/); return m ? m[0] : ''; }); };
     var show = function () {
       if (document.getElementById('upd-bar')) return;
